@@ -84,6 +84,17 @@ const nowUpdated = 'April 2026';
             </p>
           </div>
           <div class="col-span-12 md:col-span-4 md:pt-4">
+            {site.headshot && (
+              <img
+                src={site.headshot}
+                alt={`${site.name} headshot`}
+                class="w-20 h-20 rounded-full object-cover mb-5 fade-up"
+                style="animation-delay: 0.65s; box-shadow: 0 4px 20px rgba(26,22,18,0.15)"
+                width="80"
+                height="80"
+                loading="eager"
+              />
+            )}
             <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
               At present
             </div>

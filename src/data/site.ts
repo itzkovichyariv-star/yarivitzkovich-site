@@ -29,6 +29,7 @@ export const site = {
     bluesky: "",
   },
   totalPublicationsOverride: 28, // until content collection is wired up
+  headshot: "/images/headshot.jpg",
 } as const;
 
 export type SiteConfig = typeof site;
