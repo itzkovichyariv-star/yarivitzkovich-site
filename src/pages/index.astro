@@ -1,0 +1,228 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+
+const fields = [
+  {
+    num: '01',
+    title: 'Workplace incivility & its transmission',
+    desc: 'How mistreatment travels through organizational hierarchies — from supervisors to subordinates, from witnesses to actors. Why one rude moment reshapes a team.',
+    count: '14 works',
+    href: '/publications?topics=incivility',
+  },
+  {
+    num: '02',
+    title: 'Bystander intervention & AI',
+    desc: 'Can artificial intelligence act as a real-time witness to workplace harm? Testing AI-mediated interventions in organizational settings.',
+    count: '6 works',
+    href: '/publications?topics=bystander,ai',
+  },
+  {
+    num: '03',
+    title: 'Wellbeing, ADHD & employability',
+    desc: 'Longitudinal studies on training programs, emotional intelligence, and the neurodivergent experience in contemporary workplaces.',
+    count: '5 works',
+    href: '/publications?topics=wellbeing,adhd',
+  },
+];
+
+const nowItems = [
+  {
+    label: 'Writing',
+    title: 'AI as an Automated Bystander',
+    note: 'Paper under review at HRMR. Can machines witness harm without replacing human courage?',
+  },
+  {
+    label: 'Analysing',
+    title: 'ADHD training program, T1–T4',
+    note: 'Repeated-measures data on emotional intelligence, employability, and wellbeing.',
+  },
+  {
+    label: 'Editing',
+    title: 'Journal of Managerial Psychology',
+    note: 'Handling manuscripts on dehumanisation, flexible HRM, and the shape of modern work.',
+  },
+];
+const nowUpdated = 'April 2026';
+
+const selected = [
+  {
+    year: '2026',
+    type: 'Article',
+    status: 'Under review',
+    title: 'AI as an Automated Bystander: Rethinking Intervention in Workplace Mistreatment',
+    venue: 'Human Resource Management Review',
+    slug: 'ai-automated-bystander',
+  },
+  {
+    year: '2025',
+    type: 'Article',
+    status: null,
+    title: 'Witnessed Incivility and Its Transmission Through Organizational Hierarchies',
+    venue: 'Journal of Organizational Behavior',
+    slug: 'witnessed-incivility-transmission',
+  },
+  {
+    year: '2025',
+    type: 'Editorial',
+    status: null,
+    title: 'What Peer Review Asks of Us: Notes from the Desk',
+    venue: 'Journal of Managerial Psychology',
+    slug: 'peer-review-notes',
+  },
+];
+---
+<BaseLayout title={`${site.name} — Research on workplace mistreatment & AI`}>
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2 pt-4">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft fade-up" style="animation-delay: 0.1s">
+          № 001
+        </div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1
+          class="font-display leading-none tracking-tight fade-up"
+          style="font-size: clamp(3rem, 10vw, 8.5rem); font-weight: 300; animation-delay: 0.2s"
+        >
+          {site.shortName}.
+        </h1>
+        <div class="mt-8 md:mt-12 grid grid-cols-12 gap-6">
+          <div class="col-span-12 md:col-span-8">
+            <p
+              class="font-display leading-snug fade-up"
+              style="font-size: clamp(1.35rem, 2.8vw, 2.1rem); animation-delay: 0.4s; font-weight: 300"
+            >
+              I study how <em class="text-accent not-italic" style="font-style: italic">mistreatment</em> moves through organizations — and whether machines can learn to interrupt it.
+            </p>
+            <p class="mt-8 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.6s">
+              Associate Editor at the <em>Journal of Managerial Psychology</em>. Faculty in Human Resources Management & Organizational Development at Ariel University. Practitioner-scholar working at the seam between research on workplace harm and tools that might ease it.
+            </p>
+          </div>
+          <div class="col-span-12 md:col-span-4 md:pt-4">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
+              At present
+            </div>
+            <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
+              <div>{site.affiliation.en}</div>
+              <div class="text-muted">{site.location.en}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-6xl mx-auto px-6 md:px-10">
+    <div class="h-px border-divider" style="background-color: var(--divider)"></div>
+  </div>
+
+  <!-- Fields of inquiry -->
+  <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+    <div class="grid grid-cols-12 gap-6 mb-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. I</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Fields of inquiry.</h2>
+      </div>
+    </div>
+
+    <div>
+      {fields.map((field) => (
+        <div class="grid grid-cols-12 gap-6 py-10 border-t" style="border-color: var(--divider)">
+          <div class="col-span-12 md:col-span-2">
+            <div class="font-mono text-sm text-muted">{field.num}</div>
+          </div>
+          <div class="col-span-12 md:col-span-7">
+            <h3 class="font-display text-2xl md:text-3xl mb-3" style="font-weight: 400">{field.title}</h3>
+            <p class="text-muted max-w-lg">{field.desc}</p>
+          </div>
+          <div class="col-span-12 md:col-span-3 md:text-right">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">{field.count}</div>
+            <a href={field.href} class="inline-flex items-center gap-1 text-sm group">
+              <span class="border-b" style="border-color: currentColor">See papers</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+                <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- NOW section -->
+  <section id="now" style="background-color: var(--color-ink); color: var(--color-bg)">
+    <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
+      <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 md:col-span-2">
+          <div class="font-mono text-xs uppercase tracking-widest opacity-50">§ Ch. II</div>
+        </div>
+        <div class="col-span-12 md:col-span-10">
+          <h2 class="font-display text-4xl md:text-5xl mb-12" style="font-weight: 300">Now.</h2>
+          <div class="grid md:grid-cols-3 gap-8">
+            {nowItems.map((item) => (
+              <div>
+                <div class="font-mono text-xs uppercase tracking-widest opacity-50 mb-3">{item.label}</div>
+                <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
+                <p class="text-sm opacity-60">{item.note}</p>
+              </div>
+            ))}
+          </div>
+          <div class="mt-16 font-mono text-xs uppercase tracking-widest opacity-40">
+            Last updated · {nowUpdated}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Selected Writing -->
+  <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+    <div class="grid grid-cols-12 gap-6 mb-12">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. III</div>
+      </div>
+      <div class="col-span-12 md:col-span-10 flex items-baseline justify-between flex-wrap gap-4">
+        <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Selected writing.</h2>
+        <a href="/publications" class="inline-flex items-center gap-1 text-sm group">
+          <span class="border-b" style="border-color: currentColor">All {site.totalPublicationsOverride} publications</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+            <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <div>
+      {selected.map((pub) => (
+        <a
+          href={`/publications/${pub.slug}`}
+          class="pub-row grid grid-cols-12 gap-6 py-8 border-t cursor-pointer"
+          style="border-color: var(--divider)"
+        >
+          <div class="col-span-3 md:col-span-2 font-mono text-sm text-muted">{pub.year}</div>
+          <div class="col-span-9 md:col-span-8">
+            <div class="flex items-center gap-3 mb-2 flex-wrap">
+              <span class="font-mono text-xs uppercase tracking-widest text-soft">{pub.type}</span>
+              {pub.status && (
+                <span class="font-mono text-xs uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+                  {pub.status}
+                </span>
+              )}
+            </div>
+            <h3 class="pub-title font-display text-xl md:text-2xl leading-snug" style="font-weight: 400">{pub.title}</h3>
+            <p class="text-sm text-muted mt-2 italic">{pub.venue}</p>
+          </div>
+          <div class="col-span-12 md:col-span-2 md:text-right">
+            <svg class="pub-arrow ml-auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+            </svg>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,103 @@
+---
+import { site } from '../data/site';
+
+interface Props {
+  lang?: 'en' | 'he';
+}
+const { lang = 'en' } = Astro.props;
+
+const copy = {
+  en: {
+    kicker: 'Elsewhere & in touch',
+    heading: 'Write a letter.',
+    lede: 'For collaborations, editorial matters at JMP, speaking, or students thinking about graduate study in organizational behaviour.',
+    email: 'Email',
+    cv: 'Download CV',
+    findMe: 'Find me',
+    tagline: 'Built with care · Fork this template ↗',
+    copy: `© ${site.shortName} · ${new Date().getFullYear()}`,
+  },
+  he: {
+    kicker: 'במקומות אחרים',
+    heading: 'כתבו לי.',
+    lede: 'לשיתופי פעולה, ענייני עריכה ב-JMP, הרצאות, או סטודנטים/ות ששוקלים לימודי מוסמך בהתנהגות ארגונית.',
+    email: 'אימייל',
+    cv: 'קורות חיים',
+    findMe: 'מצאו אותי',
+    tagline: 'נבנה באהבה · שכפלו את התבנית ↗',
+    copy: `© ${site.shortName} · ${new Date().getFullYear()}`,
+  },
+}[lang];
+---
+<footer id="contact" class="bg-accent" style="background-color: var(--color-accent); color: var(--color-bg)">
+  <div class="max-w-6xl mx-auto px-6 md:px-10 py-24">
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-8">
+        <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.kicker}</div>
+        <h2 class="font-display font-light leading-none" style="font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 300">
+          {copy.heading}
+        </h2>
+        <p class="mt-6 max-w-md opacity-80">{copy.lede}</p>
+        <div class="mt-10 flex flex-wrap gap-4">
+          <button
+            id="copy-email"
+            type="button"
+            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm transition-colors hover:opacity-90"
+            style="background-color: var(--color-bg); color: var(--color-ink)"
+            data-email={site.email}
+            aria-label={`Copy email ${site.email}`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="m22 7-10 5L2 7"/>
+            </svg>
+            <span class="copy-email-label">{copy.email}</span>
+          </button>
+          <a
+            href="/pdfs/yariv-cv-full.pdf"
+            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm border border-current hover:opacity-80 transition-opacity"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {copy.cv}
+          </a>
+        </div>
+      </div>
+      <div class="col-span-12 md:col-span-4 md:text-right">
+        <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.findMe}</div>
+        <div class="space-y-2 text-sm">
+          <div><a href={site.profiles.googleScholar || '#'} class="hover:underline" rel="me noopener">Google Scholar ↗</a></div>
+          <div><a href={site.profiles.orcid || '#'} class="hover:underline" rel="me noopener">ORCID ↗</a></div>
+          <div><a href={site.profiles.researchGate || '#'} class="hover:underline" rel="me noopener">ResearchGate ↗</a></div>
+          <div><a href={site.profiles.linkedin || '#'} class="hover:underline" rel="me noopener">LinkedIn ↗</a></div>
+          <div><a href={site.profiles.github || '#'} class="hover:underline" rel="me noopener">GitHub (templates) ↗</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex justify-between text-xs font-mono uppercase tracking-widest opacity-60 flex-wrap gap-2">
+      <div>{copy.copy}</div>
+      <div>{copy.tagline}</div>
+    </div>
+  </div>
+</footer>
+<script is:inline>
+  (() => {
+    const btn = document.getElementById('copy-email');
+    if (!btn) return;
+    const email = btn.getAttribute('data-email') || '';
+    const labelEl = btn.querySelector('.copy-email-label');
+    const original = labelEl ? labelEl.textContent : 'Email';
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(email);
+        if (labelEl) labelEl.textContent = '✓ Copied';
+        setTimeout(() => { if (labelEl) labelEl.textContent = original; }, 1500);
+      } catch (e) {
+        window.location.href = `mailto:${email}`;
+      }
+    });
+  })();
+</script>

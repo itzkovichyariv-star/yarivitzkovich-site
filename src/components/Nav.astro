@@ -1,0 +1,38 @@
+---
+import DarkModeToggle from './DarkModeToggle.astro';
+import LangToggle from './LangToggle.astro';
+import { site } from '../data/site';
+
+interface Props {
+  lang?: 'en' | 'he';
+}
+const { lang = 'en' } = Astro.props;
+
+const labels = {
+  en: { work: 'Work', now: 'Now', writing: 'Writing', teaching: 'Teaching', contact: 'Contact' },
+  he: { work: 'פרסומים', now: 'עכשיו', writing: 'כתיבה', teaching: 'הוראה', contact: 'יצירת קשר' },
+};
+const t = labels[lang];
+const homeHref = lang === 'en' ? '/' : '/he/';
+---
+<header
+  class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-divider"
+  style="background-color: var(--nav-bg)"
+>
+  <div class="max-w-6xl mx-auto px-6 md:px-10 py-5 flex items-center justify-between text-xs font-mono uppercase tracking-widest">
+    <a href={homeHref} class="hover:opacity-60 transition-opacity">
+      {site.shortName} / Est. {site.establishedYear}
+    </a>
+    <nav class="hidden md:flex gap-8">
+      <a href={`${homeHref}publications`} class="hover:opacity-60 transition-opacity">{t.work}</a>
+      <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
+      <a href={`${homeHref}#writing`} class="hover:opacity-60 transition-opacity">{t.writing}</a>
+      <a href={`${homeHref}teaching`} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
+      <a href={`${homeHref}contact`} class="hover:opacity-60 transition-opacity">{t.contact}</a>
+    </nav>
+    <div class="flex items-center gap-3">
+      <DarkModeToggle />
+      <LangToggle lang={lang} />
+    </div>
+  </div>
+</header>

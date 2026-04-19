@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@import "@fontsource-variable/fraunces/wght.css";
+@import "@fontsource-variable/fraunces/wght-italic.css";
+@import "@fontsource-variable/instrument-sans/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+@import "@fontsource/frank-ruhl-libre/400.css";
+@import "@fontsource/frank-ruhl-libre/700.css";
+@import "@fontsource-variable/rubik/wght.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-bg: #F4EFE6;
+  --color-ink: #1A1612;
+  --color-accent: #7A1E2B;
+  --color-accent-soft: #A85368;
+  --color-accent-on-dark: #D98B9A;
+  --color-exec-summary-bg: #EDE4D4;
+
+  --font-sans: "Instrument Sans Variable", "Rubik Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces Variable", "Frank Ruhl Libre", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  --surface: var(--color-bg);
+  --text: var(--color-ink);
+  --text-muted: rgba(26, 22, 18, 0.7);
+  --text-soft: rgba(26, 22, 18, 0.5);
+  --divider: rgba(26, 22, 18, 0.15);
+  --panel: var(--color-ink);
+  --panel-text: var(--color-bg);
+  --accent: var(--color-accent);
+  --nav-bg: rgba(244, 239, 230, 0.9);
+  --grain-dot: rgba(26, 22, 18, 0.04);
+}
+
+.dark {
+  --surface: #0F0D0A;
+  --text: #F4EFE6;
+  --text-muted: rgba(244, 239, 230, 0.7);
+  --text-soft: rgba(244, 239, 230, 0.5);
+  --divider: rgba(244, 239, 230, 0.15);
+  --panel: #1A1612;
+  --panel-text: #F4EFE6;
+  --accent: var(--color-accent-on-dark);
+  --nav-bg: rgba(15, 13, 10, 0.9);
+  --grain-dot: rgba(244, 239, 230, 0.04);
+}
+
+html {
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--surface);
+  color: var(--text);
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings: 'opsz' 144;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.text-muted { color: var(--text-muted); }
+.text-soft { color: var(--text-soft); }
+.border-divider { border-color: var(--divider); }
+.bg-surface { background-color: var(--surface); }
+.bg-panel { background-color: var(--panel); color: var(--panel-text); }
+.bg-accent { background-color: var(--accent); }
+.text-accent { color: var(--accent); }
+
+.grain {
+  background-image: radial-gradient(var(--grain-dot) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+.fade-up {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: fadeUp 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.pub-row:hover .pub-title,
+.pub-row:hover .pub-arrow {
+  color: var(--accent);
+}
+
+.pub-row:hover .pub-arrow {
+  transform: translate(2px, -2px);
+}
+
+.pub-arrow { transition: transform 0.3s ease, color 0.3s ease; }
+.pub-title { transition: color 0.3s ease; }
+
+html[dir="rtl"] .pub-row:hover .pub-arrow {
+  transform: translate(-2px, -2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

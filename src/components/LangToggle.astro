@@ -1,0 +1,15 @@
+---
+interface Props {
+  lang?: 'en' | 'he';
+}
+const { lang = 'en' } = Astro.props;
+const other = lang === 'en' ? 'he' : 'en';
+const href = lang === 'en' ? '/he/' : '/';
+---
+<a
+  href={href}
+  class="border border-current rounded-full px-3 py-1 text-xs font-mono uppercase tracking-widest hover:opacity-70 transition-opacity"
+  aria-label={`Switch language to ${other.toUpperCase()}`}
+>
+  {lang.toUpperCase()} → {other.toUpperCase()}
+</a>
