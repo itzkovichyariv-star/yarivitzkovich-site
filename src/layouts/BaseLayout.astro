@@ -30,11 +30,9 @@ const dir = lang === 'he' ? 'rtl' : 'ltr';
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <script is:inline>
-      // Apply dark class before paint to avoid a flash of light mode.
+      // Default is light ("newspaper") mode. Dark is opt-in via the toggle.
       (() => {
-        const stored = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (stored === 'dark' || (!stored && prefersDark)) {
+        if (localStorage.getItem('theme') === 'dark') {
           document.documentElement.classList.add('dark');
         }
       })();
