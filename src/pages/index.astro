@@ -154,24 +154,24 @@ const selected = [
   </section>
 
   <!-- NOW section -->
-  <section id="now" style="background-color: var(--color-ink); color: var(--color-bg)">
+  <section id="now" style="background-color: var(--panel); color: var(--panel-text); border-top: 1px solid var(--panel-divider); border-bottom: 1px solid var(--panel-divider)">
     <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
       <div class="grid grid-cols-12 gap-6">
         <div class="col-span-12 md:col-span-2">
-          <div class="font-mono text-xs uppercase tracking-widest opacity-50">§ Ch. II</div>
+          <div class="font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label)">§ Ch. II</div>
         </div>
         <div class="col-span-12 md:col-span-10">
           <h2 class="font-display text-4xl md:text-5xl mb-12" style="font-weight: 300">Now.</h2>
           <div class="grid md:grid-cols-3 gap-8">
             {nowItems.map((item) => (
               <div>
-                <div class="font-mono text-xs uppercase tracking-widest opacity-50 mb-3">{item.label}</div>
+                <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
                 <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
-                <p class="text-sm opacity-60">{item.note}</p>
+                <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
               </div>
             ))}
           </div>
-          <div class="mt-16 font-mono text-xs uppercase tracking-widest opacity-40">
+          <div class="mt-16 font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label); opacity: 0.8">
             Last updated · {nowUpdated}
           </div>
         </div>

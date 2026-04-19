@@ -29,8 +29,11 @@
   --text-muted: rgba(26, 22, 18, 0.7);
   --text-soft: rgba(26, 22, 18, 0.5);
   --divider: rgba(26, 22, 18, 0.15);
-  --panel: var(--color-ink);
-  --panel-text: var(--color-bg);
+  --panel: var(--color-exec-summary-bg);
+  --panel-text: var(--color-ink);
+  --panel-label: rgba(26, 22, 18, 0.45);
+  --panel-muted: rgba(26, 22, 18, 0.6);
+  --panel-divider: rgba(26, 22, 18, 0.12);
   --accent: var(--color-accent);
   --nav-bg: rgba(244, 239, 230, 0.9);
   --grain-dot: rgba(26, 22, 18, 0.04);
@@ -44,6 +47,9 @@
   --divider: rgba(244, 239, 230, 0.15);
   --panel: #1A1612;
   --panel-text: #F4EFE6;
+  --panel-label: rgba(244, 239, 230, 0.45);
+  --panel-muted: rgba(244, 239, 230, 0.6);
+  --panel-divider: rgba(244, 239, 230, 0.12);
   --accent: var(--color-accent-on-dark);
   --nav-bg: rgba(15, 13, 10, 0.9);
   --grain-dot: rgba(244, 239, 230, 0.04);
