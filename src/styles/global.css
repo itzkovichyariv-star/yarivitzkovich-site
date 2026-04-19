@@ -29,11 +29,13 @@
   --text-muted: rgba(26, 22, 18, 0.7);
   --text-soft: rgba(26, 22, 18, 0.5);
   --divider: rgba(26, 22, 18, 0.15);
-  --panel: var(--color-exec-summary-bg);
+  /* "Now" panel: pale mauve-blush that bridges cream → burgundy footer. */
+  --panel: #F0E6E6;
   --panel-text: var(--color-ink);
-  --panel-label: rgba(26, 22, 18, 0.45);
+  --panel-label: #7A5A6A;
   --panel-muted: rgba(26, 22, 18, 0.6);
-  --panel-divider: rgba(26, 22, 18, 0.12);
+  --panel-divider: rgba(122, 30, 43, 0.12);
+  --panel-accent: #8B6A84;
   --accent: var(--color-accent);
   --nav-bg: rgba(244, 239, 230, 0.9);
   --grain-dot: rgba(26, 22, 18, 0.04);
@@ -45,11 +47,12 @@
   --text-muted: rgba(244, 239, 230, 0.7);
   --text-soft: rgba(244, 239, 230, 0.5);
   --divider: rgba(244, 239, 230, 0.15);
-  --panel: #1A1612;
+  --panel: #1E1618;
   --panel-text: #F4EFE6;
-  --panel-label: rgba(244, 239, 230, 0.45);
+  --panel-label: #C49EAE;
   --panel-muted: rgba(244, 239, 230, 0.6);
   --panel-divider: rgba(244, 239, 230, 0.12);
+  --panel-accent: #C49EAE;
   --accent: var(--color-accent-on-dark);
   --nav-bg: rgba(15, 13, 10, 0.9);
   --grain-dot: rgba(244, 239, 230, 0.04);
