@@ -44,7 +44,12 @@ const pub: Publication = {
   pdf: entry.data.pdf,
   podcast: entry.data.podcast,
   bibtex: entry.data.bibtex,
+  image: entry.data.image,
+  isbn: entry.data.isbn,
+  publisher: entry.data.publisher,
 };
+
+const isBook = pub.type === 'book' || pub.type === 'edited-book';
 
 const topicLabel = (id: string) => TOPICS.find((t) => t.id === id)?.label ?? id;
 const statusLabel = formatStatus(pub.status);
@@ -79,12 +84,27 @@ const jsonLd = {
       )}
     </div>
 
-    <h1 class="font-display text-4xl md:text-6xl leading-[1.05] mt-6 mb-6" style="font-weight: 400">
-      {pub.title}
-    </h1>
-
-    <p class="text-base italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
-    {pub.venue && <p class="text-base text-muted mb-10">{pub.venue}{pub.volume ? `, ${pub.volume}${pub.issue ? `(${pub.issue})` : ''}` : ''}{pub.pages ? `, ${pub.pages}` : ''}</p>}
+    {isBook && pub.image ? (
+      <div class="mt-8 grid md:grid-cols-[180px_1fr] gap-8 items-start">
+        <img src={pub.image} alt={`${pub.title} cover`} class="w-[180px] rounded-sm shadow-[0_8px_30px_rgba(26,22,18,0.18)]" loading="lazy" />
+        <div>
+          <h1 class="font-display text-3xl md:text-5xl leading-[1.05] mb-4" style="font-weight: 400">
+            {pub.title}
+          </h1>
+          <p class="text-base italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
+          {pub.publisher && <p class="text-base text-muted mb-1">{pub.publisher}</p>}
+          {pub.isbn && <p class="font-mono text-xs text-soft mb-4">ISBN {pub.isbn}</p>}
+        </div>
+      </div>
+    ) : (
+      <>
+        <h1 class="font-display text-4xl md:text-6xl leading-[1.05] mt-6 mb-6" style="font-weight: 400">
+          {pub.title}
+        </h1>
+        <p class="text-base italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
+        {pub.venue && <p class="text-base text-muted mb-10">{pub.venue}{pub.volume ? `, ${pub.volume}${pub.issue ? `(${pub.issue})` : ''}` : ''}{pub.pages ? `, ${pub.pages}` : ''}</p>}
+      </>
+    )}
 
     <div class="flex flex-wrap gap-1.5 mb-12">
       {pub.topics.map((t) => (

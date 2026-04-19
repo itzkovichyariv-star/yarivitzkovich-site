@@ -45,6 +45,7 @@ const TYPE_OPTIONS: Array<{ k: 'all' | PublicationType; label: string }> = [
   { k: 'all', label: 'All' },
   { k: 'article', label: 'Article' },
   { k: 'chapter', label: 'Chapter' },
+  { k: 'book', label: 'Book' },
   { k: 'editorial', label: 'Editorial' },
   { k: 'preprint', label: 'Preprint' },
 ];
@@ -616,16 +617,41 @@ function Drawer({
             <StatusBadge status={pub.status} />
           </div>
 
-          <h2
-            id="drawer-title"
-            className="font-display text-3xl md:text-4xl leading-tight mb-4"
-            style={{ fontWeight: 400 }}
-          >
-            {pub.title}
-          </h2>
-
-          <p className="text-sm italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
-          {pub.venue && <p className="text-sm text-muted mb-6">{pub.venue}</p>}
+          {(pub.type === 'book' || pub.type === 'edited-book') && pub.image ? (
+            <div className="grid grid-cols-[120px_1fr] gap-5 items-start mb-6">
+              <img
+                src={pub.image}
+                alt={`${pub.title} cover`}
+                className="w-[120px] rounded-sm"
+                style={{ boxShadow: '0 8px 24px rgba(26,22,18,0.18)' }}
+                loading="lazy"
+              />
+              <div>
+                <h2
+                  id="drawer-title"
+                  className="font-display text-2xl md:text-3xl leading-tight mb-3"
+                  style={{ fontWeight: 400 }}
+                >
+                  {pub.title}
+                </h2>
+                <p className="text-sm italic text-muted mb-1">{formatAuthors(pub.authors)}</p>
+                {pub.publisher && <p className="text-sm text-muted">{pub.publisher}</p>}
+                {pub.isbn && <p className="font-mono text-[11px] text-soft mt-1">ISBN {pub.isbn}</p>}
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2
+                id="drawer-title"
+                className="font-display text-3xl md:text-4xl leading-tight mb-4"
+                style={{ fontWeight: 400 }}
+              >
+                {pub.title}
+              </h2>
+              <p className="text-sm italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
+              {pub.venue && <p className="text-sm text-muted mb-6">{pub.venue}</p>}
+            </>
+          )}
 
           <div className="flex flex-wrap gap-1.5 mb-10">
             {pub.topics.map((t) => (

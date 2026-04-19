@@ -4,7 +4,9 @@ export type PublicationType =
   | 'editorial'
   | 'conference'
   | 'preprint'
-  | 'thesis';
+  | 'thesis'
+  | 'book'
+  | 'edited-book';
 
 export type PublicationStatus =
   | 'published'
@@ -49,6 +51,9 @@ export interface Publication {
     description?: string;
   };
   bibtex?: string;
+  image?: string;
+  isbn?: string;
+  publisher?: string;
 }
 
 export function formatStatus(status: PublicationStatus): string | null {
@@ -82,6 +87,10 @@ export function formatType(type: PublicationType): string {
       return 'Preprint';
     case 'thesis':
       return 'Thesis';
+    case 'book':
+      return 'Book';
+    case 'edited-book':
+      return 'Edited Book';
   }
 }
 
@@ -101,6 +110,12 @@ export function generateBibtex(pub: Publication): string {
   const authorsLine = pub.authors.map((a) => a.name).join(' and ');
   if (pub.type === 'chapter') {
     return `@incollection{${key},\n  title     = {${pub.title}},\n  author    = {${authorsLine}},\n  booktitle = {${pub.venue ?? ''}},\n  year      = {${pub.year}}\n}`;
+  }
+  if (pub.type === 'book' || pub.type === 'edited-book') {
+    const publisher = pub.publisher ?? pub.venue ?? '';
+    const isbnLine = pub.isbn ? `,\n  isbn      = {${pub.isbn}}` : '';
+    const entryType = pub.type === 'edited-book' ? '@book' : '@book';
+    return `${entryType}{${key},\n  title     = {${pub.title}},\n  author    = {${authorsLine}},\n  publisher = {${publisher}},\n  year      = {${pub.year}}${isbnLine}\n}`;
   }
   return `@article{${key},\n  title   = {${pub.title}},\n  author  = {${authorsLine}},\n  journal = {${pub.venue ?? ''}},\n  year    = {${pub.year}}${pub.status === 'under-review' ? ',\n  note    = {Under review}' : ''}\n}`;
 }
