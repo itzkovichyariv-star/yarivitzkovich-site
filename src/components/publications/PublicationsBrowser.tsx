@@ -390,6 +390,8 @@ function GridView({
   );
 }
 
+const TIMELINE_INITIAL_LIMIT = 10;
+
 function TimelineView({
   pubs,
   onSelect,
@@ -397,13 +399,21 @@ function TimelineView({
   pubs: Publication[];
   onSelect: (p: Publication) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? pubs : pubs.slice(0, TIMELINE_INITIAL_LIMIT);
+  const hiddenCount = pubs.length - visible.length;
+
+  useEffect(() => {
+    if (pubs.length <= TIMELINE_INITIAL_LIMIT && expanded) setExpanded(false);
+  }, [pubs.length, expanded]);
+
   return (
     <div className="relative pl-8 md:pl-32">
       <div
         className="absolute top-0 bottom-0 left-2 md:left-24 w-px"
         style={{ backgroundColor: 'var(--divider)' }}
       />
-      {pubs.map((p, i) => (
+      {visible.map((p, i) => (
         <div
           key={p.id}
           onClick={() => onSelect(p)}
@@ -437,6 +447,39 @@ function TimelineView({
           <p className="text-sm italic text-muted">{p.venue}</p>
         </div>
       ))}
+
+      {hiddenCount > 0 && (
+        <div className="relative pt-2">
+          <div
+            className="absolute w-3 h-3 rounded-full"
+            style={{
+              left: 'calc(-1.65rem - 5px)',
+              top: '10px',
+              backgroundColor: 'var(--divider)',
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border hover:opacity-80 transition-opacity"
+            style={{ borderColor: 'var(--text)' }}
+          >
+            See {hiddenCount} older {hiddenCount === 1 ? 'paper' : 'papers'} →
+          </button>
+        </div>
+      )}
+
+      {expanded && pubs.length > TIMELINE_INITIAL_LIMIT && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="font-mono text-xs uppercase tracking-wider text-soft hover:opacity-100 transition-opacity"
+          >
+            Show fewer ↑
+          </button>
+        </div>
+      )}
     </div>
   );
 }
