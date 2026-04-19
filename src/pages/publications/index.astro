@@ -1,0 +1,59 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PublicationsBrowser from '../../components/publications/PublicationsBrowser';
+import { TOPICS } from '../../data/topics';
+import type { Publication } from '../../lib/publications';
+
+const entries = await getCollection('publications');
+
+const publications: Publication[] = entries
+  .map((e) => ({
+    id: e.data.id,
+    slug: e.data.slug,
+    title: e.data.title,
+    authors: e.data.authors,
+    year: e.data.year,
+    type: e.data.type,
+    status: e.data.status,
+    venue: e.data.venue ?? null,
+    venueShort: e.data.venueShort ?? null,
+    volume: e.data.volume ?? null,
+    issue: e.data.issue ?? null,
+    pages: e.data.pages ?? null,
+    doi: e.data.doi ?? null,
+    url: e.data.url ?? null,
+    topics: e.data.topics,
+    methods: e.data.methods,
+    featured: e.data.featured,
+    tldr: e.data.tldr,
+    abstract: e.data.abstract,
+    pdf: e.data.pdf,
+    podcast: e.data.podcast,
+    bibtex: e.data.bibtex,
+  }))
+  .sort((a, b) => b.year - a.year);
+
+const topicOptions = TOPICS.map((t) => ({ id: t.id, label: t.label }));
+const totalPublications = publications.length;
+---
+<BaseLayout title={`Publications — Yariv Itzkovich`}>
+  <section class="max-w-7xl mx-auto px-6 md:px-10 pt-32 pb-10">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">§ Ch. III — Writing</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(3rem, 9vw, 7rem); font-weight: 300"
+    >
+      Publications.
+    </h1>
+    <p class="max-w-2xl text-lg text-muted font-display" style="font-weight: 300">
+      {totalPublications} papers across four domains, built up around the same stubborn question asked from different angles — <em>why do we let each other be treated badly at work, and what might we do about it?</em>
+    </p>
+  </section>
+
+  <PublicationsBrowser
+    client:load
+    publications={publications}
+    topics={topicOptions}
+  />
+</BaseLayout>

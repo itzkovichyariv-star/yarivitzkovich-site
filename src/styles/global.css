@@ -109,6 +109,24 @@ a {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.drawer-enter {
+  animation: drawerSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html[dir="rtl"] .drawer-enter {
+  animation: drawerSlideRtl 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawerSlide {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes drawerSlideRtl {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 .pub-row:hover .pub-title,
 .pub-row:hover .pub-arrow {
   color: var(--accent);

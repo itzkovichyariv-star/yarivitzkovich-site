@@ -1,0 +1,140 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { TOPICS } from '../../data/topics';
+import {
+  formatAuthors,
+  formatStatus,
+  formatType,
+  generateBibtex,
+  type Publication,
+} from '../../lib/publications';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('publications');
+  return entries.map((entry) => ({
+    params: { slug: entry.data.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+
+const pub: Publication = {
+  id: entry.data.id,
+  slug: entry.data.slug,
+  title: entry.data.title,
+  authors: entry.data.authors,
+  year: entry.data.year,
+  type: entry.data.type,
+  status: entry.data.status,
+  venue: entry.data.venue ?? null,
+  venueShort: entry.data.venueShort ?? null,
+  volume: entry.data.volume ?? null,
+  issue: entry.data.issue ?? null,
+  pages: entry.data.pages ?? null,
+  doi: entry.data.doi ?? null,
+  url: entry.data.url ?? null,
+  topics: entry.data.topics,
+  methods: entry.data.methods,
+  featured: entry.data.featured,
+  tldr: entry.data.tldr,
+  abstract: entry.data.abstract,
+  pdf: entry.data.pdf,
+  podcast: entry.data.podcast,
+  bibtex: entry.data.bibtex,
+};
+
+const topicLabel = (id: string) => TOPICS.find((t) => t.id === id)?.label ?? id;
+const statusLabel = formatStatus(pub.status);
+const bibtex = generateBibtex(pub);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ScholarlyArticle',
+  headline: pub.title,
+  datePublished: `${pub.year}-01-01`,
+  author: pub.authors.map((a) => ({ '@type': 'Person', name: a.name })),
+  publisher: pub.venue ? { '@type': 'Organization', name: pub.venue } : undefined,
+  abstract: pub.abstract,
+  url: new URL(`/publications/${pub.slug}`, Astro.site).href,
+  identifier: pub.doi ? `https://doi.org/${pub.doi}` : undefined,
+};
+---
+<BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract}>
+  <article class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-24">
+    <a href="/publications" class="font-mono text-xs uppercase tracking-widest text-soft hover:opacity-60 inline-flex items-center gap-2">
+      <span>←</span> All publications
+    </a>
+
+    <div class="mt-10 flex items-center gap-2 flex-wrap">
+      <span class="font-mono text-xs uppercase tracking-widest text-muted">
+        {pub.year} · {formatType(pub.type)}
+      </span>
+      {statusLabel && (
+        <span class="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+          {statusLabel}
+        </span>
+      )}
+    </div>
+
+    <h1 class="font-display text-4xl md:text-6xl leading-[1.05] mt-6 mb-6" style="font-weight: 400">
+      {pub.title}
+    </h1>
+
+    <p class="text-base italic text-muted mb-2">{formatAuthors(pub.authors)}</p>
+    {pub.venue && <p class="text-base text-muted mb-10">{pub.venue}{pub.volume ? `, ${pub.volume}${pub.issue ? `(${pub.issue})` : ''}` : ''}{pub.pages ? `, ${pub.pages}` : ''}</p>}
+
+    <div class="flex flex-wrap gap-1.5 mb-12">
+      {pub.topics.map((t) => (
+        <span class="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border" style="border-color: var(--divider)">
+          {topicLabel(t)}
+        </span>
+      ))}
+      {pub.methods.map((m) => (
+        <span class="font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background-color: rgba(26,22,18,0.08)">
+          {m}
+        </span>
+      ))}
+    </div>
+
+    {pub.tldr && (
+      <div class="mb-10 pl-5 border-l-2" style="border-color: var(--color-accent)">
+        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2">TL;DR</div>
+        <p class="font-display text-xl leading-snug" style="font-weight: 400">{pub.tldr}</p>
+      </div>
+    )}
+
+    {pub.abstract && (
+      <section class="mb-10">
+        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Abstract</div>
+        <p class="leading-relaxed" style="opacity: 0.85">{pub.abstract}</p>
+      </section>
+    )}
+
+    <div class="flex flex-wrap gap-3 mb-12">
+      {pub.pdf?.available && pub.pdf.path && (
+        <a href={pub.pdf.path} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm" style="background-color: var(--color-ink); color: var(--color-bg)" download>
+          Download PDF
+        </a>
+      )}
+      {pub.doi && (
+        <a href={`https://doi.org/${pub.doi}`} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border" style="border-color: var(--divider)" target="_blank" rel="noopener noreferrer">
+          DOI ↗
+        </a>
+      )}
+    </div>
+
+    <section class="mb-12">
+      <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2">Cite</div>
+      <pre class="font-mono text-xs p-4 rounded-lg overflow-x-auto" style="background-color: rgba(26,22,18,0.06)">{bibtex}</pre>
+    </section>
+
+    <section class="prose-custom max-w-none">
+      <Content />
+    </section>
+  </article>
+
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />
+</BaseLayout>

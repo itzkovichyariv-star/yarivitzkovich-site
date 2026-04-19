@@ -1,6 +1,15 @@
 ---
+import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { site } from '../data/site';
+import { formatStatus, formatType } from '../lib/publications';
+
+const allPubs = await getCollection('publications');
+const selected = allPubs
+  .filter((e) => e.data.featured)
+  .sort((a, b) => b.data.year - a.data.year)
+  .slice(0, 3);
+const totalPublications = allPubs.length;
 
 const fields = [
   {
@@ -45,32 +54,6 @@ const nowItems = [
 ];
 const nowUpdated = 'April 2026';
 
-const selected = [
-  {
-    year: '2026',
-    type: 'Article',
-    status: 'Under review',
-    title: 'AI as an Automated Bystander: Rethinking Intervention in Workplace Mistreatment',
-    venue: 'Human Resource Management Review',
-    slug: 'ai-automated-bystander',
-  },
-  {
-    year: '2025',
-    type: 'Article',
-    status: null,
-    title: 'Witnessed Incivility and Its Transmission Through Organizational Hierarchies',
-    venue: 'Journal of Organizational Behavior',
-    slug: 'witnessed-incivility-transmission',
-  },
-  {
-    year: '2025',
-    type: 'Editorial',
-    status: null,
-    title: 'What Peer Review Asks of Us: Notes from the Desk',
-    venue: 'Journal of Managerial Psychology',
-    slug: 'peer-review-notes',
-  },
-];
 ---
 <BaseLayout title={`${site.name} — Research on workplace mistreatment & AI`}>
   <!-- Hero -->
@@ -83,10 +66,10 @@ const selected = [
       </div>
       <div class="col-span-12 md:col-span-10">
         <h1
-          class="font-display leading-none tracking-tight fade-up"
-          style="font-size: clamp(3rem, 10vw, 8.5rem); font-weight: 300; animation-delay: 0.2s"
+          class="font-display leading-[0.95] tracking-tight fade-up"
+          style="font-size: clamp(2.5rem, 8vw, 6.5rem); font-weight: 300; animation-delay: 0.2s"
         >
-          {site.shortName}.
+          {site.name}.
         </h1>
         <div class="mt-8 md:mt-12 grid grid-cols-12 gap-6">
           <div class="col-span-12 md:col-span-8">
@@ -188,7 +171,7 @@ const selected = [
       <div class="col-span-12 md:col-span-10 flex items-baseline justify-between flex-wrap gap-4">
         <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Selected writing.</h2>
         <a href="/publications" class="inline-flex items-center gap-1 text-sm group">
-          <span class="border-b" style="border-color: currentColor">All {site.totalPublicationsOverride} publications</span>
+          <span class="border-b" style="border-color: currentColor">All {totalPublications} publications</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
             <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
           </svg>
@@ -197,32 +180,35 @@ const selected = [
     </div>
 
     <div>
-      {selected.map((pub) => (
-        <a
-          href={`/publications/${pub.slug}`}
-          class="pub-row grid grid-cols-12 gap-6 py-8 border-t cursor-pointer"
-          style="border-color: var(--divider)"
-        >
-          <div class="col-span-3 md:col-span-2 font-mono text-sm text-muted">{pub.year}</div>
-          <div class="col-span-9 md:col-span-8">
-            <div class="flex items-center gap-3 mb-2 flex-wrap">
-              <span class="font-mono text-xs uppercase tracking-widest text-soft">{pub.type}</span>
-              {pub.status && (
-                <span class="font-mono text-xs uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
-                  {pub.status}
-                </span>
-              )}
+      {selected.map((entry) => {
+        const statusLabel = formatStatus(entry.data.status);
+        return (
+          <a
+            href={`/publications/${entry.data.slug}`}
+            class="pub-row grid grid-cols-12 gap-6 py-8 border-t cursor-pointer"
+            style="border-color: var(--divider)"
+          >
+            <div class="col-span-3 md:col-span-2 font-mono text-sm text-muted">{entry.data.year}</div>
+            <div class="col-span-9 md:col-span-8">
+              <div class="flex items-center gap-3 mb-2 flex-wrap">
+                <span class="font-mono text-xs uppercase tracking-widest text-soft">{formatType(entry.data.type)}</span>
+                {statusLabel && (
+                  <span class="font-mono text-xs uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+                    {statusLabel}
+                  </span>
+                )}
+              </div>
+              <h3 class="pub-title font-display text-xl md:text-2xl leading-snug" style="font-weight: 400">{entry.data.title}</h3>
+              <p class="text-sm text-muted mt-2 italic">{entry.data.venue}</p>
             </div>
-            <h3 class="pub-title font-display text-xl md:text-2xl leading-snug" style="font-weight: 400">{pub.title}</h3>
-            <p class="text-sm text-muted mt-2 italic">{pub.venue}</p>
-          </div>
-          <div class="col-span-12 md:col-span-2 md:text-right">
-            <svg class="pub-arrow ml-auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
-            </svg>
-          </div>
-        </a>
-      ))}
+            <div class="col-span-12 md:col-span-2 md:text-right">
+              <svg class="pub-arrow ml-auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+              </svg>
+            </div>
+          </a>
+        );
+      })}
     </div>
   </section>
 </BaseLayout>
