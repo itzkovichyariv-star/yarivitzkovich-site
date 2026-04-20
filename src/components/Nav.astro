@@ -14,6 +14,8 @@ const labels = {
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
+// Pages that only exist in English — always use root-level path
+const en = (path: string) => `/${path}`;
 ---
 <header
   class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md border-b border-divider"
@@ -24,11 +26,11 @@ const homeHref = lang === 'en' ? '/' : '/he/';
       {site.shortName} / Est. {site.establishedYear}
     </a>
     <nav class="hidden md:flex gap-8">
-      <a href={`${homeHref}publications`} class="hover:opacity-60 transition-opacity">{t.work}</a>
+      <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
       <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
       <a href={`${homeHref}#writing`} class="hover:opacity-60 transition-opacity">{t.writing}</a>
-      <a href={`${homeHref}teaching`} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
-      <a href={`${homeHref}contact`} class="hover:opacity-60 transition-opacity">{t.contact}</a>
+      <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
+      <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
     <div class="flex items-center gap-3">
       <DarkModeToggle />

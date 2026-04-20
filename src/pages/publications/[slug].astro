@@ -146,6 +146,19 @@ const jsonLd = {
       )}
     </div>
 
+    {pub.podcast?.available && pub.podcast.path && (
+      <section class="mb-12">
+        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Listen</div>
+        {pub.podcast.description && (
+          <p class="text-sm text-muted mb-3">{pub.podcast.description}</p>
+        )}
+        <audio controls class="w-full rounded-lg" style="accent-color: var(--color-accent)">
+          <source src={pub.podcast.path} type="audio/mp4" />
+          Your browser does not support the audio element.
+        </audio>
+      </section>
+    )}
+
     <section class="mb-12">
       <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2">Cite</div>
       <pre class="font-mono text-xs p-4 rounded-lg overflow-x-auto" style="background-color: rgba(26,22,18,0.06)">{bibtex}</pre>

@@ -39,7 +39,7 @@ export const site = {
     now: true,
     selectedWriting: true,
     footerProfiles: true,
-    findCv: true,
+    findCv: false, // re-enable once public/pdfs/yariv-cv-full.pdf is added
   },
 } as const;
 
