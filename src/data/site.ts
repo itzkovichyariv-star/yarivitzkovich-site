@@ -30,6 +30,17 @@ export const site = {
   },
   totalPublicationsOverride: 28, // until content collection is wired up
   headshot: "/images/headshot.jpg",
+  // Section visibility toggles. Set any to `false` to hide that section even
+  // when its data is non-empty. Sections also auto-hide when their data is empty.
+  display: {
+    headshot: true,
+    atPresent: true,
+    fieldsOfInquiry: true,
+    now: true,
+    selectedWriting: true,
+    footerProfiles: true,
+    findCv: true,
+  },
 } as const;
 
 export type SiteConfig = typeof site;

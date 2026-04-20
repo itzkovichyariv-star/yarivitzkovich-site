@@ -6,6 +6,19 @@ interface Props {
 }
 const { lang = 'en' } = Astro.props;
 
+const profileLinks: Array<{ label: string; href: string }> = [
+  { label: 'Google Scholar', href: site.profiles.googleScholar },
+  { label: 'ORCID', href: site.profiles.orcid },
+  { label: 'ResearchGate', href: site.profiles.researchGate },
+  { label: 'LinkedIn', href: site.profiles.linkedin },
+  { label: 'GitHub (templates)', href: site.profiles.github },
+  { label: 'Mastodon', href: site.profiles.mastodon },
+  { label: 'Bluesky', href: site.profiles.bluesky },
+].filter((link) => Boolean(link.href));
+
+const showProfiles = site.display.footerProfiles && profileLinks.length > 0;
+const showCv = site.display.findCv;
+
 const copy = {
   en: {
     kicker: 'Elsewhere & in touch',
@@ -53,29 +66,35 @@ const copy = {
             </svg>
             <span class="copy-email-label">{copy.email}</span>
           </button>
-          <a
-            href="/pdfs/yariv-cv-full.pdf"
-            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm border border-current hover:opacity-80 transition-opacity"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            {copy.cv}
-          </a>
+          {showCv && (
+            <a
+              href="/pdfs/yariv-cv-full.pdf"
+              class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm border border-current hover:opacity-80 transition-opacity"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {copy.cv}
+            </a>
+          )}
         </div>
       </div>
-      <div class="col-span-12 md:col-span-4 md:text-right">
-        <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.findMe}</div>
-        <div class="space-y-2 text-sm">
-          <div><a href={site.profiles.googleScholar || '#'} class="hover:underline" rel="me noopener">Google Scholar ↗</a></div>
-          <div><a href={site.profiles.orcid || '#'} class="hover:underline" rel="me noopener">ORCID ↗</a></div>
-          <div><a href={site.profiles.researchGate || '#'} class="hover:underline" rel="me noopener">ResearchGate ↗</a></div>
-          <div><a href={site.profiles.linkedin || '#'} class="hover:underline" rel="me noopener">LinkedIn ↗</a></div>
-          <div><a href={site.profiles.github || '#'} class="hover:underline" rel="me noopener">GitHub (templates) ↗</a></div>
+      {showProfiles && (
+        <div class="col-span-12 md:col-span-4 md:text-right">
+          <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.findMe}</div>
+          <div class="space-y-2 text-sm">
+            {profileLinks.map((link) => (
+              <div>
+                <a href={link.href} class="hover:underline" rel="me noopener" target="_blank">
+                  {link.label} ↗
+                </a>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
     <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex justify-between text-xs font-mono uppercase tracking-widest opacity-60 flex-wrap gap-2">
       <div>{copy.copy}</div>

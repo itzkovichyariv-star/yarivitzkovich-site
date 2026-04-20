@@ -90,7 +90,7 @@ const nowUpdated = 'April 2026';
             </p>
           </div>
           <div class="col-span-12 md:col-span-4 md:pt-4">
-            {site.headshot && (
+            {site.display.headshot && site.headshot && (
               <img
                 src={site.headshot}
                 alt={`${site.name} headshot`}
@@ -101,13 +101,17 @@ const nowUpdated = 'April 2026';
                 loading="eager"
               />
             )}
-            <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
-              At present
-            </div>
-            <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
-              <div>{site.affiliation.en}</div>
-              <div class="text-muted">{site.location.en}</div>
-            </div>
+            {site.display.atPresent && (site.affiliation.en || site.location.en) && (
+              <>
+                <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
+                  At present
+                </div>
+                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
+                  {site.affiliation.en && <div>{site.affiliation.en}</div>}
+                  {site.location.en && <div class="text-muted">{site.location.en}</div>}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -118,8 +122,8 @@ const nowUpdated = 'April 2026';
     <div class="h-px border-divider" style="background-color: var(--divider)"></div>
   </div>
 
-  <!-- Fields of inquiry -->
-  <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+  {site.display.fieldsOfInquiry && fields.length > 0 && (
+    <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
     <div class="grid grid-cols-12 gap-6 mb-16">
       <div class="col-span-12 md:col-span-2">
         <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. I</div>
@@ -151,10 +155,11 @@ const nowUpdated = 'April 2026';
         </div>
       ))}
     </div>
-  </section>
+    </section>
+  )}
 
-  <!-- NOW section -->
-  <section id="now" style="background-color: var(--panel); color: var(--panel-text); border-top: 1px solid var(--panel-divider); border-bottom: 1px solid var(--panel-divider)">
+  {site.display.now && nowItems.length > 0 && (
+    <section id="now" style="background-color: var(--panel); color: var(--panel-text); border-top: 1px solid var(--panel-divider); border-bottom: 1px solid var(--panel-divider)">
     <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
       <div class="grid grid-cols-12 gap-6">
         <div class="col-span-12 md:col-span-2">
@@ -177,10 +182,11 @@ const nowUpdated = 'April 2026';
         </div>
       </div>
     </div>
-  </section>
+    </section>
+  )}
 
-  <!-- Selected Writing -->
-  <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+  {site.display.selectedWriting && selected.length > 0 && (
+    <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
     <div class="grid grid-cols-12 gap-6 mb-12">
       <div class="col-span-12 md:col-span-2">
         <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. III</div>
@@ -305,5 +311,6 @@ const nowUpdated = 'April 2026';
         start();
       })();
     </script>
-  </section>
+    </section>
+  )}
 </BaseLayout>
