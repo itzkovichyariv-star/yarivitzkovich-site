@@ -165,13 +165,8 @@ html[dir="rtl"] .drawer-enter {
 
 @media (prefers-reduced-motion: reduce) {
   .rotator > .rotator-item {
-    opacity: 1 !important;
-    pointer-events: auto !important;
+    transition: none !important;
     transform: none !important;
-    position: relative !important;
-  }
-  .rotator {
-    display: block;
   }
 }
 
