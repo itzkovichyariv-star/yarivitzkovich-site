@@ -704,14 +704,14 @@ function Drawer({
           {pub.podcast?.available && pub.podcast.path && (
             <div
               className="mb-8 p-5 rounded-lg"
-              style={{ backgroundColor: 'var(--color-ink)', color: 'var(--color-bg)' }}
+              style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-bg)' }}
             >
               <div className="flex items-center gap-4">
                 <button
                   type="button"
                   onClick={onTogglePlay}
                   className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-ink)' }}
+                  style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-accent)' }}
                   aria-label={playing ? 'Pause audio' : 'Play audio'}
                 >
                   {playing ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
