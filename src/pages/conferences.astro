@@ -1,0 +1,62 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const proceedings = [
+  {
+    year: 2021,
+    authors: 'Itzkovich, Y. and Aleksic, A.',
+    title: 'Perpetrated incivility: individual vs contextual antecedents — a reflective viewpoint',
+    venue: 'Academy of Management Proceedings',
+    location: 'Briarcliff Manor, NY',
+    month: 'August 2021',
+  },
+  {
+    year: 2019,
+    authors: 'Itzkovich, Y., Heilbrunn, S., and Dolev, N.',
+    title: 'An affective events theory viewpoint of the relationship between incivility and potential outcomes',
+    venue: 'Academy of Management Proceedings',
+    location: 'Briarcliff Manor, NY',
+    month: 'July 2019',
+  },
+  {
+    year: 2015,
+    authors: 'Heilbrunn, S. and Itzkovich, Y.',
+    title: 'Impact of workplace incivility on horizontal solidarity and perceptions of job-insecurity',
+    venue: '8th Annual Conference of the EuroMed Academy of Business',
+    location: 'Verona, Italy',
+    month: 'September 2015',
+  },
+];
+---
+<BaseLayout title="Conferences — Yariv Itzkovich" description="Conference papers and presentations by Yariv Itzkovich.">
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+    <div class="grid grid-cols-12 gap-6 mb-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">Conferences</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1 class="font-display text-5xl md:text-6xl" style="font-weight: 300">Conferences.</h1>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft pt-1">Proceedings</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        {proceedings.map((entry) => (
+          <div class="grid grid-cols-12 gap-4 py-10 border-t" style="border-color: var(--divider)">
+            <div class="col-span-12 md:col-span-2">
+              <span class="font-mono text-sm text-muted tabular-nums">{entry.year}</span>
+            </div>
+            <div class="col-span-12 md:col-span-10">
+              <p class="text-soft text-sm mb-1">{entry.authors}</p>
+              <h2 class="font-display text-xl md:text-2xl leading-snug mb-3" style="font-weight: 400">{entry.title}</h2>
+              <p class="text-sm text-muted italic">{entry.venue} · {entry.location} · {entry.month}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
