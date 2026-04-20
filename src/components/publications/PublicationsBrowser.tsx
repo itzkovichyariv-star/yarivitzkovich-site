@@ -383,7 +383,23 @@ function GridView({
           }}
         >
           <div className="col-span-2 md:col-span-1 font-mono text-sm text-muted pt-1">{p.year}</div>
-          <div className="col-span-10 md:col-span-8">
+          {p.image && (
+            <div className="hidden md:block md:col-span-1">
+              <img
+                src={p.image}
+                alt={`${p.title} cover`}
+                className="w-14 rounded shadow-md object-cover"
+              />
+            </div>
+          )}
+          <div className={`col-span-10 ${p.image ? 'md:col-span-7' : 'md:col-span-8'}`}>
+            {p.image && (
+              <img
+                src={p.image}
+                alt={`${p.title} cover`}
+                className="md:hidden w-12 rounded shadow-md object-cover float-left mr-3 mb-1"
+              />
+            )}
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="font-mono text-[10px] uppercase tracking-widest text-soft">
                 {formatType(p.type)}
@@ -407,16 +423,8 @@ function GridView({
               ))}
             </div>
           </div>
-          <div className="col-span-12 md:col-span-3 md:text-right flex md:flex-col md:items-end gap-3">
-            {p.image ? (
-              <img
-                src={p.image}
-                alt={`${p.title} cover`}
-                className="w-16 rounded shadow-md object-cover flex-shrink-0"
-              />
-            ) : (
-              <ArrowUpRight size={22} className="pub-arrow" />
-            )}
+          <div className="col-span-12 md:col-span-3 md:text-right flex md:flex-col md:items-end">
+            <ArrowUpRight size={22} className="pub-arrow" />
           </div>
         </article>
       ))}

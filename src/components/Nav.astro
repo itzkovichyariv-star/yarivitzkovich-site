@@ -14,7 +14,6 @@ const labels = {
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
-// Pages that only exist in English — always use root-level path
 const en = (path: string) => `/${path}`;
 ---
 <header
@@ -25,6 +24,8 @@ const en = (path: string) => `/${path}`;
     <a href={homeHref} class="hover:opacity-60 transition-opacity">
       {site.shortName} / Est. {site.establishedYear}
     </a>
+
+    <!-- Desktop nav -->
     <nav class="hidden md:flex gap-8">
       <a href={homeHref} class="hover:opacity-60 transition-opacity">{t.home}</a>
       <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
@@ -32,14 +33,58 @@ const en = (path: string) => `/${path}`;
       <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
       <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
-    <div class="flex items-center gap-3">
-      <a href={en('publications')} aria-label="Search publications" class="hover:opacity-60 transition-opacity">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+
+    <div class="flex items-center gap-4">
+      <!-- Search — always visible -->
+      <a href={en('publications')} class="flex items-center gap-1.5 hover:opacity-60 transition-opacity" aria-label="Search publications">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
+        <span class="hidden sm:inline">Search</span>
       </a>
       <DarkModeToggle />
       <LangToggle lang={lang} />
+      <!-- Hamburger — mobile only -->
+      <button id="nav-menu-btn" class="md:hidden flex flex-col gap-1.5" aria-label="Open menu" aria-expanded="false">
+        <span class="block w-5 h-px bg-current transition-all"></span>
+        <span class="block w-5 h-px bg-current transition-all"></span>
+        <span class="block w-3.5 h-px bg-current transition-all"></span>
+      </button>
     </div>
   </div>
+
+  <!-- Mobile menu -->
+  <div
+    id="nav-mobile-menu"
+    class="hidden md:hidden border-t"
+    style="background-color: var(--nav-bg); border-color: var(--divider)"
+  >
+    <nav class="max-w-6xl mx-auto px-6 py-6 flex flex-col gap-5 font-mono text-xs uppercase tracking-widest">
+      <a href={homeHref} class="hover:opacity-60 transition-opacity">{t.home}</a>
+      <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
+      <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
+      <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
+      <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
+    </nav>
+  </div>
 </header>
+
+<script is:inline>
+  (() => {
+    const btn = document.getElementById('nav-menu-btn');
+    const menu = document.getElementById('nav-mobile-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', () => {
+      const open = !menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', open);
+      btn.setAttribute('aria-expanded', String(!open));
+    });
+    // Close on nav link click
+    menu.querySelectorAll('a').forEach((a) => {
+      a.addEventListener('click', () => {
+        menu.classList.add('hidden');
+        btn.setAttribute('aria-expanded', 'false');
+      });
+    });
+  })();
+</script>
