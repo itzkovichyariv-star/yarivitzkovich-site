@@ -19,6 +19,13 @@ import {
   type Publication,
   type PublicationType,
 } from '../../lib/publications';
+import {
+  generateAPA,
+  generateMLA,
+  generateChicago,
+  splitMarkdownItalics,
+  stripMarkdownItalics,
+} from '../../lib/citations';
 
 interface TopicOption {
   id: string;
@@ -28,6 +35,7 @@ interface TopicOption {
 interface Props {
   publications: Publication[];
   topics: TopicOption[];
+  availableTypes?: string[];
   initialFilters?: InitialFilters;
 }
 
@@ -59,8 +67,14 @@ const VIEW_OPTIONS: Array<{ k: ViewMode; icon: typeof LayoutGrid; label: string 
 export default function PublicationsBrowser({
   publications,
   topics,
+  availableTypes,
   initialFilters = {},
 }: Props) {
+  const typeFilterOptions = useMemo(() => {
+    if (!availableTypes) return TYPE_OPTIONS;
+    const allowed = new Set(availableTypes);
+    return TYPE_OPTIONS.filter((o) => o.k === 'all' || allowed.has(o.k));
+  }, [availableTypes]);
   const years = useMemo(() => publications.map((p) => p.year), [publications]);
   const yearBounds = useMemo(
     () => ({
@@ -150,10 +164,8 @@ export default function PublicationsBrowser({
     [topics],
   );
 
-  const copyBibtex = () => {
-    if (!selected) return;
-    const bib = generateBibtex(selected);
-    navigator.clipboard?.writeText(bib);
+  const copyCitation = (text: string) => {
+    navigator.clipboard?.writeText(stripMarkdownItalics(text));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -195,7 +207,7 @@ export default function PublicationsBrowser({
 
             {/* Type filter */}
             <div className="flex items-center gap-1 flex-wrap">
-              {TYPE_OPTIONS.map((t) => (
+              {typeFilterOptions.map((t) => (
                 <button
                   key={t.k}
                   type="button"
@@ -302,7 +314,7 @@ export default function PublicationsBrowser({
           onClose={() => setSelected(null)}
           onSelect={setSelected}
           copied={copied}
-          onCopyBibtex={copyBibtex}
+          onCopy={copyCitation}
           playing={playing}
           onTogglePlay={() => setPlaying((p) => !p)}
           audioRef={audioRef}
@@ -534,6 +546,8 @@ function TopicsView({
   );
 }
 
+type CitationFormat = 'apa' | 'mla' | 'chicago' | 'bibtex';
+
 function Drawer({
   pub,
   paperNumber,
@@ -542,7 +556,7 @@ function Drawer({
   onClose,
   onSelect,
   copied,
-  onCopyBibtex,
+  onCopy,
   playing,
   onTogglePlay,
   audioRef,
@@ -554,12 +568,19 @@ function Drawer({
   onClose: () => void;
   onSelect: (p: Publication) => void;
   copied: boolean;
-  onCopyBibtex: () => void;
+  onCopy: (text: string) => void;
   playing: boolean;
   onTogglePlay: () => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
 }) {
-  const bibtex = generateBibtex(pub);
+  const [format, setFormat] = useState<CitationFormat>('apa');
+  const citations: Record<CitationFormat, string> = {
+    apa: generateAPA(pub),
+    mla: generateMLA(pub),
+    chicago: generateChicago(pub),
+    bibtex: generateBibtex(pub),
+  };
+  const activeCitation = citations[format];
 
   return (
     <>
@@ -731,15 +752,6 @@ function Drawer({
                 <FileDown size={14} /> Download PDF
               </a>
             )}
-            <button
-              type="button"
-              onClick={onCopyBibtex}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border transition-colors"
-              style={{ borderColor: 'var(--text)' }}
-            >
-              {copied ? <Check size={14} /> : <Quote size={14} />}
-              {copied ? 'Copied' : 'Copy BibTeX'}
-            </button>
             {pub.doi && (
               <a
                 href={`https://doi.org/${pub.doi}`}
@@ -764,18 +776,16 @@ function Drawer({
             )}
           </div>
 
-          <div className="mb-8">
-            <div className="font-mono text-xs uppercase tracking-widest text-muted mb-2">Cite</div>
-            <pre
-              className="font-mono text-xs p-4 rounded-lg overflow-x-auto"
-              style={{ backgroundColor: 'rgba(26,22,18,0.06)' }}
-            >
-              {bibtex}
-            </pre>
-          </div>
+          <CitationPanel
+            format={format}
+            onChangeFormat={setFormat}
+            activeCitation={activeCitation}
+            copied={copied}
+            onCopy={() => onCopy(activeCitation)}
+          />
 
           {related.length > 0 && (
-            <div>
+            <div className="mt-8">
               <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">
                 Related work
               </div>
@@ -800,5 +810,81 @@ function Drawer({
         </div>
       </aside>
     </>
+  );
+}
+
+const CITATION_FORMAT_LABELS: Record<CitationFormat, string> = {
+  apa: 'APA 7',
+  mla: 'MLA 9',
+  chicago: 'Chicago',
+  bibtex: 'BibTeX',
+};
+const CITATION_FORMAT_ORDER: CitationFormat[] = ['apa', 'mla', 'chicago', 'bibtex'];
+
+function CitationPanel({
+  format,
+  onChangeFormat,
+  activeCitation,
+  copied,
+  onCopy,
+}: {
+  format: CitationFormat;
+  onChangeFormat: (f: CitationFormat) => void;
+  activeCitation: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+        <div className="flex items-center gap-1">
+          {CITATION_FORMAT_ORDER.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => onChangeFormat(f)}
+              className="px-3 py-1 text-[11px] font-mono uppercase tracking-wider rounded-full transition-all"
+              style={
+                format === f
+                  ? { backgroundColor: 'var(--text)', color: 'var(--surface)' }
+                  : { color: 'var(--text-muted)', opacity: 0.6 }
+              }
+            >
+              {CITATION_FORMAT_LABELS[f]}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border transition-colors"
+          style={{ borderColor: 'var(--divider)' }}
+        >
+          {copied ? <Check size={12} /> : <Quote size={12} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      {format === 'bibtex' ? (
+        <pre
+          className="font-mono text-xs p-4 rounded-lg overflow-x-auto leading-relaxed"
+          style={{ backgroundColor: 'rgba(26,22,18,0.06)' }}
+        >
+          {activeCitation}
+        </pre>
+      ) : (
+        <p
+          className="text-sm leading-relaxed p-4 rounded-lg"
+          style={{ backgroundColor: 'rgba(26,22,18,0.06)' }}
+        >
+          {splitMarkdownItalics(activeCitation).map((part, i) =>
+            part.italic ? (
+              <em key={i}>{part.text}</em>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+        </p>
+      )}
+    </div>
   );
 }

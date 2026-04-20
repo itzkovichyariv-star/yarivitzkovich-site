@@ -7,7 +7,7 @@ import type { Publication } from '../../lib/publications';
 
 const entries = await getCollection('publications');
 
-const publications: Publication[] = entries
+const allPubs: Publication[] = entries
   .map((e) => ({
     id: e.data.id,
     slug: e.data.slug,
@@ -37,8 +37,23 @@ const publications: Publication[] = entries
   }))
   .sort((a, b) => b.year - a.year);
 
-const topicOptions = TOPICS.map((t) => ({ id: t.id, label: t.label }));
+// Only accepted publications go in the main index (published or in-press).
+// Under-review / working-paper / pending-review / draft are shown on /research.
+const PUBLISHED_STATUSES = new Set(['published', 'in-press']);
+const publications = allPubs.filter((p) => PUBLISHED_STATUSES.has(p.status));
+const inProgress = allPubs.filter((p) => !PUBLISHED_STATUSES.has(p.status));
+
+// Only expose filter options that would actually return results.
+const usedTopicIds = new Set<string>();
+const usedTypes = new Set<string>();
+for (const p of publications) {
+  p.topics.forEach((t) => usedTopicIds.add(t));
+  usedTypes.add(p.type);
+}
+const topicOptions = TOPICS.filter((t) => usedTopicIds.has(t.id)).map((t) => ({ id: t.id, label: t.label }));
+const typeOptions = Array.from(usedTypes);
 const totalPublications = publications.length;
+const inProgressCount = inProgress.length;
 ---
 <BaseLayout title={`Publications — Yariv Itzkovich`}>
   <section class="max-w-7xl mx-auto px-6 md:px-10 pt-32 pb-10">
@@ -50,13 +65,20 @@ const totalPublications = publications.length;
       Publications.
     </h1>
     <p class="max-w-2xl text-lg text-muted font-display" style="font-weight: 300">
-      {totalPublications} papers across four domains, built up around the same stubborn question asked from different angles — <em>why do we let each other be treated badly at work, and what might we do about it?</em>
+      {totalPublications} published works across four domains, built up around the same stubborn question asked from different angles — <em>why do we let each other be treated badly at work, and what might we do about it?</em>
     </p>
+    {inProgressCount > 0 && (
+      <p class="max-w-2xl mt-6 text-sm text-muted">
+        <span class="font-mono text-xs uppercase tracking-widest text-soft">Not yet published:</span>{' '}
+        <a href="/research" class="underline underline-offset-4 hover:opacity-70">{inProgressCount} papers in progress</a> — under review, in revision, or working drafts.
+      </p>
+    )}
   </section>
 
   <PublicationsBrowser
     client:load
     publications={publications}
     topics={topicOptions}
+    availableTypes={typeOptions}
   />
 </BaseLayout>

@@ -5,11 +5,12 @@ import { site } from '../data/site';
 import { formatStatus, formatType } from '../lib/publications';
 
 const allPubs = await getCollection('publications');
-const selected = allPubs
+const PUBLISHED = new Set(['published', 'in-press']);
+const published = allPubs.filter((e) => PUBLISHED.has(e.data.status));
+const selected = published
   .filter((e) => e.data.featured)
-  .sort((a, b) => b.data.year - a.data.year)
-  .slice(0, 3);
-const totalPublications = allPubs.length;
+  .sort((a, b) => b.data.year - a.data.year);
+const totalPublications = published.length;
 
 const fields = [
   {
@@ -28,10 +29,10 @@ const fields = [
   },
   {
     num: '03',
-    title: 'Wellbeing, ADHD & employability',
-    desc: 'Longitudinal studies on training programs, emotional intelligence, and the neurodivergent experience in contemporary workplaces.',
-    count: '5 works',
-    href: '/publications?topics=wellbeing,adhd',
+    title: 'Workplace bullying and its cascades',
+    desc: 'How bullying moves through teams, higher education, and voluntary organizations — scoping reviews, tit-for-tat dynamics, and the witnesses who get pulled in alongside targets.',
+    count: '6 works',
+    href: '/publications?topics=bullying',
   },
 ];
 
@@ -190,14 +191,21 @@ const nowUpdated = 'April 2026';
       </div>
     </div>
 
-    <div>
-      {selected.map((entry) => {
+    <div
+      id="selected-rotator"
+      class="rotator"
+      data-interval="15000"
+      aria-live="polite"
+    >
+      {selected.map((entry, i) => {
         const statusLabel = formatStatus(entry.data.status);
         return (
           <a
             href={`/publications/${entry.data.slug}`}
-            class="pub-row grid grid-cols-12 gap-6 py-8 border-t cursor-pointer"
+            class={`pub-row rotator-item grid grid-cols-12 gap-6 py-8 border-t cursor-pointer${i === 0 ? ' is-visible' : ''}`}
             style="border-color: var(--divider)"
+            data-index={i}
+            aria-hidden={i === 0 ? 'false' : 'true'}
           >
             <div class="col-span-3 md:col-span-2 font-mono text-sm text-muted">{entry.data.year}</div>
             <div class="col-span-9 md:col-span-8">
@@ -221,5 +229,64 @@ const nowUpdated = 'April 2026';
         );
       })}
     </div>
+    {selected.length > 1 && (
+      <div id="selected-rotator-controls" class="mt-6 flex items-center gap-3">
+        {selected.map((_, i) => (
+          <button
+            type="button"
+            class={`rotator-dot ${i === 0 ? 'is-active' : ''}`}
+            data-dot-index={i}
+            aria-label={`Show featured work ${i + 1} of ${selected.length}`}
+          />
+        ))}
+        <span
+          class="ml-4 font-mono text-[11px] uppercase tracking-widest text-soft tabular-nums"
+          id="selected-rotator-counter"
+        >
+          01 / {String(selected.length).padStart(2, '0')}
+        </span>
+      </div>
+    )}
+    <script is:inline define:vars={{ intervalMs: 15000 }}>
+      (() => {
+        const rotator = document.getElementById('selected-rotator');
+        if (!rotator) return;
+        const items = Array.from(rotator.querySelectorAll('.rotator-item'));
+        if (items.length <= 1) return;
+        const dots = Array.from(document.querySelectorAll('#selected-rotator-controls .rotator-dot'));
+        const counter = document.getElementById('selected-rotator-counter');
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let idx = 0;
+        let timer = null;
+
+        const go = (next) => {
+          if (next === idx) return;
+          items[idx].classList.remove('is-visible');
+          items[idx].setAttribute('aria-hidden', 'true');
+          idx = (next + items.length) % items.length;
+          items[idx].classList.add('is-visible');
+          items[idx].setAttribute('aria-hidden', 'false');
+          dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+          if (counter) counter.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(items.length).padStart(2, '0')}`;
+        };
+
+        const start = () => {
+          if (reduced) return;
+          stop();
+          timer = setInterval(() => go(idx + 1), intervalMs);
+        };
+        const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+        rotator.addEventListener('mouseenter', stop);
+        rotator.addEventListener('mouseleave', start);
+        rotator.addEventListener('focusin', stop);
+        rotator.addEventListener('focusout', start);
+        dots.forEach((dot, i) => {
+          dot.addEventListener('click', () => { go(i); start(); });
+        });
+
+        start();
+      })();
+    </script>
   </section>
 </BaseLayout>

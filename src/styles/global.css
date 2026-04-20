@@ -127,6 +127,54 @@ html[dir="rtl"] .drawer-enter {
   to { transform: translateX(0); }
 }
 
+.rotator {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.rotator > .rotator-item {
+  grid-column: 1;
+  grid-row: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rotator > .rotator-item.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.rotator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--divider);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.rotator-dot.is-active {
+  background-color: var(--accent);
+  transform: scale(1.4);
+}
+.rotator-dot:hover {
+  background-color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotator > .rotator-item {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+    position: relative !important;
+  }
+  .rotator {
+    display: block;
+  }
+}
+
 .pub-row:hover .pub-title,
 .pub-row:hover .pub-arrow {
   color: var(--accent);

@@ -5,7 +5,6 @@ export const TOPICS = [
   { id: 'abusive-supervision', label: 'Abusive Supervision', color: '#B8570C', description: '' },
   { id: 'bullying', label: 'Bullying', color: '#7A1E2B', description: '' },
   { id: 'lmx', label: 'LMX', color: '#5B4E8A', description: 'Leader\u2013member exchange.' },
-  { id: 'adhd', label: 'ADHD', color: '#2D5F5D', description: '' },
   { id: 'wellbeing', label: 'Wellbeing', color: '#2D5F5D', description: '' },
   { id: 'hierarchies', label: 'Hierarchies', color: '#B8570C', description: '' },
   { id: 'editorial', label: 'Editorial', color: '#444', description: '' },

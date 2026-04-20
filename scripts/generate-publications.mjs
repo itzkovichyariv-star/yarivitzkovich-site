@@ -30,6 +30,7 @@ const PUBS = [
     volume: '21', issue: '9', pages: '1173',
     doi: '10.3390/ijerph21091173',
     topics: ['bullying', 'hierarchies'], methods: ['Review'],
+    featured: true,
     pdfCandidates: ['ijerph-21-01173-v2.pdf'],
   },
   {
@@ -43,6 +44,7 @@ const PUBS = [
     volume: '170', pages: '107430',
     doi: '10.1016/j.infsof.2024.107430',
     topics: ['ai'], methods: ['Quantitative'],
+    featured: true,
     pdfCandidates: ['1-s2.0-S0950584924000351-main.pdf'],
   },
   {
@@ -159,6 +161,7 @@ const PUBS = [
     volume: '69', issue: '4', pages: '764-789',
     doi: '10.3233/WOR-213548',
     topics: ['incivility'], methods: ['Quantitative'],
+    featured: true,
     pdfCandidates: ['dolev-et-al-2021-a-call-for-transformation-exit-voice-loyalty-and-neglect-%28evln%29-in-response-to-workplace-incivility.pdf'],
   },
   {
@@ -172,6 +175,7 @@ const PUBS = [
     volume: '39', issue: '7', pages: '851-868',
     doi: '10.1108/JMD-09-2019-0401',
     topics: ['abusive-supervision'], methods: ['Conceptual'],
+    featured: true,
     pdfCandidates: ['jmd-09-2019-0401.pdf', 'jmd-09-2019-0401-2.pdf'],
   },
   {
@@ -211,6 +215,7 @@ const PUBS = [
     volume: '77', issue: '3', pages: '437-454',
     doi: '10.1007/s10734-018-0281-y',
     topics: ['incivility'], methods: ['Quantitative'],
+    featured: true,
     pdfCandidates: ['s10734-018-0281-y.pdf'],
   },
   {
@@ -275,6 +280,7 @@ const PUBS = [
     volume: '37', issue: '8', pages: '861-876',
     doi: '10.1080/01639625.2016.1152865',
     topics: ['incivility'], methods: ['Quantitative'],
+    featured: true,
     pdfCandidates: ['ItzkovitchHeilbrunn2016-Deviance.pdf'],
   },
   {
@@ -351,6 +357,12 @@ const PUBS = [
     title: 'Will they Strike Back? Shedding Light on the Tit-for-Tat Mechanism in Incivility and Bullying Research from a Latent Class Perspective',
     venue: 'Journal of Aggression, Maltreatment & Trauma',
     topics: ['incivility', 'bullying'], methods: ['Quantitative'],
+    featured: true,
+    podcast: {
+      available: true,
+      path: '/podcasts/will-they-strike-back-incivility-bullying.m4a',
+      description: 'Why workplace victims rarely strike back — audio discussion',
+    },
     pdfCandidates: ['Will They Strike Back .pdf'],
   },
   {
@@ -413,7 +425,7 @@ const PUBS = [
     authors: ['Dolev, N.', 'Livne, Y.', 'Itzkovich, Y.'],
     title: 'Employability Efficacy in ADHD Young Adults: Supportive Psychological Resources',
     venue: 'Disability and Rehabilitation',
-    topics: ['adhd', 'wellbeing'], methods: ['Quantitative'],
+    topics: ['wellbeing'], methods: ['Quantitative'],
     pdfCandidates: [],
   },
   {
@@ -652,6 +664,7 @@ function buildFrontMatter(p) {
   if (p.tldr) frontMatter.tldr = p.tldr;
   if (p.abstract) frontMatter.abstract = p.abstract;
   frontMatter.pdf = pdf;
+  if (p.podcast) frontMatter.podcast = p.podcast;
   frontMatter.bibtex = generateBibtex(p);
 
   return frontMatter;
@@ -671,8 +684,8 @@ function renderFrontMatter(fm) {
       }
     } else if (key === 'topics' || key === 'methods') {
       lines.push(`${key}: ${toYaml(value)}`);
-    } else if (key === 'pdf') {
-      lines.push('pdf:');
+    } else if (key === 'pdf' || key === 'podcast') {
+      lines.push(`${key}:`);
       for (const [pk, pv] of Object.entries(value)) {
         lines.push(`  ${pk}: ${toYaml(pv)}`);
       }
@@ -695,10 +708,24 @@ const PDF_SOURCE_DIR = '/Users/yarivitzkovich/Library/CloudStorage/OneDrive-arie
 const PDF_OUT_DIR = join(ROOT, 'public/pdfs');
 mkdirSync(PDF_OUT_DIR, { recursive: true });
 
+let _sourceFileIndex = null;
+function getSourceFileIndex() {
+  if (_sourceFileIndex) return _sourceFileIndex;
+  const files = readdirSync(PDF_SOURCE_DIR);
+  _sourceFileIndex = new Map();
+  for (const f of files) {
+    _sourceFileIndex.set(f.trim().toLowerCase(), f);
+  }
+  return _sourceFileIndex;
+}
+
 function copyPdfIfNeeded(p) {
   if (!p.pdfCandidates || p.pdfCandidates.length === 0) return null;
+  const index = getSourceFileIndex();
   for (const candidate of p.pdfCandidates) {
-    const srcPath = join(PDF_SOURCE_DIR, candidate);
+    const realName = index.get(candidate.trim().toLowerCase());
+    if (!realName) continue;
+    const srcPath = join(PDF_SOURCE_DIR, realName);
     if (!existsSync(srcPath)) continue;
     const destName = `${p.slug}.pdf`;
     const destPath = join(PDF_OUT_DIR, destName);
