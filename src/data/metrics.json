@@ -1,0 +1,15 @@
+{
+  "googleScholar": {
+    "hIndex": 16,
+    "citations": 869,
+    "source": "Google Scholar",
+    "url": "https://scholar.google.com/citations?user=YOUR_ID"
+  },
+  "openAlex": {
+    "hIndex": 12,
+    "citations": 411,
+    "worksCount": 45,
+    "source": "OpenAlex",
+    "updatedAt": "2026-04-20"
+  }
+}

@@ -1,0 +1,40 @@
+name: Update OpenAlex metrics
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday 06:00 UTC
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch OpenAlex metrics
+        run: |
+          curl -s "https://api.openalex.org/authors/https://orcid.org/0000-0002-3296-6518" \
+            -H "mailto:itzkovichyariv@gmail.com" \
+            -o /tmp/openalex.json
+
+      - name: Update metrics.json
+        run: |
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('/tmp/openalex.json', 'utf8'));
+            const metrics = JSON.parse(fs.readFileSync('src/data/metrics.json', 'utf8'));
+            metrics.openAlex.hIndex = data.summary_stats?.h_index ?? metrics.openAlex.hIndex;
+            metrics.openAlex.citations = data.cited_by_count ?? metrics.openAlex.citations;
+            metrics.openAlex.worksCount = data.works_count ?? metrics.openAlex.worksCount;
+            metrics.openAlex.updatedAt = new Date().toISOString().split('T')[0];
+            fs.writeFileSync('src/data/metrics.json', JSON.stringify(metrics, null, 2) + '\n');
+            console.log('Updated:', metrics.openAlex);
+          "
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet || (git add src/data/metrics.json && git commit -m "chore: update OpenAlex citation metrics" && git push)
