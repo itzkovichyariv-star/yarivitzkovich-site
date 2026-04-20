@@ -407,8 +407,16 @@ function GridView({
               ))}
             </div>
           </div>
-          <div className="col-span-12 md:col-span-3 md:text-right flex md:flex-col md:items-end">
-            <ArrowUpRight size={22} className="pub-arrow" />
+          <div className="col-span-12 md:col-span-3 md:text-right flex md:flex-col md:items-end gap-3">
+            {p.image ? (
+              <img
+                src={p.image}
+                alt={`${p.title} cover`}
+                className="w-16 rounded shadow-md object-cover flex-shrink-0"
+              />
+            ) : (
+              <ArrowUpRight size={22} className="pub-arrow" />
+            )}
           </div>
         </article>
       ))}
