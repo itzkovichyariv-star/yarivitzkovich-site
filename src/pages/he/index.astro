@@ -1,0 +1,292 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { site } from '../../data/site';
+import { formatStatus, formatType } from '../../lib/publications';
+
+const allPubs = await getCollection('publications');
+const PUBLISHED = new Set(['published', 'in-press']);
+const published = allPubs.filter((e) => PUBLISHED.has(e.data.status));
+const selected = published
+  .filter((e) => e.data.featured)
+  .sort((a, b) => b.data.year - a.data.year);
+const totalPublications = published.length;
+
+const pairs = [];
+for (let i = 0; i < selected.length; i += 2) {
+  pairs.push([selected[i], selected[i + 1] ?? null]);
+}
+
+const fields = [
+  {
+    num: '01',
+    title: 'חוסר נימוס בעבודה והתפשטותו',
+    desc: 'כיצד התנהגות פוגענית עוברת בהיררכיות ארגוניות — ממנהלים לעובדים, מעדים לשחקנים. מדוע רגע אחד של גסות רוח משנה צוות שלם.',
+    count: '14 עבודות',
+    href: '/publications?topics=incivility',
+  },
+  {
+    num: '02',
+    title: 'התערבות עדים ובינה מלאכותית',
+    desc: 'האם בינה מלאכותית יכולה לשמש עד בזמן אמת לפגיעה בעבודה? בחינת התערבויות מתווכות-AI בסביבות ארגוניות.',
+    count: '6 עבודות',
+    href: '/publications?topics=bystander,ai',
+  },
+  {
+    num: '03',
+    title: 'בריונות בעבודה והשלכותיה',
+    desc: 'כיצד בריונות מתפשטת בצוותים, במוסדות להשכלה גבוהה ובארגונים מתנדבים — סקירות מקיפות, דינמיקות של תגמול, ועדים הנסחפים יחד עם המטרות.',
+    count: '6 עבודות',
+    href: '/publications?topics=bullying',
+  },
+];
+
+const nowItems = [
+  {
+    label: 'כותב',
+    title: 'בינה מלאכותית כעד אוטומטי',
+    note: 'מאמר בבחינה ב-HRMR. האם מכונות יכולות להיות עדות לפגיעה מבלי להחליף את האומץ האנושי?',
+  },
+  {
+    label: 'מנתח',
+    title: 'תוכנית הכשרת ADHD, T1–T4',
+    note: 'נתוני מדידות חוזרות על אינטליגנציה רגשית, יכולת תעסוקתית ורווחה.',
+  },
+  {
+    label: 'עורך',
+    title: 'Journal of Managerial Psychology',
+    note: 'טיפול במאמרים על דה-הומניזציה, HRM גמיש ועתיד העבודה.',
+  },
+];
+const nowUpdated = 'אפריל 2026';
+---
+<BaseLayout
+  lang="he"
+  title={`יריב איצקוביץ — מחקר על פגיעה בסביבת העבודה ובינה מלאכותית`}
+  description="יריב איצקוביץ — מחקר על חוסר נימוס בעבודה, התערבות עדים ובינה מלאכותית בארגונים."
+>
+  <!-- Hero -->
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2 pt-4">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft fade-up" style="animation-delay: 0.1s">
+          № 001
+        </div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1
+          class="font-display leading-[0.95] tracking-tight fade-up"
+          style="font-size: clamp(2.5rem, 8vw, 6.5rem); font-weight: 300; animation-delay: 0.2s"
+        >
+          יריב איצקוביץ.
+        </h1>
+        <div class="mt-8 md:mt-12 grid grid-cols-12 gap-6">
+          <div class="col-span-12 md:col-span-8">
+            <p
+              class="font-display leading-snug fade-up"
+              style="font-size: clamp(1.35rem, 2.8vw, 2.1rem); animation-delay: 0.4s; font-weight: 300"
+            >
+              אני חוקר כיצד <em class="text-accent" style="font-style: italic">פגיעה</em> עוברת בארגונים — ואם מכונות יכולות ללמוד לעצור אותה.
+            </p>
+            <p class="mt-8 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.6s">
+              עורך משנה ב-<em>Journal of Managerial Psychology</em>. סגל בניהול משאבי אנוש ופיתוח ארגוני באוניברסיטת אריאל. חוקר-מתרגל הפועל בממשק שבין מחקר על פגיעה בסביבת העבודה לכלים שעשויים להפחית אותה.
+            </p>
+          </div>
+          <div class="col-span-12 md:col-span-4 md:pt-4">
+            {site.display.headshot && site.headshot && (
+              <img
+                src={site.headshot}
+                alt="יריב איצקוביץ"
+                class="w-20 h-20 rounded-full object-cover mb-5 fade-up"
+                style="animation-delay: 0.65s; box-shadow: 0 4px 20px rgba(26,22,18,0.15)"
+                width="80"
+                height="80"
+                loading="eager"
+              />
+            )}
+            {site.display.atPresent && (
+              <>
+                <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
+                  כעת
+                </div>
+                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
+                  <div>אוניברסיטת אריאל</div>
+                  <div class="text-muted">ישראל · UTC+3</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="max-w-6xl mx-auto px-6 md:px-10">
+    <div class="h-px" style="background-color: var(--divider)"></div>
+  </div>
+
+  <!-- Fields of Inquiry -->
+  <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+    <div class="grid grid-cols-12 gap-6 mb-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">§ פרק א׳</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">תחומי מחקר.</h2>
+      </div>
+    </div>
+    <div>
+      {fields.map((field) => (
+        <div class="grid grid-cols-12 gap-6 py-10 border-t" style="border-color: var(--divider)">
+          <div class="col-span-12 md:col-span-2">
+            <div class="font-mono text-sm text-muted">{field.num}</div>
+          </div>
+          <div class="col-span-12 md:col-span-7">
+            <h3 class="font-display text-2xl md:text-3xl mb-3" style="font-weight: 400">{field.title}</h3>
+            <p class="text-muted max-w-lg">{field.desc}</p>
+          </div>
+          <div class="col-span-12 md:col-span-3 md:text-left">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">{field.count}</div>
+            <a href={field.href} class="inline-flex items-center gap-1 text-sm group">
+              <span class="border-b" style="border-color: currentColor">לכל המאמרים</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+                <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Now -->
+  <section id="now" style="background-color: var(--panel); color: var(--panel-text); border-top: 1px solid var(--panel-divider); border-bottom: 1px solid var(--panel-divider)">
+    <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
+      <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 md:col-span-2">
+          <div class="font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label)">§ פרק ב׳</div>
+        </div>
+        <div class="col-span-12 md:col-span-10">
+          <h2 class="font-display text-4xl md:text-5xl mb-12" style="font-weight: 300">עכשיו.</h2>
+          <div class="grid md:grid-cols-3 gap-8">
+            {nowItems.map((item) => (
+              <div>
+                <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
+                <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
+                <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
+              </div>
+            ))}
+          </div>
+          <div class="mt-16 font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label); opacity: 0.8">
+            עודכן לאחרונה · {nowUpdated}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Selected Writing -->
+  {selected.length > 0 && (
+    <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+      <div class="grid grid-cols-12 gap-6 mb-12">
+        <div class="col-span-12 md:col-span-2">
+          <div class="font-mono text-xs uppercase tracking-widest text-soft">§ פרק ג׳</div>
+        </div>
+        <div class="col-span-12 md:col-span-10 flex items-baseline justify-between flex-wrap gap-4">
+          <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">כתיבה נבחרת.</h2>
+          <a href="/publications" class="inline-flex items-center gap-1 text-sm group">
+            <span class="border-b" style="border-color: currentColor">כל {totalPublications} הפרסומים</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+              <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <div id="selected-rotator-he" class="rotator" aria-live="polite">
+        {pairs.map((pair, pairIndex) => (
+          <div
+            class={`rotator-item ${pairIndex === 0 ? 'is-visible' : ''}`}
+            data-index={pairIndex}
+            aria-hidden={pairIndex === 0 ? 'false' : 'true'}
+          >
+            <div class="grid md:grid-cols-2 md:gap-10">
+              {pair.map((entry) => {
+                if (!entry) return <div aria-hidden="true" />;
+                const statusLabel = formatStatus(entry.data.status);
+                return (
+                  <a
+                    href={`/publications/${entry.data.slug}`}
+                    class="pub-row flex flex-col py-8 border-t cursor-pointer"
+                    style="border-color: var(--divider)"
+                  >
+                    <div class="flex items-center gap-3 mb-2 flex-wrap">
+                      <span class="font-mono text-xs text-muted tabular-nums">{entry.data.year}</span>
+                      <span class="font-mono text-xs uppercase tracking-widest text-soft">{formatType(entry.data.type)}</span>
+                      {statusLabel && (
+                        <span class="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+                          {statusLabel}
+                        </span>
+                      )}
+                    </div>
+                    <h3 class="pub-title font-display text-xl md:text-2xl leading-snug mb-2" style="font-weight: 400">{entry.data.title}</h3>
+                    <p class="text-sm text-muted italic mb-3">{entry.data.venue}</p>
+                    <div class="mt-auto flex items-center justify-start">
+                      <svg class="pub-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                      </svg>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {pairs.length > 1 && (
+        <div id="selected-rotator-he-controls" class="mt-6 flex items-center gap-3">
+          {pairs.map((_, i) => (
+            <button
+              type="button"
+              class={`rotator-dot ${i === 0 ? 'is-active' : ''}`}
+              data-dot-index={i}
+              aria-label={`הצג זוג ${i + 1} מתוך ${pairs.length}`}
+            />
+          ))}
+          <span class="mr-4 font-mono text-[11px] uppercase tracking-widest text-soft tabular-nums" id="selected-rotator-he-counter">
+            01 / {String(pairs.length).padStart(2, '0')}
+          </span>
+        </div>
+      )}
+      <script is:inline define:vars={{ intervalMs: 7000 }}>
+        (() => {
+          const rotator = document.getElementById('selected-rotator-he');
+          if (!rotator) return;
+          const items = Array.from(rotator.querySelectorAll('.rotator-item'));
+          if (items.length <= 1) return;
+          const dots = Array.from(document.querySelectorAll('#selected-rotator-he-controls .rotator-dot'));
+          const counter = document.getElementById('selected-rotator-he-counter');
+          let idx = 0, timer = null;
+          const go = (next) => {
+            const target = (next + items.length) % items.length;
+            if (target === idx) return;
+            items[idx].classList.remove('is-visible');
+            items[idx].setAttribute('aria-hidden', 'true');
+            idx = target;
+            items[idx].classList.add('is-visible');
+            items[idx].setAttribute('aria-hidden', 'false');
+            dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+            if (counter) counter.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(items.length).padStart(2, '0')}`;
+          };
+          const start = () => { stop(); timer = setInterval(() => go(idx + 1), intervalMs); };
+          const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+          rotator.addEventListener('mouseenter', stop);
+          rotator.addEventListener('mouseleave', start);
+          dots.forEach((dot, i) => { dot.addEventListener('click', () => { go(i); start(); }); });
+          document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else start(); });
+          start();
+        })();
+      </script>
+    </section>
+  )}
+</BaseLayout>
