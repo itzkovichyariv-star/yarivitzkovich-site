@@ -21,8 +21,8 @@ const showCv = site.display.findCv;
 
 const copy = {
   en: {
-    kicker: 'Elsewhere & in touch',
-    heading: 'Write a letter.',
+    kicker: '',
+    heading: 'Get in touch.',
     lede: 'For collaborations, editorial matters at JMP, speaking, or students thinking about graduate study in organizational behaviour.',
     email: 'Email',
     cv: 'Download CV',
@@ -31,8 +31,8 @@ const copy = {
     copy: `© ${site.shortName} · ${new Date().getFullYear()}`,
   },
   he: {
-    kicker: 'במקומות אחרים',
-    heading: 'כתבו לי.',
+    kicker: '',
+    heading: 'צרו קשר.',
     lede: 'לשיתופי פעולה, ענייני עריכה ב-JMP, הרצאות, או סטודנטים/ות ששוקלים לימודי מוסמך בהתנהגות ארגונית.',
     email: 'אימייל',
     cv: 'קורות חיים',
@@ -46,7 +46,7 @@ const copy = {
   <div class="max-w-6xl mx-auto px-6 md:px-10 py-24">
     <div class="grid grid-cols-12 gap-6">
       <div class="col-span-12 md:col-span-8">
-        <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.kicker}</div>
+        {copy.kicker && <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.kicker}</div>}
         <h2 class="font-display font-light leading-none" style="font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 300">
           {copy.heading}
         </h2>

@@ -9,8 +9,8 @@ interface Props {
 const { lang = 'en' } = Astro.props;
 
 const labels = {
-  en: { work: 'Work', now: 'Now', writing: 'Writing', teaching: 'Teaching', contact: 'Contact' },
-  he: { work: 'פרסומים', now: 'עכשיו', writing: 'כתיבה', teaching: 'הוראה', contact: 'יצירת קשר' },
+  en: { home: 'Home', work: 'Publications', now: 'Now', teaching: 'Teaching', contact: 'Contact' },
+  he: { home: 'ראשי', work: 'פרסומים', now: 'עכשיו', teaching: 'הוראה', contact: 'יצירת קשר' },
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
@@ -26,13 +26,18 @@ const en = (path: string) => `/${path}`;
       {site.shortName} / Est. {site.establishedYear}
     </a>
     <nav class="hidden md:flex gap-8">
+      <a href={homeHref} class="hover:opacity-60 transition-opacity">{t.home}</a>
       <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
       <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
-      <a href={`${homeHref}#writing`} class="hover:opacity-60 transition-opacity">{t.writing}</a>
       <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
       <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
     <div class="flex items-center gap-3">
+      <a href={en('publications')} aria-label="Search publications" class="hover:opacity-60 transition-opacity">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+      </a>
       <DarkModeToggle />
       <LangToggle lang={lang} />
     </div>

@@ -3,7 +3,7 @@ backend:
   repo: itzkovichyariv-star/yarivitzkovich-site
   branch: main
   auth_type: pkce
-  app_id: REPLACE_WITH_GITHUB_CLIENT_ID
+  app_id: Ov23li39cSLJpucRmJag
 
 media_folder: public/images
 public_folder: /images

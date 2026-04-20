@@ -3,29 +3,25 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 const current = [
   {
-    title: 'Skills for Organizational Consulting A',
-    titleHe: 'מיומנויות ייעוץ ארגוני א',
+    title: 'Organizational Consulting Skills, Part A',
     type: 'Workshop',
     degree: 'MA',
     institution: 'Ariel University',
   },
   {
-    title: 'Skills for Organizational Consulting B',
-    titleHe: 'מיומנויות ייעוץ ארגוני ב',
+    title: 'Organizational Consulting Skills, Part B',
     type: 'Workshop',
     degree: 'MA',
     institution: 'Ariel University',
   },
   {
     title: 'Practicum — MA in Organizational Consulting',
-    titleHe: 'פרקטיקום לתואר שני ביעוץ ארגוני',
     type: 'Practicum',
     degree: 'MA',
     institution: 'Ariel University',
   },
   {
     title: 'Practicum — BA in HRM & Organizational Development',
-    titleHe: 'פרקטיקום לתואר ראשון במשאבי אנוש ופיתוח ארגוני',
     type: 'Practicum',
     degree: 'BA',
     institution: 'Ariel University',
@@ -73,8 +69,7 @@ const past = [
           {current.map((course) => (
             <div class="grid grid-cols-12 gap-4 py-8 border-t" style="border-color: var(--divider)">
               <div class="col-span-12 md:col-span-8">
-                <h2 class="font-display text-2xl md:text-3xl mb-1" style="font-weight: 400">{course.title}</h2>
-                <p class="text-muted text-sm">{course.titleHe}</p>
+                <h2 class="font-display text-2xl md:text-3xl" style="font-weight: 400">{course.title}</h2>
               </div>
               <div class="col-span-12 md:col-span-4 flex md:flex-col md:items-end gap-3 md:gap-1">
                 <span class="font-mono text-xs uppercase tracking-widest text-soft">{course.degree}</span>

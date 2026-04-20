@@ -147,9 +147,12 @@ export default function PublicationsBrowser({
       .sort((a, b) => b.year - a.year);
   }, [publications, activeType, activeTopics, yearMin]);
 
+  const BOOK_TYPES = new Set(['book', 'edited-book']);
+
   const groupedByTopic = useMemo(() => {
     const map = new Map<string, Publication[]>();
     filtered.forEach((p) => {
+      if (BOOK_TYPES.has(p.type)) return; // books get their own section
       p.topics.forEach((t) => {
         if (!map.has(t)) map.set(t, []);
         const bucket = map.get(t)!;
@@ -158,6 +161,11 @@ export default function PublicationsBrowser({
     });
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [filtered]);
+
+  const booksInView = useMemo(
+    () => filtered.filter((p) => BOOK_TYPES.has(p.type)),
+    [filtered],
+  );
 
   const topicLabel = useCallback(
     (id: string) => topics.find((t) => t.id === id)?.label ?? id,
@@ -289,7 +297,12 @@ export default function PublicationsBrowser({
         {view === 'grid' && <GridView pubs={filtered} onSelect={setSelected} topicLabel={topicLabel} />}
         {view === 'timeline' && <TimelineView pubs={filtered} onSelect={setSelected} />}
         {view === 'topics' && (
-          <TopicsView groups={groupedByTopic} topicLabel={topicLabel} onSelect={setSelected} />
+          <>
+            {booksInView.length > 0 && (
+              <BooksSection books={booksInView} onSelect={setSelected} />
+            )}
+            <TopicsView groups={groupedByTopic} topicLabel={topicLabel} onSelect={setSelected} />
+          </>
         )}
 
         {filtered.length === 0 && (
@@ -493,6 +506,52 @@ function TimelineView({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function BooksSection({
+  books,
+  onSelect,
+}: {
+  books: Publication[];
+  onSelect: (p: Publication) => void;
+}) {
+  return (
+    <div className="mb-10">
+      <div
+        className="flex items-baseline gap-4 mb-4 pb-2 border-b"
+        style={{ borderColor: 'var(--divider)' }}
+      >
+        <h2 className="font-display text-3xl" style={{ fontWeight: 400 }}>Books</h2>
+        <span className="font-mono text-xs uppercase tracking-widest text-soft">
+          {books.length} {books.length === 1 ? 'book' : 'books'}
+        </span>
+      </div>
+      <div className="grid md:grid-cols-2 gap-6">
+        {books.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onSelect(p)}
+            className="text-left flex gap-5 p-5 border rounded-lg hover:opacity-90 transition-opacity"
+            style={{ borderColor: 'var(--divider)' }}
+          >
+            {p.image && (
+              <img
+                src={p.image}
+                alt={`${p.title} cover`}
+                className="w-20 rounded-sm shadow-md flex-shrink-0 object-cover"
+              />
+            )}
+            <div>
+              <div className="font-mono text-xs text-muted mb-2">{p.year} · {formatType(p.type)}</div>
+              <h3 className="font-display text-lg leading-snug mb-1" style={{ fontWeight: 400 }}>{p.title}</h3>
+              <p className="text-xs italic text-muted">{p.publisher ?? p.venue}</p>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

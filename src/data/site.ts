@@ -18,7 +18,7 @@ export const site = {
     en: "Israel · UTC+2",
     he: "ישראל · UTC+2",
   },
-  email: "yariv@yarivitzkovich.com", // replace with real address
+  email: "Yarivi@ariel.ac.il",
   profiles: {
     googleScholar: "",
     orcid: "",
