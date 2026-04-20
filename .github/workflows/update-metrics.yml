@@ -1,4 +1,4 @@
-name: Update OpenAlex metrics
+name: Update OpenAlex metrics and detect new publications
 
 on:
   schedule:
@@ -10,31 +10,172 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch OpenAlex metrics
+      - name: Fetch author data from OpenAlex
         run: |
           curl -s "https://api.openalex.org/authors/https://orcid.org/0000-0002-3296-6518" \
             -H "mailto:itzkovichyariv@gmail.com" \
-            -o /tmp/openalex.json
+            -o /tmp/openalex-author.json
 
       - name: Update metrics.json
         run: |
           node -e "
             const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('/tmp/openalex.json', 'utf8'));
+            const data = JSON.parse(fs.readFileSync('/tmp/openalex-author.json', 'utf8'));
             const metrics = JSON.parse(fs.readFileSync('src/data/metrics.json', 'utf8'));
             metrics.openAlex.hIndex = data.summary_stats?.h_index ?? metrics.openAlex.hIndex;
             metrics.openAlex.citations = data.cited_by_count ?? metrics.openAlex.citations;
             metrics.openAlex.worksCount = data.works_count ?? metrics.openAlex.worksCount;
             metrics.openAlex.updatedAt = new Date().toISOString().split('T')[0];
             fs.writeFileSync('src/data/metrics.json', JSON.stringify(metrics, null, 2) + '\n');
-            console.log('Updated:', metrics.openAlex);
+            console.log('Updated metrics:', metrics.openAlex);
           "
 
-      - name: Commit if changed
+      - name: Fetch all works from OpenAlex
+        run: |
+          curl -s "https://api.openalex.org/works?filter=author.orcid:0000-0002-3296-6518&per_page=100&sort=publication_year:desc" \
+            -H "mailto:itzkovichyariv@gmail.com" \
+            -o /tmp/openalex-works.json
+
+      - name: Detect new publications
+        id: detect
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+
+            const works = JSON.parse(fs.readFileSync('/tmp/openalex-works.json', 'utf8')).results || [];
+
+            // Collect all DOIs already in the repo
+            const pubDir = 'src/content/publications';
+            const existing = fs.readdirSync(pubDir)
+              .filter(f => f.endsWith('.mdx'))
+              .map(f => {
+                const content = fs.readFileSync(path.join(pubDir, f), 'utf8');
+                const match = content.match(/doi:\s*['\"]?(10\.[^\s'\"]+)/i);
+                return match ? match[1].toLowerCase().trim() : null;
+              })
+              .filter(Boolean);
+
+            console.log('Existing DOIs in repo:', existing.length);
+
+            const newWorks = works.filter(w => {
+              if (!w.doi) return false;
+              const doi = w.doi.replace('https://doi.org/', '').toLowerCase().trim();
+              return !existing.includes(doi);
+            });
+
+            if (newWorks.length === 0) {
+              console.log('No new publications found.');
+              fs.writeFileSync('/tmp/new-works.json', '[]');
+            } else {
+              console.log('New publications found:', newWorks.length);
+              newWorks.forEach(w => console.log(' -', w.doi, w.title));
+              fs.writeFileSync('/tmp/new-works.json', JSON.stringify(newWorks, null, 2));
+            }
+          "
+
+      - name: Create draft MDX files for new publications
+        run: |
+          node -e "
+            const fs = require('fs');
+            const newWorks = JSON.parse(fs.readFileSync('/tmp/new-works.json', 'utf8'));
+            if (newWorks.length === 0) process.exit(0);
+
+            for (const w of newWorks) {
+              const doi = w.doi.replace('https://doi.org/', '');
+              const year = w.publication_year || new Date().getFullYear();
+              const title = w.title || 'Untitled';
+
+              // Build slug from title
+              const slug = title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .substring(0, 60);
+
+              // Authors
+              const authors = (w.authorships || [])
+                .map(a => a.author?.display_name || '')
+                .filter(Boolean)
+                .join(', ');
+
+              // Venue
+              const venue = w.primary_location?.source?.display_name || '';
+
+              // Type mapping
+              const typeMap = { 'journal-article': 'article', 'book-chapter': 'chapter', 'book': 'book', 'proceedings-article': 'conference' };
+              const type = typeMap[w.type] || 'article';
+
+              const mdx = [
+                '---',
+                \`title: "\${title.replace(/"/g, '\\'')}" \`,
+                \`slug: "\${slug}"\`,
+                \`year: \${year}\`,
+                \`authors: "\${authors.replace(/"/g, '\\'')}" \`,
+                \`venue: "\${venue.replace(/"/g, '\\'')}" \`,
+                \`doi: "\${doi}"\`,
+                \`type: \${type}\`,
+                'status: published',
+                'featured: false',
+                '# topics: []     <- ADD TOPICS',
+                '# methods: []    <- ADD METHODS IF RELEVANT',
+                'abstract: ""',
+                'tldr: ""',
+                '---',
+                '',
+                '<!-- AUTO-GENERATED by OpenAlex sync. Review and fill in topics, tldr, abstract. -->',
+              ].join('\n');
+
+              const outPath = \`src/content/publications/_drafts/\${slug}.mdx\`;
+              fs.mkdirSync('src/content/publications/_drafts', { recursive: true });
+              fs.writeFileSync(outPath, mdx);
+              console.log('Created draft:', outPath);
+            }
+          "
+
+      - name: Open GitHub Issue for new publications
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          node -e "
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+            const newWorks = JSON.parse(fs.readFileSync('/tmp/new-works.json', 'utf8'));
+            if (newWorks.length === 0) process.exit(0);
+
+            const lines = newWorks.map(w => {
+              const doi = w.doi.replace('https://doi.org/', '');
+              return \`- **\${w.title}** (\${w.publication_year}) — DOI: \${doi}\`;
+            });
+
+            const body = [
+              '## New publications detected via OpenAlex',
+              '',
+              'The following papers were found on OpenAlex but are not yet on the site:',
+              '',
+              ...lines,
+              '',
+              '**What to do:**',
+              '1. Find the draft MDX file in \`src/content/publications/_drafts/\`',
+              '2. Add \`topics\`, \`tldr\`, and \`abstract\`',
+              '3. Move it to \`src/content/publications/\`',
+              '4. Commit and push — the site rebuilds automatically',
+            ].join('\n');
+
+            const title = \`New publication\${newWorks.length > 1 ? 's' : ''} detected: \${newWorks.length} paper\${newWorks.length > 1 ? 's' : ''}\`;
+
+            execSync(\`gh issue create --title \"\${title}\" --body \"\${body.replace(/\"/g, '\\\\\"')}\" --repo \${process.env.REPO}\`);
+            console.log('Issue created.');
+          "
+
+      - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet || (git add src/data/metrics.json && git commit -m "chore: update OpenAlex citation metrics" && git push)
+          git add src/data/metrics.json src/content/publications/_drafts/ 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "chore: update metrics + add draft publications from OpenAlex" && git push || true
