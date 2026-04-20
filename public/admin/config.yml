@@ -1,0 +1,85 @@
+backend:
+  name: github
+  repo: itzkovichyariv-star/yarivitzkovich-site
+  branch: main
+  auth_type: pkce
+  app_id: REPLACE_WITH_GITHUB_CLIENT_ID
+
+media_folder: public/images
+public_folder: /images
+
+collections:
+  # ── Now section ────────────────────────────────────────────────
+  - name: now
+    label: "Now Section"
+    files:
+      - name: now
+        label: "What I'm doing now"
+        file: src/data/now.json
+        fields:
+          - { label: "Last updated (EN)", name: updatedAt, widget: string }
+          - { label: "Last updated (HE)", name: updatedAtHe, widget: string }
+          - label: Items
+            name: items
+            widget: list
+            fields:
+              - { label: "Label (EN)", name: label, widget: string }
+              - { label: "Label (HE)", name: labelHe, widget: string }
+              - { label: "Title (EN)", name: title, widget: string }
+              - { label: "Title (HE)", name: titleHe, widget: string }
+              - { label: "Note (EN)", name: note, widget: text }
+              - { label: "Note (HE)", name: noteHe, widget: text }
+
+  # ── Publications ───────────────────────────────────────────────
+  - name: publications
+    label: Publications
+    folder: src/content/publications
+    create: true
+    extension: mdx
+    format: frontmatter
+    identifier_field: slug
+    slug: "{{slug}}"
+    fields:
+      - { label: Title, name: title, widget: string }
+      - { label: Slug, name: slug, widget: string, hint: "URL-safe identifier, e.g. my-paper-2024" }
+      - label: Authors
+        name: authors
+        widget: list
+        fields:
+          - { label: Name, name: name, widget: string, hint: "Lastname, F." }
+          - { label: "Is me?", name: isMe, widget: boolean, default: false, required: false }
+      - { label: Year, name: year, widget: number, value_type: int }
+      - label: Type
+        name: type
+        widget: select
+        options: [article, chapter, book, edited-book, conference, report, preprint]
+      - label: Status
+        name: status
+        widget: select
+        options: [published, in-press, under-review, working-paper]
+      - { label: Venue / Journal, name: venue, widget: string, required: false }
+      - { label: DOI, name: doi, widget: string, required: false, hint: "Without https://doi.org/ prefix" }
+      - label: Topics
+        name: topics
+        widget: select
+        multiple: true
+        options: [incivility, bystander, ai, abusive-supervision, bullying, lmx, wellbeing, hierarchies, editorial]
+      - label: Methods
+        name: methods
+        widget: select
+        multiple: true
+        options: [Quantitative, Qualitative, Mixed Methods, Theoretical, Systematic Review, Meta-Analysis]
+      - { label: Featured, name: featured, widget: boolean, default: false }
+      - { label: TL;DR, name: tldr, widget: string, required: false }
+      - { label: Abstract, name: abstract, widget: text, required: false }
+      - label: PDF
+        name: pdf
+        widget: object
+        required: false
+        fields:
+          - { label: Available, name: available, widget: boolean, default: false }
+          - { label: Path, name: path, widget: string, required: false, hint: "/pdfs/filename.pdf" }
+      - label: Body
+        name: body
+        widget: markdown
+        required: false

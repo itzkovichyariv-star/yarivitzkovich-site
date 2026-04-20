@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { site } from '../data/site';
 import { formatStatus, formatType } from '../lib/publications';
+import nowData from '../data/now.json';
 
 const allPubs = await getCollection('publications');
 const PUBLISHED = new Set(['published', 'in-press']);
@@ -41,20 +42,8 @@ const fields = [
   },
 ];
 
-const nowItems = [
-  {
-    label: 'Writing',
-    title: 'AI and workplace mistreatment',
-    note: 'Can machines detect mistreatment in real time — and what does that mean for organizations?',
-  },
-
-  {
-    label: 'Editing',
-    title: 'Journal of Managerial Psychology',
-    note: 'Handling manuscripts on dehumanisation, flexible HRM, and the shape of modern work.',
-  },
-];
-const nowUpdated = 'April 2026';
+const nowItems = nowData.items;
+const nowUpdated = nowData.updatedAt;
 
 ---
 <BaseLayout title={`${site.name} — Research on workplace mistreatment & AI`}>

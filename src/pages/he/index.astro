@@ -3,6 +3,7 @@ import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { site } from '../../data/site';
 import { formatStatus, formatType } from '../../lib/publications';
+import nowData from '../../data/now.json';
 
 const allPubs = await getCollection('publications');
 const PUBLISHED = new Set(['published', 'in-press']);
@@ -41,19 +42,12 @@ const fields = [
   },
 ];
 
-const nowItems = [
-  {
-    label: 'כותב',
-    title: 'בינה מלאכותית והתנהגות פוגענית',
-    note: 'עיסוק בשאלה האם מכונה יכולה לזהות התנהגות פוגענית בזמן אמת — ומה המשמעות של כך לארגונים.',
-  },
-  {
-    label: 'עורך',
-    title: 'Journal of Managerial Psychology',
-    note: 'עריכת מאמרים בנושאי התנהגות פוגענית, יחסי עבודה וניהול משאבי אנוש.',
-  },
-];
-const nowUpdated = 'אפריל 2026';
+const nowItems = nowData.items.map((item) => ({
+  label: item.labelHe ?? item.label,
+  title: item.titleHe ?? item.title,
+  note: item.noteHe ?? item.note,
+}));
+const nowUpdated = nowData.updatedAtHe ?? nowData.updatedAt;
 ---
 <BaseLayout
   lang="he"
