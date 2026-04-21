@@ -23,8 +23,8 @@ const copy = {
   en: {
     kicker: '',
     heading: 'Get in touch.',
-    lede: 'For collaborations, editorial matters at JMP, speaking, or prospective PhD students.',
-    email: 'Email',
+    lede: 'For collaborations, editorial matters at JMP, speaking, prospective PhD students, or master students with an interest in technology and the dark side of organizations.',
+    emailLabel: site.email,
     cv: 'Download CV',
     findMe: 'Find me',
     tagline: '',
@@ -33,8 +33,8 @@ const copy = {
   he: {
     kicker: '',
     heading: 'צרו קשר.',
-    lede: 'לשיתופי פעולה, ענייני עריכה ב-JMP, הרצאות, או סטודנטים המעוניינים בלימודי דוקטורט.',
-    email: 'אימייל',
+    lede: 'לשיתופי פעולה, ענייני עריכה ב-JMP, הרצאות, סטודנטים המעוניינים בלימודי דוקטורט, או תלמידי מחקר בתואר שני עם עניין בטכנולוגיה וצד האפל של ארגונים.',
+    emailLabel: site.email,
     cv: 'קורות חיים',
     findMe: 'מצאו אותי',
     tagline: '',
@@ -52,20 +52,17 @@ const copy = {
         </h2>
         <p class="mt-6 max-w-md opacity-80">{copy.lede}</p>
         <div class="mt-10 flex flex-wrap gap-4">
-          <button
-            id="copy-email"
-            type="button"
-            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm transition-colors hover:opacity-90"
+          <a
+            href={`mailto:${site.email}`}
+            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm transition-opacity hover:opacity-80"
             style="background-color: var(--color-bg); color: var(--color-ink)"
-            data-email={site.email}
-            aria-label={`Copy email ${site.email}`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
               <path d="m22 7-10 5L2 7"/>
             </svg>
-            <span class="copy-email-label">{copy.email}</span>
-          </button>
+            {copy.emailLabel}
+          </a>
           {showCv && (
             <a
               href="/pdfs/yariv-cv-full.pdf"
@@ -102,21 +99,3 @@ const copy = {
     </div>
   </div>
 </footer>
-<script is:inline>
-  (() => {
-    const btn = document.getElementById('copy-email');
-    if (!btn) return;
-    const email = btn.getAttribute('data-email') || '';
-    const labelEl = btn.querySelector('.copy-email-label');
-    const original = labelEl ? labelEl.textContent : 'Email';
-    btn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(email);
-        if (labelEl) labelEl.textContent = '✓ Copied';
-        setTimeout(() => { if (labelEl) labelEl.textContent = original; }, 1500);
-      } catch (e) {
-        window.location.href = `mailto:${email}`;
-      }
-    });
-  })();
-</script>

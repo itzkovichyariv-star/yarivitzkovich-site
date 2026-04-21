@@ -9,6 +9,7 @@ import {
   generateBibtex,
   type Publication,
 } from '../../lib/publications';
+import { generateAPA, generateMLA, generateChicago, stripMarkdownItalics } from '../../lib/citations';
 
 export async function getStaticPaths() {
   const entries = await getCollection('publications');
@@ -50,10 +51,21 @@ const pub: Publication = {
 };
 
 const isBook = pub.type === 'book' || pub.type === 'edited-book';
+const isPublished = pub.status === 'published' || pub.status === 'in-press';
 
 const topicLabel = (id: string) => TOPICS.find((t) => t.id === id)?.label ?? id;
 const statusLabel = formatStatus(pub.status);
 const bibtex = generateBibtex(pub);
+const apa = stripMarkdownItalics(generateAPA(pub));
+const mla = stripMarkdownItalics(generateMLA(pub));
+const chicago = stripMarkdownItalics(generateChicago(pub));
+
+const citations = [
+  { label: 'APA 7', text: apa },
+  { label: 'MLA 9', text: mla },
+  { label: 'Chicago', text: chicago },
+  { label: 'BibTeX', text: bibtex },
+];
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -68,7 +80,7 @@ const jsonLd = {
 };
 ---
 <BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract}>
-  <article class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-24">
+  <article class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-24" {...(!isPublished ? {'data-pagefind-ignore': ''} : {})}>
     <a href="/publications" class="font-mono text-xs uppercase tracking-widest text-soft hover:opacity-60 inline-flex items-center gap-2">
       <span>←</span> All publications
     </a>
@@ -134,7 +146,7 @@ const jsonLd = {
     )}
 
     <div class="flex flex-wrap gap-3 mb-12">
-      {pub.pdf?.available && pub.pdf.path && (
+      {pub.pdf?.available && pub.pdf.path && isPublished && (
         <a href={pub.pdf.path} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm" style="background-color: var(--color-ink); color: var(--color-bg)" download>
           Download PDF
         </a>
@@ -159,10 +171,69 @@ const jsonLd = {
       </section>
     )}
 
-    <section class="mb-12">
-      <div class="font-mono text-xs uppercase tracking-widest text-muted mb-2">Cite</div>
-      <pre class="font-mono text-xs p-4 rounded-lg overflow-x-auto" style="background-color: rgba(26,22,18,0.06)">{bibtex}</pre>
+    <section class="mb-12" id="cite-section">
+      <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Cite</div>
+      <div class="flex gap-1 flex-wrap mb-3" id="cite-tabs">
+        {citations.map((c, i) => (
+          <button
+            type="button"
+            data-cite-tab={i}
+            class={`cite-tab font-mono text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border transition-colors ${i === 0 ? 'active' : ''}`}
+            style={i === 0 ? 'background-color: var(--color-ink); color: var(--color-bg); border-color: var(--color-ink)' : 'border-color: var(--divider)'}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      {citations.map((c, i) => (
+        <div data-cite-panel={i} class={`cite-panel ${i !== 0 ? 'hidden' : ''}`}>
+          <pre class="font-mono text-xs p-4 rounded-lg overflow-x-auto whitespace-pre-wrap" style="background-color: rgba(26,22,18,0.06)">{c.text}</pre>
+          <button
+            type="button"
+            data-copy-text={c.text}
+            class="cite-copy font-mono text-[10px] uppercase tracking-widest text-muted mt-2 hover:opacity-60 transition-opacity"
+          >
+            Copy
+          </button>
+        </div>
+      ))}
     </section>
+
+    <script is:inline>
+      (function () {
+        var section = document.getElementById('cite-section');
+        if (!section) return;
+        var tabs = section.querySelectorAll('.cite-tab');
+        var panels = section.querySelectorAll('.cite-panel');
+        tabs.forEach(function (tab) {
+          tab.addEventListener('click', function () {
+            var idx = tab.getAttribute('data-cite-tab');
+            tabs.forEach(function (t) {
+              t.style.backgroundColor = '';
+              t.style.color = '';
+              t.style.borderColor = 'var(--divider)';
+            });
+            tab.style.backgroundColor = 'var(--color-ink)';
+            tab.style.color = 'var(--color-bg)';
+            tab.style.borderColor = 'var(--color-ink)';
+            panels.forEach(function (p) { p.classList.add('hidden'); });
+            var panel = section.querySelector('[data-cite-panel="' + idx + '"]');
+            if (panel) panel.classList.remove('hidden');
+          });
+        });
+        section.querySelectorAll('.cite-copy').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var text = btn.getAttribute('data-copy-text');
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(function () {
+              var orig = btn.textContent;
+              btn.textContent = 'Copied!';
+              setTimeout(function () { btn.textContent = orig; }, 1500);
+            });
+          });
+        });
+      })();
+    </script>
 
     <section class="prose-custom max-w-none">
       <Content />

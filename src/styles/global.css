@@ -29,13 +29,13 @@
   --text-muted: rgba(26, 22, 18, 0.7);
   --text-soft: rgba(26, 22, 18, 0.5);
   --divider: rgba(26, 22, 18, 0.15);
-  /* "Now" panel: pale mauve-blush that bridges cream → burgundy footer. */
-  --panel: #F0E6E6;
+  /* "Now" panel: warm rose that echoes the burgundy accent at a brighter register. */
+  --panel: #F2D9D6;
   --panel-text: var(--color-ink);
-  --panel-label: #7A5A6A;
+  --panel-label: #8B3A4A;
   --panel-muted: rgba(26, 22, 18, 0.6);
-  --panel-divider: rgba(122, 30, 43, 0.12);
-  --panel-accent: #8B6A84;
+  --panel-divider: rgba(122, 30, 43, 0.15);
+  --panel-accent: #7A1E2B;
   --accent: var(--color-accent);
   --nav-bg: rgba(244, 239, 230, 0.9);
   --grain-dot: rgba(26, 22, 18, 0.04);
@@ -47,9 +47,9 @@
   --text-muted: rgba(244, 239, 230, 0.7);
   --text-soft: rgba(244, 239, 230, 0.5);
   --divider: rgba(244, 239, 230, 0.15);
-  --panel: #1E1618;
+  --panel: #200D0F;
   --panel-text: #F4EFE6;
-  --panel-label: #C49EAE;
+  --panel-label: #D4848E;
   --panel-muted: rgba(244, 239, 230, 0.6);
   --panel-divider: rgba(244, 239, 230, 0.12);
   --panel-accent: #C49EAE;

@@ -51,11 +51,11 @@ type ViewMode = 'grid' | 'timeline' | 'topics';
 
 const TYPE_OPTIONS: Array<{ k: 'all' | PublicationType; label: string }> = [
   { k: 'all', label: 'All' },
-  { k: 'article', label: 'Article' },
-  { k: 'chapter', label: 'Chapter' },
-  { k: 'book', label: 'Book' },
-  { k: 'editorial', label: 'Editorial' },
-  { k: 'preprint', label: 'Preprint' },
+  { k: 'article', label: 'Articles' },
+  { k: 'chapter', label: 'Chapters' },
+  { k: 'book', label: 'Books' },
+  { k: 'editorial', label: 'Editorials' },
+  { k: 'preprint', label: 'Preprints' },
 ];
 
 const VIEW_OPTIONS: Array<{ k: ViewMode; icon: typeof LayoutGrid; label: string }> = [
@@ -154,7 +154,7 @@ export default function PublicationsBrowser({
     return publications
       .filter((p) => {
         if (activeType !== 'all' && p.type !== activeType) return false;
-        if (p.year < yearMin) return false;
+        if (Number(p.year) < Number(yearMin)) return false;
         if (activeTopics.length && !p.topics.some((t) => activeTopics.includes(t))) return false;
         if (q) {
           const haystack = [
