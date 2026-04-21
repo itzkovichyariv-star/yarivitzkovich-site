@@ -10,7 +10,7 @@ interface Props {
 const { lang = 'en', langHref } = Astro.props;
 
 const labels = {
-  en: { home: 'Home', work: 'Publications', now: 'Now', teaching: 'Teaching', contact: 'Contact' },
+  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', contact: 'Contact' },
   he: { home: 'ראשי', work: 'פרסומים', now: 'עכשיו', teaching: 'הוראה', contact: 'יצירת קשר' },
 };
 const t = labels[lang];
@@ -37,7 +37,7 @@ const en = (path: string) => `/${path}`;
 
     <div class="flex items-center gap-4">
       <!-- Search — always visible -->
-      <a href={en('publications')} class="flex items-center gap-1.5 hover:opacity-60 transition-opacity" aria-label="Search publications">
+      <a href={en('publications?focus=search')} class="flex items-center gap-1.5 hover:opacity-60 transition-opacity" aria-label="Search publications">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>

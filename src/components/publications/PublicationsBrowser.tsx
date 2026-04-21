@@ -98,6 +98,18 @@ export default function PublicationsBrowser({
   const [copied, setCopied] = useState(false);
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('focus') === 'search') {
+      searchRef.current?.focus();
+      params.delete('focus');
+      const qs = params.toString();
+      window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -157,14 +169,15 @@ export default function PublicationsBrowser({
   const BOOK_TYPES = new Set(['book', 'edited-book']);
 
   const groupedByTopic = useMemo(() => {
+    // Each paper appears under exactly one topic section (its first topic),
+    // so it never shows as a duplicate when searching or browsing.
     const map = new Map<string, Publication[]>();
     filtered.forEach((p) => {
-      if (BOOK_TYPES.has(p.type)) return; // books get their own section
-      p.topics.forEach((t) => {
-        if (!map.has(t)) map.set(t, []);
-        const bucket = map.get(t)!;
-        if (!bucket.find((x) => x.id === p.id)) bucket.push(p);
-      });
+      if (BOOK_TYPES.has(p.type)) return;
+      const primaryTopic = p.topics[0];
+      if (!primaryTopic) return;
+      if (!map.has(primaryTopic)) map.set(primaryTopic, []);
+      map.get(primaryTopic)!.push(p);
     });
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [filtered]);
@@ -258,6 +271,7 @@ export default function PublicationsBrowser({
                 <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
               </svg>
               <input
+                ref={searchRef}
                 id="pub-search"
                 type="search"
                 placeholder="Search…"
@@ -409,18 +423,8 @@ function GridView({
           }}
         >
           <div className="col-span-2 md:col-span-1 font-mono text-sm text-muted pt-1">{p.year}</div>
-          {/* Desktop: cover in its own column */}
-          {p.image && (
-            <div className="hidden md:flex md:col-span-1 items-start">
-              <img src={p.image} alt={`${p.title} cover`} className="w-14 rounded shadow-md object-cover" />
-            </div>
-          )}
-          <div className={`col-span-10 ${p.image ? 'md:col-span-7' : 'md:col-span-8'}`}>
-            {/* Mobile: cover inline left of text */}
-            <div className={`${p.image ? 'flex gap-3' : ''}`}>
-              {p.image && (
-                <img src={p.image} alt="" aria-hidden="true" className="md:hidden w-12 h-16 rounded shadow-md object-cover flex-shrink-0" />
-              )}
+          <div className="col-span-10 md:col-span-8">
+            <div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   <span className="font-mono text-[10px] uppercase tracking-widest text-soft">{formatType(p.type)}</span>

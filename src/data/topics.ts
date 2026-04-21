@@ -1,6 +1,6 @@
 export const TOPICS = [
   { id: 'incivility', label: 'Incivility', color: '#7A1E2B', description: 'Low-intensity workplace mistreatment.' },
-  { id: 'bystander', label: 'Bystander', color: '#5B4E8A', description: 'Witness behavior in mistreatment episodes.' },
+  { id: 'bystander', label: 'Bystander', color: '#5B4E8A', description: 'Bystander behavior in mistreatment episodes.' },
   { id: 'ai', label: 'AI', color: '#2D5F5D', description: 'Artificial intelligence in organizational settings.' },
   { id: 'abusive-supervision', label: 'Abusive Supervision', color: '#B8570C', description: '' },
   { id: 'bullying', label: 'Bullying', color: '#7A1E2B', description: '' },
