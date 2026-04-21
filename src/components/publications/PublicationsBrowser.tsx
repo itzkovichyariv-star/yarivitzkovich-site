@@ -856,11 +856,11 @@ function Drawer({
             {pub.pdf?.available && pub.pdf.path && (
               <a
                 href={pub.pdf.path}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm"
-                style={{ backgroundColor: 'var(--color-ink)', color: 'var(--color-bg)' }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-70 transition-opacity"
+                style={{ borderColor: 'var(--divider)' }}
                 download
               >
-                <FileDown size={14} /> Download PDF
+                <FileDown size={14} /> PDF ↓
               </a>
             )}
             {pub.doi && (

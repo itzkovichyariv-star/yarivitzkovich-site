@@ -140,12 +140,12 @@ const jsonLd = {
 
     <div class="flex flex-wrap gap-3 mb-4">
       {pub.pdf?.available && pub.pdf.path && isPublished && (
-        <a href={pub.pdf.path} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm" style="background-color: var(--color-ink); color: var(--color-bg)" download>
-          Download PDF
+        <a href={pub.pdf.path} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-70 transition-opacity" style="border-color: var(--divider)" download>
+          PDF ↓
         </a>
       )}
       {pub.doi && (
-        <a href={`https://doi.org/${pub.doi}`} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border" style="border-color: var(--divider)" target="_blank" rel="noopener noreferrer">
+        <a href={`https://doi.org/${pub.doi}`} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-70 transition-opacity" style="border-color: var(--divider)" target="_blank" rel="noopener noreferrer">
           DOI ↗
         </a>
       )}
@@ -153,7 +153,7 @@ const jsonLd = {
         <button
           type="button"
           id="abstract-toggle"
-          class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border transition-colors"
+          class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-70 transition-all"
           style="border-color: var(--divider)"
           aria-expanded="false"
           aria-controls="abstract-panel"
