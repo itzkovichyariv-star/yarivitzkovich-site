@@ -94,6 +94,7 @@ export default function PublicationsBrowser({
     if (!initialFilters.slug) return null;
     return publications.find((p) => p.slug === initialFilters.slug) ?? null;
   });
+  const [searchText, setSearchText] = useState('');
   const [copied, setCopied] = useState(false);
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -137,15 +138,21 @@ export default function PublicationsBrowser({
   }, []);
 
   const filtered = useMemo(() => {
+    const q = searchText.toLowerCase().trim();
     return publications
       .filter((p) => {
         if (activeType !== 'all' && p.type !== activeType) return false;
         if (p.year < yearMin) return false;
         if (activeTopics.length && !p.topics.some((t) => activeTopics.includes(t))) return false;
+        if (q) {
+          const haystack = [p.title, p.venue ?? '', p.abstract ?? '', p.tldr ?? '',
+            p.authors.map((a) => a.name).join(' ')].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
         return true;
       })
       .sort((a, b) => b.year - a.year);
-  }, [publications, activeType, activeTopics, yearMin]);
+  }, [publications, activeType, activeTopics, yearMin, searchText]);
 
   const BOOK_TYPES = new Set(['book', 'edited-book']);
 
@@ -246,6 +253,25 @@ export default function PublicationsBrowser({
               <span className="w-10 tabular-nums">{yearMin}</span>
             </div>
 
+            <div className="flex items-center gap-2 border rounded-full px-3 py-1.5" style={{ borderColor: 'var(--divider)' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input
+                id="pub-search"
+                type="search"
+                placeholder="Search…"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="bg-transparent font-mono text-xs w-32 outline-none"
+                style={{ color: 'var(--text)' }}
+              />
+              {searchText && (
+                <button type="button" onClick={() => setSearchText('')} style={{ opacity: 0.5 }}>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
             <div className="ml-auto font-mono text-xs uppercase tracking-widest text-soft">
               {filtered.length} / {publications.length}
             </div>
@@ -383,44 +409,40 @@ function GridView({
           }}
         >
           <div className="col-span-2 md:col-span-1 font-mono text-sm text-muted pt-1">{p.year}</div>
+          {/* Desktop: cover in its own column */}
           {p.image && (
-            <div className="hidden md:block md:col-span-1">
-              <img
-                src={p.image}
-                alt={`${p.title} cover`}
-                className="w-14 rounded shadow-md object-cover"
-              />
+            <div className="hidden md:flex md:col-span-1 items-start">
+              <img src={p.image} alt={`${p.title} cover`} className="w-14 rounded shadow-md object-cover" />
             </div>
           )}
           <div className={`col-span-10 ${p.image ? 'md:col-span-7' : 'md:col-span-8'}`}>
-            {p.image && (
-              <img
-                src={p.image}
-                alt={`${p.title} cover`}
-                className="md:hidden w-12 rounded shadow-md object-cover float-left mr-3 mb-1"
-              />
-            )}
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-soft">
-                {formatType(p.type)}
-              </span>
-              <StatusBadge status={p.status} />
-              {p.podcast?.available && (
-                <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-muted">
-                  <Play size={10} /> Podcast
-                </span>
+            {/* Mobile: cover inline left of text */}
+            <div className={`${p.image ? 'flex gap-3' : ''}`}>
+              {p.image && (
+                <img src={p.image} alt="" aria-hidden="true" className="md:hidden w-12 h-16 rounded shadow-md object-cover flex-shrink-0" />
               )}
-            </div>
-            <h3 className="pub-title font-display text-xl md:text-2xl leading-snug mb-2" style={{ fontWeight: 400 }}>
-              {p.title}
-            </h3>
-            <p className="text-sm text-muted italic mb-3">
-              {p.venue ? `${p.venue} — ` : ''}{formatAuthors(p.authors)}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {p.topics.map((t) => (
-                <TopicChip key={t} label={topicLabel(t)} />
-              ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-soft">{formatType(p.type)}</span>
+                  <StatusBadge status={p.status} />
+                  {p.podcast?.available && (
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-muted">
+                      <Play size={10} /> Podcast
+                    </span>
+                  )}
+                </div>
+                <h3 className="pub-title font-display text-xl md:text-2xl leading-snug mb-2" style={{ fontWeight: 400 }}>
+                  {p.title}
+                </h3>
+                <p className="text-sm text-muted italic mb-3">
+                  {p.venue ? `${p.venue} — ` : ''}{formatAuthors(p.authors)}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {p.topics.map((t) => (
+                    <TopicChip key={t} label={topicLabel(t)} />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           <div className="col-span-12 md:col-span-3 md:text-right flex md:flex-col md:items-end">

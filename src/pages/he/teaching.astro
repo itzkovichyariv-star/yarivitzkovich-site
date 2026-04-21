@@ -1,0 +1,87 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const current = [
+  { title: 'Organizational Consulting Skills, Part A', type: 'סדנה', degree: 'MA', institution: 'אוניברסיטת אריאל' },
+  { title: 'Organizational Consulting Skills, Part B', type: 'סדנה', degree: 'MA', institution: 'אוניברסיטת אריאל' },
+  { title: 'Practicum — MA in Organizational Consulting', type: 'פרקטיקום', degree: 'MA', institution: 'אוניברסיטת אריאל' },
+  { title: 'Practicum — BA in HRM & Organizational Development', type: 'פרקטיקום', degree: 'BA', institution: 'אוניברסיטת אריאל' },
+];
+
+const past = [
+  { title: 'Practicum for B.A. in HRM', type: 'סדנה', degree: 'BA' },
+  { title: 'Human Resource Management', type: 'הרצאה', degree: 'MA' },
+  { title: 'Team Management', type: 'הרצאה', degree: 'BA' },
+  { title: 'Strategic HRM in Tourism and Hospitality', type: 'הרצאה', degree: 'MA' },
+  { title: 'Ethics in Education', type: 'הרצאה', degree: 'BA' },
+  { title: 'Organizational Theory', type: 'הרצאה', degree: 'BA' },
+  { title: 'Human Resource Management', type: 'הרצאה', degree: 'BA' },
+  { title: 'Business Ethics', type: 'הרצאה', degree: 'BA' },
+  { title: 'The Human Factor', type: 'סמינר', degree: 'BA' },
+  { title: 'Research Methods', type: 'הרצאה', degree: 'BA' },
+  { title: 'Labor Relations', type: 'הרצאה', degree: 'BA' },
+  { title: 'Organizational Psychology', type: 'הרצאה', degree: 'BA' },
+  { title: 'Organizational Behaviour', type: 'הרצאה', degree: 'BA' },
+  { title: 'Organizational Misbehaviour', type: 'הרצאה', degree: 'BA' },
+  { title: 'Pro Seminar – Public Policy', type: 'הרצאה', degree: 'BA' },
+  { title: 'Management Seminars', type: 'סמינר', degree: 'BA' },
+  { title: 'Statistics', type: 'הרצאה', degree: 'BA' },
+];
+---
+<BaseLayout title="הוראה — יריב איצקוביץ" lang="he" langHref="/teaching">
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-16">
+    <div class="grid grid-cols-12 gap-6 mb-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">הוראה</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1 class="font-display text-5xl md:text-6xl" style="font-weight: 300">הוראה.</h1>
+      </div>
+    </div>
+
+    <!-- Current -->
+    <div class="grid grid-cols-12 gap-6 mb-6">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft pt-1">כעת</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <div class="space-y-0">
+          {current.map((course) => (
+            <div class="grid grid-cols-12 gap-4 py-8 border-t" style="border-color: var(--divider)">
+              <div class="col-span-12 md:col-span-8">
+                <h2 class="font-display text-2xl md:text-3xl" style="font-weight: 400">{course.title}</h2>
+              </div>
+              <div class="col-span-12 md:col-span-4 flex md:flex-col md:items-end gap-3 md:gap-1">
+                <span class="font-mono text-xs uppercase tracking-widest text-soft">{course.degree}</span>
+                <span class="font-mono text-xs uppercase tracking-widest text-soft">{course.type}</span>
+                <span class="font-mono text-xs text-muted">{course.institution}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- Past -->
+    <div class="grid grid-cols-12 gap-6 mt-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft pt-1">בעבר</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <div class="space-y-0">
+          {past.map((course) => (
+            <div class="grid grid-cols-12 gap-4 py-5 border-t" style="border-color: var(--divider)">
+              <div class="col-span-12 md:col-span-9">
+                <p class="text-base">{course.title}</p>
+              </div>
+              <div class="col-span-12 md:col-span-3 flex md:justify-end gap-4">
+                <span class="font-mono text-xs uppercase tracking-widest text-soft">{course.degree}</span>
+                <span class="font-mono text-xs text-muted">{course.type}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

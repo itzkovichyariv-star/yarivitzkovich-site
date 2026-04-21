@@ -5,8 +5,9 @@ import { site } from '../data/site';
 
 interface Props {
   lang?: 'en' | 'he';
+  langHref?: string; // override for the lang toggle destination
 }
-const { lang = 'en' } = Astro.props;
+const { lang = 'en', langHref } = Astro.props;
 
 const labels = {
   en: { home: 'Home', work: 'Publications', now: 'Now', teaching: 'Teaching', contact: 'Contact' },
@@ -43,7 +44,7 @@ const en = (path: string) => `/${path}`;
         <span class="hidden sm:inline">Search</span>
       </a>
       <DarkModeToggle />
-      <LangToggle lang={lang} />
+      <LangToggle lang={lang} href={langHref} />
       <!-- Hamburger — mobile only -->
       <button id="nav-menu-btn" class="md:hidden flex flex-col gap-1.5" aria-label="Open menu" aria-expanded="false">
         <span class="block w-5 h-px bg-current transition-all"></span>

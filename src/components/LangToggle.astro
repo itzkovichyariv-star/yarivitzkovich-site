@@ -1,13 +1,15 @@
 ---
 interface Props {
   lang?: 'en' | 'he';
+  href?: string; // override destination URL
 }
-const { lang = 'en' } = Astro.props;
+const { lang = 'en', href } = Astro.props;
 const other = lang === 'en' ? 'he' : 'en';
-const href = lang === 'en' ? '/he/' : '/';
+const defaultHref = lang === 'en' ? '/he/' : '/';
+const dest = href ?? defaultHref;
 ---
 <a
-  href={href}
+  href={dest}
   class="border border-current rounded-full px-3 py-1 text-xs font-mono uppercase tracking-widest hover:opacity-70 transition-opacity"
   aria-label={`Switch language to ${other.toUpperCase()}`}
 >
