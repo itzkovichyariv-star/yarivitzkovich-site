@@ -165,7 +165,11 @@ export default function PublicationsBrowser({
             p.authors.map((a) => a.name).join(' '),
             p.topics.join(' '),
           ].join(' ').toLowerCase();
-          if (!haystack.includes(q)) return false;
+          // Word-boundary match: term must start at a word boundary so "ai"
+          // doesn't match inside "available", "mail", etc.
+          const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(`\\b${escaped}`);
+          if (!re.test(haystack)) return false;
         }
         return true;
       })
@@ -445,7 +449,7 @@ function GridView({
                   {p.title}
                 </h3>
                 <p className="text-sm text-muted italic mb-3">
-                  {p.venue ? `${p.venue} — ` : ''}{formatAuthors(p.authors)}
+                  {p.venue ? `${p.venue} · ` : ''}{formatAuthors(p.authors)}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {p.topics.map((t) => (

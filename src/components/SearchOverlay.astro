@@ -1,0 +1,152 @@
+---
+// Site-wide search overlay powered by Pagefind
+// Opened by the nav search button; ESC / backdrop click closes it
+---
+<div
+  id="search-overlay"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Site search"
+  class="fixed inset-0 z-[200] hidden"
+>
+  <!-- Backdrop -->
+  <div
+    id="search-backdrop"
+    class="absolute inset-0"
+    style="background: rgba(0,0,0,0.55); backdrop-filter: blur(4px)"
+  ></div>
+
+  <!-- Panel -->
+  <div class="relative z-10 max-w-2xl mx-auto mt-[10vh] px-4">
+    <div
+      class="rounded-xl border overflow-hidden shadow-2xl"
+      style="background-color: var(--bg); border-color: var(--divider)"
+    >
+      <!-- Input row -->
+      <div
+        class="flex items-center gap-3 px-5 py-4 border-b"
+        style="border-color: var(--divider)"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5; flex-shrink:0" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          id="site-search-input"
+          type="text"
+          placeholder="Search the site…"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+          class="flex-1 bg-transparent outline-none font-display text-xl"
+          style="color: var(--text)"
+        />
+        <button
+          id="search-close-btn"
+          type="button"
+          aria-label="Close search"
+          class="font-mono text-xs uppercase tracking-widest hover:opacity-60 transition-opacity px-2 py-1 rounded"
+          style="color: var(--text-soft)"
+        >
+          ESC
+        </button>
+      </div>
+
+      <!-- Results -->
+      <div
+        id="search-results"
+        class="overflow-y-auto max-h-[60vh] px-2 py-2"
+      >
+        <p id="search-hint" class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color: var(--text-soft)">
+          Type to search
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+(function () {
+  var overlay = document.getElementById('search-overlay');
+  var backdrop = document.getElementById('search-backdrop');
+  var input = document.getElementById('site-search-input');
+  var results = document.getElementById('search-results');
+  var hint = document.getElementById('search-hint');
+  var closeBtn = document.getElementById('search-close-btn');
+
+  var pagefind = null;
+  var loadPromise = null;
+
+  function loadPagefind() {
+    if (loadPromise) return loadPromise;
+    loadPromise = import('/pagefind/pagefind.js').then(function (pf) {
+      pagefind = pf;
+      return pf.init();
+    }).catch(function () {
+      pagefind = null;
+    });
+    return loadPromise;
+  }
+
+  function openOverlay() {
+    overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { input.focus(); }, 50);
+    loadPagefind();
+  }
+
+  function closeOverlay() {
+    overlay.classList.add('hidden');
+    document.body.style.overflow = '';
+    input.value = '';
+    results.innerHTML = '<p id="search-hint" class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color:var(--text-soft)">Type to search</p>';
+  }
+
+  // Expose open/close globally so Nav button can call them
+  window.__openSiteSearch = openOverlay;
+  window.__closeSiteSearch = closeOverlay;
+
+  backdrop.addEventListener('click', closeOverlay);
+  closeBtn.addEventListener('click', closeOverlay);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeOverlay();
+  });
+
+  var debounceTimer;
+  input.addEventListener('input', function () {
+    clearTimeout(debounceTimer);
+    var q = input.value.trim();
+    if (!q) {
+      results.innerHTML = '<p class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color:var(--text-soft)">Type to search</p>';
+      return;
+    }
+    debounceTimer = setTimeout(function () { doSearch(q); }, 200);
+  });
+
+  async function doSearch(q) {
+    await loadPagefind();
+    if (!pagefind) {
+      results.innerHTML = '<p class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color:var(--text-soft)">Search not available in preview mode</p>';
+      return;
+    }
+    results.innerHTML = '<p class="font-mono text-xs uppercase tracking-widest text-center py-6" style="color:var(--text-soft)">Searching…</p>';
+    try {
+      var search = await pagefind.search(q);
+      var items = await Promise.all(search.results.slice(0, 10).map(function (r) { return r.data(); }));
+      if (items.length === 0) {
+        results.innerHTML = '<p class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color:var(--text-soft)">No results for "' + q + '"</p>';
+        return;
+      }
+      results.innerHTML = items.map(function (item) {
+        var title = (item.meta && item.meta.title) ? item.meta.title : item.url;
+        var excerpt = item.excerpt || '';
+        return '<a href="' + item.url + '" class="block px-4 py-3 rounded-lg hover:opacity-80 transition-opacity" style="border-bottom:1px solid var(--divider)">' +
+          '<div class="font-display text-base mb-1" style="font-weight:400;color:var(--text)">' + title + '</div>' +
+          '<div class="font-mono text-xs" style="color:var(--text-soft)">' + excerpt + '</div>' +
+          '</a>';
+      }).join('');
+    } catch (e) {
+      results.innerHTML = '<p class="font-mono text-xs uppercase tracking-widest text-center py-8" style="color:var(--text-soft)">Search error</p>';
+    }
+  }
+})();
+</script>

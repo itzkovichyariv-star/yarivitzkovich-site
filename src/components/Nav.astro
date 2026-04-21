@@ -41,7 +41,7 @@ const en = (path: string) => `/${path}`;
         id="nav-search-btn"
         type="button"
         class="flex items-center gap-1.5 hover:opacity-60 transition-opacity"
-        aria-label="Search publications"
+        aria-label="Search site"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -50,12 +50,8 @@ const en = (path: string) => `/${path}`;
       </button>
       <script is:inline>
         document.getElementById('nav-search-btn')?.addEventListener('click', function() {
-          var input = document.getElementById('pub-search');
-          if (input) {
-            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setTimeout(function() { input.focus(); }, 150);
-          } else {
-            window.location.href = '/publications?focus=search';
+          if (typeof window.__openSiteSearch === 'function') {
+            window.__openSiteSearch();
           }
         });
       </script>
