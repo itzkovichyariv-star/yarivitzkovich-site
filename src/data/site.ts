@@ -21,7 +21,7 @@ export const site = {
   email: "Yarivi@ariel.ac.il",
   profiles: {
     googleScholar: "https://scholar.google.com/citations?user=HyN_EIgAAAAJ",
-    orcid: "",
+    orcid: "https://orcid.org/0000-0002-3296-6518",
     researchGate: "",
     linkedin: "",
     github: "",

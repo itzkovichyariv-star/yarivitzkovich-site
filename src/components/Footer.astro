@@ -93,9 +93,39 @@ const copy = {
         </div>
       )}
     </div>
-    <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex justify-between text-xs font-mono uppercase tracking-widest opacity-60 flex-wrap gap-2">
-      <div>{copy.copy}</div>
-      <div>{copy.tagline}</div>
+    <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex items-center justify-between flex-wrap gap-4">
+      <div class="font-mono text-xs uppercase tracking-widest opacity-60">{copy.copy}</div>
+      <div class="flex items-center gap-3">
+        {site.profiles.googleScholar && (
+          <a
+            href={site.profiles.googleScholar}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+            aria-label="Google Scholar profile"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M5.242 13.769 0 9.5 12 0l12 9.5-5.242 4.269C17.548 11.249 14.978 9.5 12 9.5c-2.977 0-5.548 1.748-6.758 4.269z"/>
+              <path d="M12 10a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/>
+            </svg>
+            Scholar
+          </a>
+        )}
+        {site.profiles.orcid && (
+          <a
+            href={site.profiles.orcid}
+            target="_blank"
+            rel="noopener noreferrer me"
+            class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+            aria-label="ORCID profile"
+          >
+            <svg width="14" height="14" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+              <path d="M128 0C57.3 0 0 57.3 0 128s57.3 128 128 128 128-57.3 128-128S198.7 0 128 0zm-23.9 57.2c5.2 0 9.4 4.2 9.4 9.4s-4.2 9.4-9.4 9.4-9.4-4.2-9.4-9.4 4.2-9.4 9.4-9.4zm-13 34.9h26.1v92.7H91.1V92.1zm45.7 0h34.2c32.6 0 45.9 23.4 45.9 46.3 0 25.2-17.3 46.3-45.9 46.3h-34.2V92.1zm26.1 20.5v51.7h7.4c18.3 0 21.5-15.5 21.5-25.9 0-11.7-4.4-25.9-21.5-25.9h-7.4z"/>
+            </svg>
+            ORCID
+          </a>
+        )}
+      </div>
     </div>
   </div>
 </footer>
