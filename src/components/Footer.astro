@@ -77,20 +77,6 @@ const copy = {
           )}
         </div>
       </div>
-      {showProfiles && (
-        <div class="col-span-12 md:col-span-4 md:text-right">
-          <div class="font-mono text-xs uppercase tracking-widest opacity-60 mb-4">{copy.findMe}</div>
-          <div class="space-y-2 text-sm">
-            {profileLinks.map((link) => (
-              <div>
-                <a href={link.href} class="hover:underline" rel="me noopener" target="_blank">
-                  {link.label} ↗
-                </a>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
     <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex items-center justify-between flex-wrap gap-4">
       <div class="font-mono text-xs uppercase tracking-widest opacity-60">{copy.copy}</div>
