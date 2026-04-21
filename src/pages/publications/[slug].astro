@@ -138,14 +138,7 @@ const jsonLd = {
       </div>
     )}
 
-    {pub.abstract && (
-      <section class="mb-10">
-        <div class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Abstract</div>
-        <p class="leading-relaxed" style="opacity: 0.85">{pub.abstract}</p>
-      </section>
-    )}
-
-    <div class="flex flex-wrap gap-3 mb-12">
+    <div class="flex flex-wrap gap-3 mb-4">
       {pub.pdf?.available && pub.pdf.path && isPublished && (
         <a href={pub.pdf.path} class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm" style="background-color: var(--color-ink); color: var(--color-bg)" download>
           Download PDF
@@ -156,7 +149,41 @@ const jsonLd = {
           DOI ↗
         </a>
       )}
+      {pub.abstract && (
+        <button
+          type="button"
+          id="abstract-toggle"
+          class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border transition-colors"
+          style="border-color: var(--divider)"
+          aria-expanded="false"
+          aria-controls="abstract-panel"
+        >
+          Abstract
+        </button>
+      )}
     </div>
+
+    {pub.abstract && (
+      <div id="abstract-panel" class="mb-10 overflow-hidden" style="display:none">
+        <p class="leading-relaxed pt-2 pb-6" style="opacity: 0.85">{pub.abstract}</p>
+      </div>
+    )}
+
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById('abstract-toggle');
+        var panel = document.getElementById('abstract-panel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', function () {
+          var open = panel.style.display !== 'none';
+          panel.style.display = open ? 'none' : 'block';
+          btn.setAttribute('aria-expanded', String(!open));
+          btn.style.backgroundColor = open ? '' : 'var(--color-ink)';
+          btn.style.color = open ? '' : 'var(--color-bg)';
+          btn.style.borderColor = open ? 'var(--divider)' : 'var(--color-ink)';
+        });
+      })();
+    </script>
 
     {pub.podcast?.available && pub.podcast.path && (
       <section class="mb-12">
