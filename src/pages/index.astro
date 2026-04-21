@@ -91,9 +91,9 @@ const nowUpdated = nowData.updatedAt;
                 <div class="font-mono text-xs uppercase tracking-widest mb-3 fade-up" style="animation-delay: 0.7s; color: var(--color-accent)">
                   At present
                 </div>
-                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
+                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s; color: var(--color-accent)">
                   {site.affiliation.en && <div>{site.affiliation.en}</div>}
-                  {site.location.en && <div class="text-muted">{site.location.en}</div>}
+                  {site.location.en && <div style="opacity: 0.75">{site.location.en}</div>}
                 </div>
               </>
             )}

@@ -75,7 +75,7 @@ const nowUpdated = nowData.updatedAtHe ?? nowData.updatedAt;
               class="font-display leading-snug fade-up"
               style="font-size: clamp(1.35rem, 2.8vw, 2.1rem); animation-delay: 0.4s; font-weight: 300"
             >
-              מחקרי עוסק ב<em class="text-accent" style="font-style: italic">התנהגות פוגענית</em> בסביבות עבודה — ובשאלה האם בינה מלאכותית יכולה לזהות ולצמצם אותה.
+              אני חוקר כיצד <em class="text-accent" style="font-style: italic">התנהגות פוגענית</em> גולשת בארגונים — ועד כמה בינה מלאכותית יכולה לצמצם אותה.
             </p>
             <p class="mt-8 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.6s">
               עורך משנה ב-<em>Journal of Managerial Psychology</em>. ראש מסלול ניהול משאבי אנוש ופיתוח ארגוני במחלקה לסוציולוגיה ואנתרופולוגיה באוניברסיטת אריאל. חוקר התנהגות פוגענית בסביבות עבודה — וכיצד בינה מלאכותית יכולה לסייע בזיהויה ובצמצומה.
@@ -95,12 +95,12 @@ const nowUpdated = nowData.updatedAtHe ?? nowData.updatedAt;
             )}
             {site.display.atPresent && (
               <>
-                <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3 fade-up" style="animation-delay: 0.7s">
+                <div class="font-mono text-xs uppercase tracking-widest mb-3 fade-up" style="animation-delay: 0.7s; color: var(--color-accent)">
                   כעת
                 </div>
-                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s">
+                <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s; color: var(--color-accent)">
                   <div>אוניברסיטת אריאל</div>
-                  <div class="text-muted">ישראל · UTC+3</div>
+                  <div style="opacity: 0.75">ישראל · UTC+3</div>
                 </div>
               </>
             )}
@@ -220,7 +220,13 @@ const nowUpdated = nowData.updatedAtHe ?? nowData.updatedAt;
                     </div>
                     <h3 class="pub-title font-display text-xl md:text-2xl leading-snug mb-2" style="font-weight: 400">{entry.data.title}</h3>
                     <p class="text-sm text-muted italic mb-3">{entry.data.venue}</p>
-                    <div class="mt-auto flex items-center justify-start">
+                    <div class="mt-auto flex items-center justify-between">
+                      {entry.data.podcast?.available ? (
+                        <span class="font-mono text-[10px] uppercase tracking-widest text-soft flex items-center gap-1">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                          פודקאסט זמין
+                        </span>
+                      ) : <span />}
                       <svg class="pub-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
                       </svg>
