@@ -4,7 +4,7 @@ export const site = {
   establishedYear: 2026,
   positioningSentence: {
     en: "I study how mistreatment spills over in organizations — and whether AI can mitigate it.",
-    he: "אני חוקר כיצד פגיעה נעה בארגונים — והאם מכונות יכולות ללמוד לעצור אותה.",
+    he: "אני חוקר כיצד התנהגות פוגענית גולשת בארגונים — ועד כמה בינה מלאכותית יכולה לצמצם אותה.",
   },
   bio: {
     en: "Associate Editor at the Journal of Managerial Psychology. Faculty in Human Resources Management & Organizational Development at Ariel University. Practitioner-scholar at the intersection of research on workplace harm and tools that might reduce it.",

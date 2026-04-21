@@ -157,8 +157,14 @@ export default function PublicationsBrowser({
         if (p.year < yearMin) return false;
         if (activeTopics.length && !p.topics.some((t) => activeTopics.includes(t))) return false;
         if (q) {
-          const haystack = [p.title, p.venue ?? '', p.abstract ?? '', p.tldr ?? '',
-            p.authors.map((a) => a.name).join(' ')].join(' ').toLowerCase();
+          const haystack = [
+            p.title,
+            p.venue ?? '',
+            p.abstract ?? '',
+            p.tldr ?? '',
+            p.authors.map((a) => a.name).join(' '),
+            p.topics.join(' '),
+          ].join(' ').toLowerCase();
           if (!haystack.includes(q)) return false;
         }
         return true;
