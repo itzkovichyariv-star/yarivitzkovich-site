@@ -24,7 +24,7 @@ const copy = {
     kicker: '',
     heading: 'Get in touch.',
     lede: 'For collaborations, editorial matters at JMP, speaking, prospective PhD students, or master students with an interest in technology and the dark side of organizations.',
-    emailLabel: site.email,
+    email: 'Email',
     cv: 'Download CV',
     findMe: 'Find me',
     tagline: '',
@@ -34,7 +34,7 @@ const copy = {
     kicker: '',
     heading: 'צרו קשר.',
     lede: 'לשיתופי פעולה, ענייני עריכה ב-JMP, הרצאות, סטודנטים המעוניינים בלימודי דוקטורט, או תלמידי מחקר בתואר שני עם עניין בטכנולוגיה וצד האפל של ארגונים.',
-    emailLabel: site.email,
+    email: 'אימייל',
     cv: 'קורות חיים',
     findMe: 'מצאו אותי',
     tagline: '',
@@ -54,14 +54,13 @@ const copy = {
         <div class="mt-10 flex flex-wrap gap-4">
           <a
             href={`mailto:${site.email}`}
-            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm transition-opacity hover:opacity-80"
-            style="background-color: var(--color-bg); color: var(--color-ink)"
+            class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm border border-current hover:opacity-80 transition-opacity"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
               <path d="m22 7-10 5L2 7"/>
             </svg>
-            {copy.emailLabel}
+            {copy.email}
           </a>
           {showCv && (
             <a
