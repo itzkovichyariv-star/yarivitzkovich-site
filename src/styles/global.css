@@ -29,16 +29,16 @@
   --text-muted: rgba(26, 22, 18, 0.7);
   --text-soft: rgba(26, 22, 18, 0.5);
   --divider: rgba(26, 22, 18, 0.15);
-  /* "Now" panel: warm rose that echoes the burgundy accent at a brighter register. */
-  --panel: #F2D9D6;
-  --panel-text: var(--color-ink);
-  --panel-label: #8B3A4A;
-  --panel-muted: rgba(26, 22, 18, 0.6);
-  --panel-divider: rgba(122, 30, 43, 0.15);
-  --panel-accent: #7A1E2B;
+  /* "Now" panel: brighter take on the footer burgundy — same hue, more light. */
+  --panel: #A8273A;
+  --panel-text: #F4EFE6;
+  --panel-label: rgba(244, 239, 230, 0.65);
+  --panel-muted: rgba(244, 239, 230, 0.55);
+  --panel-divider: rgba(244, 239, 230, 0.18);
+  --panel-accent: #F4EFE6;
   --accent: var(--color-accent);
   --nav-bg: rgba(244, 239, 230, 0.9);
-  --grain-dot: rgba(26, 22, 18, 0.04);
+  --grain-dot: rgba(26, 22, 18, 0.035);
 }
 
 .dark {
@@ -47,9 +47,9 @@
   --text-muted: rgba(244, 239, 230, 0.7);
   --text-soft: rgba(244, 239, 230, 0.5);
   --divider: rgba(244, 239, 230, 0.15);
-  --panel: #200D0F;
+  --panel: #5A1520;
   --panel-text: #F4EFE6;
-  --panel-label: #D4848E;
+  --panel-label: rgba(244, 239, 230, 0.65);
   --panel-muted: rgba(244, 239, 230, 0.6);
   --panel-divider: rgba(244, 239, 230, 0.12);
   --panel-accent: #C49EAE;
