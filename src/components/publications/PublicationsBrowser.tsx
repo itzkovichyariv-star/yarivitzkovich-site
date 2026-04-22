@@ -685,6 +685,7 @@ function Drawer({
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
 }) {
   const [format, setFormat] = useState<CitationFormat>('apa');
+  const [abstractActive, setAbstractActive] = useState(false);
   const citations: Record<CitationFormat, string> = {
     apa: generateAPA(pub),
     mla: generateMLA(pub),
@@ -877,62 +878,67 @@ function Drawer({
               </a>
             )}
             {pub.abstract && (
-              <div className="group relative inline-block">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-80 transition-opacity"
-                  style={{ borderColor: 'var(--divider)' }}
-                  aria-label="Show abstract"
-                >
-                  Abstract
-                </button>
-                <div
-                  className="absolute right-0 top-full mt-2 z-20 p-5 rounded-lg shadow-xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity"
-                  style={{
-                    backgroundColor: 'var(--bg)',
-                    borderColor: 'var(--divider)',
-                    width: 'min(28rem, calc(100vw - 4rem))',
-                  }}
-                >
-                  <div className="font-mono text-xs uppercase tracking-widest text-muted mb-2">Abstract</div>
-                  <p className="leading-relaxed text-sm" style={{ opacity: 0.9 }}>
-                    {pub.abstract}
-                  </p>
-                </div>
-              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-80 transition-opacity"
+                style={{
+                  borderColor: 'var(--divider)',
+                  backgroundColor: abstractActive ? 'var(--color-accent)' : 'transparent',
+                  color: abstractActive ? 'var(--color-bg)' : 'inherit',
+                }}
+                aria-label="Show abstract"
+                aria-expanded={abstractActive}
+                onMouseEnter={() => setAbstractActive(true)}
+                onMouseLeave={() => setAbstractActive(false)}
+                onFocus={() => setAbstractActive(true)}
+                onBlur={() => setAbstractActive(false)}
+              >
+                Abstract
+              </button>
             )}
           </div>
 
-          <CitationPanel
-            format={format}
-            onChangeFormat={setFormat}
-            activeCitation={activeCitation}
-            copied={copied}
-            onCopy={() => onCopy(activeCitation)}
-          />
-
-          {related.length > 0 && (
-            <div className="mt-8">
-              <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">
-                Related work
-              </div>
-              <div>
-                {related.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => onSelect(p)}
-                    className="block w-full text-left py-3 border-t hover:opacity-60 transition-opacity"
-                    style={{ borderColor: 'var(--divider)' }}
-                  >
-                    <div className="font-mono text-xs text-soft">{p.year}</div>
-                    <div className="font-display text-base" style={{ fontWeight: 400 }}>
-                      {p.title}
-                    </div>
-                  </button>
-                ))}
-              </div>
+          {abstractActive && pub.abstract ? (
+            <div className="mt-2">
+              <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">Abstract</div>
+              <p className="leading-relaxed" style={{ opacity: 0.9 }}>
+                {pub.abstract}
+              </p>
             </div>
+          ) : (
+            <>
+              <CitationPanel
+                format={format}
+                onChangeFormat={setFormat}
+                activeCitation={activeCitation}
+                copied={copied}
+                onCopy={() => onCopy(activeCitation)}
+              />
+
+              {related.length > 0 && (
+                <div className="mt-8">
+                  <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">
+                    Related work
+                  </div>
+                  <div>
+                    {related.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelect(p)}
+                        className="block w-full text-left py-3 border-t hover:opacity-60 transition-opacity"
+                        style={{ borderColor: 'var(--divider)' }}
+                      >
+                        <div className="font-mono text-xs text-soft">{p.year}</div>
+                        <div className="font-display text-base" style={{ fontWeight: 400 }}>
+                          {p.title}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </aside>
