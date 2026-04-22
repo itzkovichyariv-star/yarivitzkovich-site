@@ -92,8 +92,10 @@ const nowUpdated = nowData.updatedAt;
                   At present
                 </div>
                 <div class="space-y-2 text-sm fade-up" style="animation-delay: 0.8s; color: var(--color-accent)">
-                  {site.affiliation.en && <div>{site.affiliation.en}</div>}
-                  {site.location.en && <div style="opacity: 0.75">{site.location.en}</div>}
+                  <div style="font-weight: 500">Associate Editor</div>
+                  <div style="opacity: 0.85; font-style: italic">Journal of Managerial Psychology</div>
+                  {site.affiliation.en && <div style="opacity: 0.75; padding-top: 0.5rem; border-top: 1px solid currentColor; margin-top: 0.5rem">{site.affiliation.en}</div>}
+                  {site.location.en && <div style="opacity: 0.6">{site.location.en}</div>}
                 </div>
               </>
             )}
