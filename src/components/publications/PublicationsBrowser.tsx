@@ -344,8 +344,8 @@ export default function PublicationsBrowser({
 
       {/* Body */}
       <section className="max-w-7xl mx-auto px-6 md:px-10 py-12 min-h-[60vh]">
-        {view === 'grid' && <GridView pubs={filtered} onSelect={setSelected} topicLabel={topicLabel} />}
-        {view === 'timeline' && <TimelineView pubs={filtered} onSelect={setSelected} />}
+        {view === 'grid' && <GridView key={`grid-${activeType}-${yearMin}-${activeTopics.join(',')}-${searchText}`} pubs={filtered} onSelect={setSelected} topicLabel={topicLabel} />}
+        {view === 'timeline' && <TimelineView key={`tl-${activeType}-${yearMin}-${activeTopics.join(',')}-${searchText}`} pubs={filtered} onSelect={setSelected} />}
         {view === 'topics' && (
           <>
             {booksInView.length > 0 && (

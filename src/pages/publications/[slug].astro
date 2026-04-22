@@ -174,14 +174,21 @@ const jsonLd = {
         var btn = document.getElementById('abstract-toggle');
         var panel = document.getElementById('abstract-panel');
         if (!btn || !panel) return;
-        btn.addEventListener('click', function () {
-          var open = panel.style.display !== 'none';
-          panel.style.display = open ? 'none' : 'block';
-          btn.setAttribute('aria-expanded', String(!open));
-          btn.style.backgroundColor = open ? '' : 'var(--color-ink)';
-          btn.style.color = open ? '' : 'var(--color-bg)';
-          btn.style.borderColor = open ? 'var(--divider)' : 'var(--color-ink)';
-        });
+        var pinned = false;
+        function render() {
+          var show = pinned || btn.dataset.hover === '1';
+          panel.style.display = show ? 'block' : 'none';
+          btn.setAttribute('aria-expanded', String(show));
+          btn.textContent = pinned ? 'Hide abstract' : 'Abstract';
+          btn.style.backgroundColor = show ? 'var(--color-accent)' : '';
+          btn.style.color = show ? 'var(--color-bg)' : '';
+          btn.style.borderColor = show ? 'var(--color-accent)' : 'var(--divider)';
+        }
+        btn.addEventListener('click', function () { pinned = !pinned; render(); });
+        btn.addEventListener('mouseenter', function () { btn.dataset.hover = '1'; render(); });
+        btn.addEventListener('mouseleave', function () { btn.dataset.hover = '0'; render(); });
+        btn.addEventListener('focus', function () { btn.dataset.hover = '1'; render(); });
+        btn.addEventListener('blur', function () { btn.dataset.hover = '0'; render(); });
       })();
     </script>
 
