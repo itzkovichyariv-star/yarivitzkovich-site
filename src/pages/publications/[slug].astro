@@ -174,9 +174,10 @@ const jsonLd = {
         var btn = document.getElementById('abstract-toggle');
         var panel = document.getElementById('abstract-panel');
         if (!btn || !panel) return;
+        var canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
         var pinned = false;
         function render() {
-          var show = pinned || btn.dataset.hover === '1';
+          var show = pinned || (canHover && btn.dataset.hover === '1');
           panel.style.display = show ? 'block' : 'none';
           btn.setAttribute('aria-expanded', String(show));
           btn.textContent = pinned ? 'Hide abstract' : 'Abstract';
@@ -185,10 +186,12 @@ const jsonLd = {
           btn.style.borderColor = show ? 'var(--color-accent)' : 'var(--divider)';
         }
         btn.addEventListener('click', function () { pinned = !pinned; render(); });
-        btn.addEventListener('mouseenter', function () { btn.dataset.hover = '1'; render(); });
-        btn.addEventListener('mouseleave', function () { btn.dataset.hover = '0'; render(); });
-        btn.addEventListener('focus', function () { btn.dataset.hover = '1'; render(); });
-        btn.addEventListener('blur', function () { btn.dataset.hover = '0'; render(); });
+        if (canHover) {
+          btn.addEventListener('mouseenter', function () { btn.dataset.hover = '1'; render(); });
+          btn.addEventListener('mouseleave', function () { btn.dataset.hover = '0'; render(); });
+          btn.addEventListener('focus', function () { btn.dataset.hover = '1'; render(); });
+          btn.addEventListener('blur', function () { btn.dataset.hover = '0'; render(); });
+        }
       })();
     </script>
 

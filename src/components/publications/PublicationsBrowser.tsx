@@ -688,7 +688,16 @@ function Drawer({
   const [format, setFormat] = useState<CitationFormat>('apa');
   const [abstractPinned, setAbstractPinned] = useState(false);
   const [abstractHover, setAbstractHover] = useState(false);
-  const abstractActive = abstractPinned || abstractHover;
+  const [canHover, setCanHover] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    setCanHover(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setCanHover(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const abstractActive = abstractPinned || (canHover && abstractHover);
   const citations: Record<CitationFormat, string> = {
     apa: generateAPA(pub),
     mla: generateMLA(pub),
