@@ -900,7 +900,11 @@ function Drawer({
                 }}
                 aria-label={abstractPinned ? 'Hide abstract' : 'Show abstract'}
                 aria-expanded={abstractActive}
-                onClick={() => setAbstractPinned((v) => !v)}
+                onClick={() => {
+                  setAbstractPinned((v) => !v);
+                  setAbstractHover(false);
+                }}
+                onTouchStart={() => setAbstractHover(false)}
                 onMouseEnter={() => setAbstractHover(true)}
                 onMouseLeave={() => setAbstractHover(false)}
                 onFocus={() => setAbstractHover(true)}
