@@ -27,7 +27,7 @@ const en = (path: string) => `/${path}`;
     </a>
 
     <!-- Desktop nav -->
-    <nav class="hidden md:flex gap-8">
+    <nav class="hidden md:flex gap-8 md:mr-8 lg:mr-12">
       <a href={homeHref} class="hover:opacity-60 transition-opacity">{t.home}</a>
       <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
       <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
@@ -35,7 +35,7 @@ const en = (path: string) => `/${path}`;
       <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
 
-    <div class="flex items-center gap-4">
+    <div class="flex items-center gap-5">
       <!-- Search — always visible -->
       <button
         id="nav-search-btn"
