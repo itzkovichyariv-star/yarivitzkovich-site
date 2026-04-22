@@ -52,7 +52,7 @@ type ViewMode = 'grid' | 'timeline' | 'topics';
 const TYPE_OPTIONS: Array<{ k: 'all' | PublicationType; label: string }> = [
   { k: 'all', label: 'All' },
   { k: 'article', label: 'Articles' },
-  { k: 'chapter', label: 'Chapters' },
+  { k: 'chapter', label: 'Book Chapters' },
   { k: 'book', label: 'Books' },
   { k: 'editorial', label: 'Editorials' },
   { k: 'preprint', label: 'Preprints' },
@@ -843,16 +843,7 @@ function Drawer({
             </div>
           )}
 
-          {pub.abstract && (
-            <div className="mb-8">
-              <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">Abstract</div>
-              <p className="leading-relaxed" style={{ opacity: 0.85 }}>
-                {pub.abstract}
-              </p>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-3 mb-8">
+          <div className="flex flex-wrap gap-3 mb-4">
             {pub.pdf?.available && pub.pdf.path && (
               <a
                 href={pub.pdf.path}
@@ -884,6 +875,31 @@ function Drawer({
               >
                 <ArrowUpRight size={14} /> View publisher
               </a>
+            )}
+            {pub.abstract && (
+              <div className="group relative inline-block">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border hover:opacity-80 transition-opacity"
+                  style={{ borderColor: 'var(--divider)' }}
+                  aria-label="Show abstract"
+                >
+                  Abstract
+                </button>
+                <div
+                  className="absolute right-0 top-full mt-2 z-20 p-5 rounded-lg shadow-xl border opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-opacity"
+                  style={{
+                    backgroundColor: 'var(--bg)',
+                    borderColor: 'var(--divider)',
+                    width: 'min(28rem, calc(100vw - 4rem))',
+                  }}
+                >
+                  <div className="font-mono text-xs uppercase tracking-widest text-muted mb-2">Abstract</div>
+                  <p className="leading-relaxed text-sm" style={{ opacity: 0.9 }}>
+                    {pub.abstract}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 

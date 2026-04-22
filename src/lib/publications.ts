@@ -78,7 +78,7 @@ export function formatType(type: PublicationType): string {
     case 'article':
       return 'Article';
     case 'chapter':
-      return 'Chapter';
+      return 'Book Chapter';
     case 'editorial':
       return 'Editorial';
     case 'conference':
