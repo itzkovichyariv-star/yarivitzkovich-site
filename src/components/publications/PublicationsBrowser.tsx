@@ -234,7 +234,7 @@ export default function PublicationsBrowser({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono uppercase tracking-wider transition-all"
                   style={
                     view === k
-                      ? { backgroundColor: 'var(--text)', color: 'var(--surface)' }
+                      ? { backgroundColor: 'var(--color-accent)', color: 'var(--color-bg)' }
                       : { color: 'var(--text)' }
                   }
                 >
@@ -314,9 +314,9 @@ export default function PublicationsBrowser({
                   style={
                     active
                       ? {
-                          backgroundColor: 'var(--text)',
-                          color: 'var(--surface)',
-                          borderColor: 'var(--text)',
+                          backgroundColor: 'var(--color-accent)',
+                          color: 'var(--color-bg)',
+                          borderColor: 'var(--color-accent)',
                         }
                       : {
                           color: 'var(--text)',
@@ -983,7 +983,7 @@ function CitationPanel({
               className="px-3 py-1 text-[11px] font-mono uppercase tracking-wider rounded-full transition-all"
               style={
                 format === f
-                  ? { backgroundColor: 'var(--text)', color: 'var(--surface)' }
+                  ? { backgroundColor: 'var(--color-accent)', color: 'var(--color-bg)' }
                   : { color: 'var(--text-muted)', opacity: 0.6 }
               }
             >

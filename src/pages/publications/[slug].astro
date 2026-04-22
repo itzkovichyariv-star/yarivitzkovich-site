@@ -213,7 +213,7 @@ const jsonLd = {
             type="button"
             data-cite-tab={i}
             class={`cite-tab font-mono text-[10px] uppercase tracking-widest px-3 py-1 rounded-full border transition-colors ${i === 0 ? 'active' : ''}`}
-            style={i === 0 ? 'background-color: var(--color-ink); color: var(--color-bg); border-color: var(--color-ink)' : 'border-color: var(--divider)'}
+            style={i === 0 ? 'background-color: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent)' : 'border-color: var(--divider)'}
           >
             {c.label}
           </button>
@@ -247,9 +247,9 @@ const jsonLd = {
               t.style.color = '';
               t.style.borderColor = 'var(--divider)';
             });
-            tab.style.backgroundColor = 'var(--color-ink)';
+            tab.style.backgroundColor = 'var(--color-accent)';
             tab.style.color = 'var(--color-bg)';
-            tab.style.borderColor = 'var(--color-ink)';
+            tab.style.borderColor = 'var(--color-accent)';
             panels.forEach(function (p) { p.classList.add('hidden'); });
             var panel = section.querySelector('[data-cite-panel="' + idx + '"]');
             if (panel) panel.classList.remove('hidden');
