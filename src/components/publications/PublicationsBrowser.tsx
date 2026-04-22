@@ -366,6 +366,7 @@ export default function PublicationsBrowser({
       {/* Drawer */}
       {selected && (
         <Drawer
+          key={selected.id}
           pub={selected}
           paperNumber={String(
             publications.findIndex((p) => p.id === selected.id) + 1,
@@ -685,7 +686,9 @@ function Drawer({
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
 }) {
   const [format, setFormat] = useState<CitationFormat>('apa');
-  const [abstractActive, setAbstractActive] = useState(false);
+  const [abstractPinned, setAbstractPinned] = useState(false);
+  const [abstractHover, setAbstractHover] = useState(false);
+  const abstractActive = abstractPinned || abstractHover;
   const citations: Record<CitationFormat, string> = {
     apa: generateAPA(pub),
     mla: generateMLA(pub),
@@ -886,14 +889,15 @@ function Drawer({
                   backgroundColor: abstractActive ? 'var(--color-accent)' : 'transparent',
                   color: abstractActive ? 'var(--color-bg)' : 'inherit',
                 }}
-                aria-label="Show abstract"
+                aria-label={abstractPinned ? 'Hide abstract' : 'Show abstract'}
                 aria-expanded={abstractActive}
-                onMouseEnter={() => setAbstractActive(true)}
-                onMouseLeave={() => setAbstractActive(false)}
-                onFocus={() => setAbstractActive(true)}
-                onBlur={() => setAbstractActive(false)}
+                onClick={() => setAbstractPinned((v) => !v)}
+                onMouseEnter={() => setAbstractHover(true)}
+                onMouseLeave={() => setAbstractHover(false)}
+                onFocus={() => setAbstractHover(true)}
+                onBlur={() => setAbstractHover(false)}
               >
-                Abstract
+                {abstractPinned ? 'Hide abstract' : 'Abstract'}
               </button>
             )}
           </div>
