@@ -71,12 +71,23 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'ScholarlyArticle',
   headline: pub.title,
+  name: pub.title,
   datePublished: `${pub.year}-01-01`,
-  author: pub.authors.map((a) => ({ '@type': 'Person', name: a.name })),
+  author: pub.authors.map((a) =>
+    a.isMe
+      ? { '@id': 'https://yarivitzkovich.org/#person', '@type': 'Person', name: 'Yariv Itzkovich', sameAs: ['https://orcid.org/0000-0002-3296-6518', 'https://scholar.google.com/citations?user=HyN_EIgAAAAJ'] }
+      : { '@type': 'Person', name: a.name }
+  ),
   publisher: pub.venue ? { '@type': 'Organization', name: pub.venue } : undefined,
+  isPartOf: pub.venue ? { '@type': 'Periodical', name: pub.venue } : undefined,
   abstract: pub.abstract,
+  keywords: pub.topics,
+  inLanguage: 'en',
   url: new URL(`/publications/${pub.slug}`, Astro.site).href,
-  identifier: pub.doi ? `https://doi.org/${pub.doi}` : undefined,
+  mainEntityOfPage: new URL(`/publications/${pub.slug}`, Astro.site).href,
+  identifier: pub.doi
+    ? [{ '@type': 'PropertyValue', propertyID: 'DOI', value: pub.doi }, `https://doi.org/${pub.doi}`]
+    : undefined,
 };
 ---
 <BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract}>

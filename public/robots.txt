@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Explicitly welcome Google's scholar/academic crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+# Sitemap
+Sitemap: https://yarivitzkovich.org/sitemap-index.xml

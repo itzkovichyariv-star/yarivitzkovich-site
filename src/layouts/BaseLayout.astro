@@ -9,6 +9,8 @@ interface Props {
   description?: string;
   lang?: 'en' | 'he';
   langHref?: string;
+  /** Override the default Person JSON-LD (e.g. ScholarlyArticle on paper pages) */
+  suppressPersonSchema?: boolean;
 }
 
 const {
@@ -16,9 +18,12 @@ const {
   description = 'Yariv Itzkovich — research on how mistreatment spills over in organizations, bystander intervention, and AI-based mitigation.',
   lang = 'en',
   langHref,
+  suppressPersonSchema = false,
 } = Astro.props;
 
 const dir = lang === 'he' ? 'rtl' : 'ltr';
+const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://yarivitzkovich.org').href;
+const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://yarivitzkovich.org').href;
 ---
 <!doctype html>
 <html lang={lang} dir={dir}>
@@ -27,11 +32,31 @@ const dir = lang === 'he' ? 'rtl' : 'ltr';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="author" content="Yariv Itzkovich" />
     <meta name="generator" content={Astro.generator} />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" hreflang="en" href={new URL(Astro.url.pathname.replace(/^\/he\//, '/'), Astro.site ?? 'https://yarivitzkovich.org').href} />
+    <link rel="alternate" hreflang="he" href={new URL(Astro.url.pathname.startsWith('/he') ? Astro.url.pathname : `/he${Astro.url.pathname}`, Astro.site ?? 'https://yarivitzkovich.org').href} />
+    <link rel="alternate" hreflang="x-default" href={new URL('/', Astro.site ?? 'https://yarivitzkovich.org').href} />
+
+    <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Open Graph / social previews -->
+    <meta property="og:site_name" content="Yariv Itzkovich" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:locale" content={lang === 'he' ? 'he_IL' : 'en_US'} />
+    <meta property="og:locale:alternate" content={lang === 'he' ? 'en_US' : 'he_IL'} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <script is:inline>
       // Auto is the default and the master: dark 19:00–06:59, light otherwise.
       // Manual toggle overrides auto only until the next auto-transition (07:00 or 19:00),
@@ -89,6 +114,90 @@ const dir = lang === 'he' ? 'rtl' : 'ltr';
         setInterval(apply, 60000);
       })();
     </script>
+
+    {!suppressPersonSchema && (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Person',
+        '@id': 'https://yarivitzkovich.org/#person',
+        name: 'Yariv Itzkovich',
+        alternateName: [
+          'Yariv Itzkovich, PhD',
+          'Y. Itzkovich',
+          'Yariv Iztkovich',
+          'יריב איצקוביץ',
+          'ד״ר יריב איצקוביץ',
+        ],
+        givenName: 'Yariv',
+        familyName: 'Itzkovich',
+        honorificSuffix: 'PhD',
+        jobTitle: [
+          'Associate Editor, Journal of Managerial Psychology',
+          'Senior Lecturer, Ariel University',
+          'Head of the Human Resource Management Track',
+        ],
+        description: 'Researcher of workplace mistreatment, bystander intervention, and AI-based mitigation. Associate Editor at the Journal of Managerial Psychology.',
+        url: 'https://yarivitzkovich.org',
+        image: 'https://yarivitzkovich.org/images/headshot.jpg',
+        email: 'mailto:Yarivi@ariel.ac.il',
+        worksFor: {
+          '@type': 'CollegeOrUniversity',
+          name: 'Ariel University',
+          url: 'https://www.ariel.ac.il',
+          department: {
+            '@type': 'EducationalOrganization',
+            name: 'Department of Sociology and Anthropology — HRM & Organizational Development Track',
+          },
+        },
+        affiliation: [
+          {
+            '@type': 'Organization',
+            name: 'Journal of Managerial Psychology',
+            url: 'https://www.emerald.com/insight/publication/issn/0268-3946',
+          },
+          {
+            '@type': 'Organization',
+            name: 'International Association on Workplace Bullying and Harassment (IAWBH)',
+          },
+        ],
+        knowsAbout: [
+          'Workplace incivility',
+          'Workplace bullying',
+          'Bystander intervention',
+          'Abusive supervision',
+          'Organizational behaviour',
+          'AI and human-AI collaboration',
+          'Organizational consulting',
+        ],
+        identifier: [
+          { '@type': 'PropertyValue', propertyID: 'ORCID', value: '0000-0002-3296-6518' },
+        ],
+        sameAs: [
+          'https://orcid.org/0000-0002-3296-6518',
+          'https://scholar.google.com/citations?user=HyN_EIgAAAAJ',
+        ],
+      })} />
+    )}
+
+    {Astro.url.pathname === '/' && (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        '@id': 'https://yarivitzkovich.org/#website',
+        name: 'Yariv Itzkovich',
+        alternateName: ['Yariv Itzkovich — Research on workplace mistreatment and AI', 'יריב איצקוביץ'],
+        url: 'https://yarivitzkovich.org',
+        description: 'The personal site and research archive of Yariv Itzkovich, PhD — Associate Editor at the Journal of Managerial Psychology.',
+        inLanguage: ['en', 'he'],
+        about: { '@id': 'https://yarivitzkovich.org/#person' },
+        author: { '@id': 'https://yarivitzkovich.org/#person' },
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: 'https://yarivitzkovich.org/publications?search={query}',
+          'query-input': 'required name=query',
+        },
+      })} />
+    )}
   </head>
   <body>
     <Nav lang={lang} langHref={langHref} />
