@@ -33,11 +33,60 @@ const dir = lang === 'he' ? 'rtl' : 'ltr';
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <script is:inline>
-      // Default is light ("newspaper") mode. Dark is opt-in via the toggle.
+      // Auto is the default and the master: dark 19:00–06:59, light otherwise.
+      // Manual toggle overrides auto only until the next auto-transition (07:00 or 19:00),
+      // so the next morning/evening auto silently takes back over.
       (() => {
-        if (localStorage.getItem('theme') === 'dark') {
-          document.documentElement.classList.add('dark');
+        function autoMode() {
+          var h = new Date().getHours();
+          return (h < 7 || h >= 19) ? 'dark' : 'light';
         }
+        function nextTransition(from) {
+          var d = new Date(from);
+          var h = d.getHours();
+          if (h < 7) {
+            d.setHours(7, 0, 0, 0);
+          } else if (h < 19) {
+            d.setHours(19, 0, 0, 0);
+          } else {
+            d.setDate(d.getDate() + 1);
+            d.setHours(7, 0, 0, 0);
+          }
+          return d;
+        }
+        function getOverride() {
+          var raw = localStorage.getItem('theme-override');
+          if (!raw) return null;
+          try {
+            var parsed = JSON.parse(raw);
+            if (new Date() >= new Date(parsed.expiresAt)) {
+              localStorage.removeItem('theme-override');
+              return null;
+            }
+            return parsed.mode;
+          } catch (e) {
+            localStorage.removeItem('theme-override');
+            return null;
+          }
+        }
+        function setOverride(mode) {
+          var expires = nextTransition(new Date()).toISOString();
+          localStorage.setItem('theme-override', JSON.stringify({ mode: mode, expiresAt: expires }));
+        }
+        function apply() {
+          var override = getOverride();
+          var auto = autoMode();
+          var effective = override || auto;
+          if (effective === 'dark') document.documentElement.classList.add('dark');
+          else document.documentElement.classList.remove('dark');
+          document.documentElement.dataset.themeEffective = effective;
+          document.documentElement.dataset.themeOverridden = override ? 'yes' : 'no';
+        }
+        apply();
+        window.__applyTheme = apply;
+        window.__setThemeOverride = setOverride;
+        // Re-check every minute: catches the 07:00 / 19:00 flip and expires stale overrides.
+        setInterval(apply, 60000);
       })();
     </script>
   </head>
