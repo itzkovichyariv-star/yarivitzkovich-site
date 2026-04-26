@@ -3,11 +3,11 @@ export const site = {
   shortName: "Yariv",
   establishedYear: 2026,
   positioningSentence: {
-    en: "I study how mistreatment spills over in organizations, and whether AI can mitigate it.",
+    en: "I study how mistreatment spills over in organizations — and whether AI can mitigate it.",
     he: "אני חוקר עד כמה התנהגות פוגענית משפיעה על ארגונים, ועד כמה בינה מלאכותית יכולה לצמצם אותה.",
   },
   bio: {
-    en: "Associate Editor at the Journal of Managerial Psychology. Faculty in Human Resources Management & Organizational Development at Ariel University. Practitioner-scholar at the intersection of research on workplace harm and tools that might reduce it.",
+    en: "Associate Editor, Journal of Managerial Psychology. Head of the Human Resource Management and Organizational Development track, Department of Sociology and Anthropology, Ariel University. My research examines workplace mistreatment and the potential of AI to detect and reduce it.",
     he: "עורך משנה ב-Journal of Managerial Psychology. חבר סגל בחוג למנהל משאבי אנוש ופיתוח ארגוני באוניברסיטת אריאל. חוקר-יישומן העוסק בתפר שבין מחקר פגיעה בעבודה לבין כלים שעשויים להקל עליה.",
   },
   affiliation: {
