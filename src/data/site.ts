@@ -3,7 +3,7 @@ export const site = {
   shortName: "Yariv",
   establishedYear: 2026,
   positioningSentence: {
-    en: "I study how mistreatment spills over in organizations — and whether AI can mitigate it.",
+    en: "I study how mistreatment spills over in organizations, and whether AI can mitigate it.",
     he: "אני חוקר עד כמה התנהגות פוגענית משפיעה על ארגונים, ועד כמה בינה מלאכותית יכולה לצמצם אותה.",
   },
   bio: {
