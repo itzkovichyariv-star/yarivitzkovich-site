@@ -8,7 +8,7 @@
 # Force re-create today:        npm run backup -- --force
 # Scheduled (launchd):          monthly + on login (whichever fires first)
 
-set -euo pipefail
+set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_NAME="$(basename "$REPO_DIR")"
@@ -29,15 +29,12 @@ fi
 
 # Ensure destination exists + verify it's actually writable (launchd sometimes can't reach OneDrive)
 if [ ! -d "$BACKUP_DIR" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] → Creating backup folder: $BACKUP_DIR" | tee -a "$LOG_FILE"
-  mkdir -p "$BACKUP_DIR" 2>/dev/null || {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✗ ERROR: cannot create $BACKUP_DIR — likely Full Disk Access not granted to bash/launchd. Backup aborted." | tee -a "$LOG_FILE"
-    exit 1
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] → Creating backup folder: $BACKUP_DIR"  mkdir -p "$BACKUP_DIR" 2>/dev/null || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✗ ERROR: cannot create $BACKUP_DIR — likely Full Disk Access not granted to bash/launchd. Backup aborted."    exit 1
   }
 fi
 if ! touch "$BACKUP_DIR/.write-test" 2>/dev/null; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✗ ERROR: $BACKUP_DIR not writable — likely Full Disk Access not granted to bash/launchd. Backup aborted." | tee -a "$LOG_FILE"
-  exit 1
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✗ ERROR: $BACKUP_DIR not writable — likely Full Disk Access not granted to bash/launchd. Backup aborted."  exit 1
 fi
 rm -f "$BACKUP_DIR/.write-test"
 
@@ -47,8 +44,7 @@ if [ "$FORCE" -eq 0 ]; then
   if [ -n "$EXISTING" ]; then
     SIZE=$(du -h "$EXISTING" | cut -f1)
     AGE_DAYS=$(( ( $(date +%s) - $(stat -f %m "$EXISTING") ) / 86400 ))
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Skipped — already have $(basename "$EXISTING") ($SIZE, ${AGE_DAYS}d old). Use --force to override." | tee -a "$LOG_FILE"
-    exit 0
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Skipped — already have $(basename "$EXISTING") ($SIZE, ${AGE_DAYS}d old). Use --force to override."    exit 0
   fi
 fi
 
@@ -59,7 +55,7 @@ if ! git diff-index --quiet HEAD -- 2>/dev/null; then
   echo "⚠  Working tree has uncommitted changes — they'll be included in the zip."
 fi
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] → Creating $ARCHIVE_NAME ..." | tee -a "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] → Creating $ARCHIVE_NAME ..."
 TMP="/tmp/${ARCHIVE_NAME}"
 
 # zip everything except rebuildable artifacts and OS noise
@@ -76,7 +72,7 @@ zip -rXq "$TMP" . \
 
 # Verify the zip is not corrupt before declaring success
 if ! unzip -tq "$TMP" >/dev/null 2>&1; then
-  echo "✗ Backup verification FAILED — zip is corrupt. Aborting." | tee -a "$LOG_FILE"
+  echo "✗ Backup verification FAILED — zip is corrupt. Aborting."
   rm -f "$TMP"
   exit 1
 fi
@@ -85,8 +81,7 @@ fi
 mv "$TMP" "$BACKUP_DIR/$ARCHIVE_NAME"
 
 SIZE=$(du -h "$BACKUP_DIR/$ARCHIVE_NAME" | cut -f1)
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✓ Backup created: $ARCHIVE_NAME ($SIZE)" | tee -a "$LOG_FILE"
-
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✓ Backup created: $ARCHIVE_NAME ($SIZE)"
 # Rotation: keep the 6 most recent backups, delete older ones
 cd "$BACKUP_DIR"
 to_remove=$(ls -t ${REPO_NAME}-backup-*.zip 2>/dev/null | tail -n +7)
@@ -102,7 +97,8 @@ fi
 
 echo ""
 echo "Current backups in OneDrive:"
-ls -lh ${REPO_NAME}-backup-*.zip 2>/dev/null | awk '{print "  " $9 "  (" $5 ")"}'
+ls -lh ${REPO_NAME}-backup-*.zip 2>/dev/null | awk '{print "  " $9 "  (" $5 ")"}' || true
 
 echo ""
 echo "Done. OneDrive will sync to Microsoft cloud automatically."
+exit 0
