@@ -734,7 +734,7 @@ function Drawer({
           }}
         >
           <div className="font-mono text-xs uppercase tracking-widest text-muted">
-            Paper № {paperNumber}
+            Publication
           </div>
           <div className="flex items-center gap-4">
             <a

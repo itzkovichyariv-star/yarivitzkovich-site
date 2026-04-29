@@ -1,17 +1,32 @@
 ---
 interface Props {
   lang?: 'en' | 'he';
-  href?: string; // override destination URL
+  href?: string; // explicit destination URL
 }
 const { lang = 'en', href } = Astro.props;
 const other = lang === 'en' ? 'he' : 'en';
-const defaultHref = lang === 'en' ? '/he/' : '/';
-const dest = href ?? defaultHref;
+
+// Show the toggle ONLY when an equivalent in the other language exists.
+// - If `href` is passed (e.g. /teaching → /he/teaching), use it.
+// - Otherwise, the toggle only renders on the home pages (/ and /he/), since both
+//   languages have a home. On every other page without an explicit `href`, the
+//   toggle hides itself — so the user is never silently redirected to an
+//   unrelated page when clicking it.
+const path = Astro.url.pathname;
+const isHome = path === '/' || path === '/he' || path === '/he/';
+let dest: string | null = null;
+if (href) {
+  dest = href;
+} else if (isHome) {
+  dest = lang === 'en' ? '/he/' : '/';
+}
 ---
-<a
-  href={dest}
-  class="border border-current rounded-full px-3 py-1 text-xs font-mono uppercase tracking-widest hover:opacity-70 transition-opacity"
-  aria-label={`Switch language to ${other.toUpperCase()}`}
->
-  {lang.toUpperCase()} → {other.toUpperCase()}
-</a>
+{dest && (
+  <a
+    href={dest}
+    class="border border-current rounded-full px-3 py-1 text-xs font-mono uppercase tracking-widest hover:opacity-70 transition-opacity"
+    aria-label={`Switch language to ${other.toUpperCase()}`}
+  >
+    {lang.toUpperCase()} → {other.toUpperCase()}
+  </a>
+)}
