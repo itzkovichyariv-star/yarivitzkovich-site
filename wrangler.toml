@@ -1,2 +1,10 @@
 name = "yarivitzkovich-site"
 pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yarivitzkovich-events"
+database_id = "252c466c-1964-4c86-879e-a19fed515827"
+
+[vars]
+LAUNCH_DATE = "2026-05-05"

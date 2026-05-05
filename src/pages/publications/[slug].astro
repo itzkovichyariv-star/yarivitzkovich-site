@@ -90,7 +90,7 @@ const jsonLd = {
     : undefined,
 };
 ---
-<BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract}>
+<BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract} paperSlug={pub.slug} paperTitle={pub.title}>
   <article class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-24" {...(!isPublished ? {'data-pagefind-ignore': ''} : {})}>
     <a href="/publications" class="font-mono text-xs uppercase tracking-widest text-soft hover:opacity-60 inline-flex items-center gap-2">
       <span>←</span> All publications

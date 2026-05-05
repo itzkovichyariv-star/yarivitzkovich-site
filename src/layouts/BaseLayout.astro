@@ -11,6 +11,9 @@ interface Props {
   langHref?: string;
   /** Override the default Person JSON-LD (e.g. ScholarlyArticle on paper pages) */
   suppressPersonSchema?: boolean;
+  /** When the page is a paper detail, set these so visit tracking attributes the visit to that paper. */
+  paperSlug?: string;
+  paperTitle?: string;
 }
 
 const {
@@ -19,6 +22,8 @@ const {
   lang = 'en',
   langHref,
   suppressPersonSchema = false,
+  paperSlug,
+  paperTitle,
 } = Astro.props;
 
 const dir = lang === 'he' ? 'rtl' : 'ltr';
@@ -43,6 +48,10 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
 
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    {/* Paper context for live-globe tracking (only on paper detail pages) */}
+    {paperSlug && <meta name="paper-slug" content={paperSlug} />}
+    {paperTitle && <meta name="paper-title" content={paperTitle} />}
 
     <!-- Open Graph / social previews -->
     <meta property="og:site_name" content="Yariv Itzkovich" />
@@ -206,5 +215,48 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
       <slot />
     </main>
     <Footer lang={lang} />
+
+    <script is:inline>
+      // Live globe — visit tracking (P0).
+      // Classifies the visitor as first_time or returning based on a flag
+      // in localStorage, then POSTs the event to /api/track-visit.
+      // No cookies, no third-party calls. Safe to remove later by deleting
+      // this script block — backend will simply receive nothing from this page.
+      (() => {
+        try {
+          if (navigator.webdriver) return; // skip headless browsers
+          var STORAGE_KEY = 'yi_visitedBefore';
+          var visited = localStorage.getItem(STORAGE_KEY);
+          var visitor_class = visited ? 'returning' : 'first_time';
+          if (!visited) {
+            try { localStorage.setItem(STORAGE_KEY, String(Date.now())); } catch (e) {}
+          }
+
+          var page_path = location.pathname || '/';
+
+          // Optional paper context — if a paper detail page sets these meta tags,
+          // we attach the slug + title to the event.
+          var slugMeta = document.querySelector('meta[name="paper-slug"]');
+          var titleMeta = document.querySelector('meta[name="paper-title"]');
+          var paper_slug = slugMeta ? slugMeta.getAttribute('content') : null;
+          var paper_title = titleMeta ? titleMeta.getAttribute('content') : null;
+
+          var body = JSON.stringify({ visitor_class: visitor_class, page_path: page_path, paper_slug: paper_slug, paper_title: paper_title });
+
+          // Use sendBeacon if available (won't block page transitions); fall back to fetch.
+          if (navigator.sendBeacon) {
+            var blob = new Blob([body], { type: 'application/json' });
+            navigator.sendBeacon('/api/track-visit', blob);
+          } else {
+            fetch('/api/track-visit', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: body,
+              keepalive: true,
+            }).catch(function () {});
+          }
+        } catch (e) { /* fail silently — never break the page */ }
+      })();
+    </script>
   </body>
 </html>
