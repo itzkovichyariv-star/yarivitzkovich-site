@@ -376,10 +376,14 @@ export default function LiveGlobe({ papers }: Props) {
       // exploded on mobile.
       g.pointOfView({ lat: 22, lng: 25, altitude: 2.8 }, 0);
 
-      // Render zoom-driven labels: continents always present at low opacity,
-      // country names fade in as the user zooms past ZOOM_FAR (and continent
-      // names fade out at the same time).
-      g.htmlElementsData(allLabels)
+      // Continent labels only, by default. Country labels were causing
+      // visual chaos on smaller viewports (190 names rendered on top of
+      // each other and they didn't read as anchored to specific places).
+      // The continent labels alone give enough orientation; the data is
+      // still computed in countryLabels above so we can re-introduce a
+      // filtered subset later if we want.
+      const visibleLabels = allLabels.filter((l: any) => l.kind === 'continent');
+      g.htmlElementsData(visibleLabels)
         .htmlLat((d: any) => d.lat)
         .htmlLng((d: any) => d.lng)
         .htmlAltitude(0.012)
@@ -628,7 +632,7 @@ export default function LiveGlobe({ papers }: Props) {
    // download event looks like. The arc is added directly to globe.gl's
    // arcsData (not React state) so it animates immediately, and is removed
    // after a few seconds. Does NOT touch D1 — purely visual.
-  const fireDemoArc = () => {
+  const fireDemoArc = (opts: { silent?: boolean } = {}) => {
     const g = globeRef.current;
     if (!g) return;
     const city = DEMO_CITIES[Math.floor(Math.random() * DEMO_CITIES.length)];
@@ -662,8 +666,10 @@ export default function LiveGlobe({ papers }: Props) {
     const current = g.arcsData() || [];
     g.arcsData([...current, demo]);
 
-    // Status note in the filter bar
-    setDemoNote(`Demo · "${title.length > 36 ? title.slice(0, 33) + '…' : title}" → ${city.name}`);
+    // Status note in the filter bar (suppressed in silent / auto-loop mode)
+    if (!opts.silent) {
+      setDemoNote(`Demo · "${title.length > 36 ? title.slice(0, 33) + '…' : title}" → ${city.name}`);
+    }
 
     // Pulse a ring at the destination too, so the arrival is visible
     if (!reduced) {
@@ -686,9 +692,31 @@ export default function LiveGlobe({ papers }: Props) {
     setTimeout(() => {
       const after = (g.arcsData() || []).filter((a: any) => a !== demo);
       g.arcsData(after);
-      setDemoNote(null);
+      if (!opts.silent) setDemoNote(null);
     }, 6000);
   };
+
+  // Continuous demo loop — keeps the page feeling alive between real
+  // downloads. Fires a silent synthetic arc every ~4 seconds. Pauses when
+  // the tab is hidden so we don't burn cycles when no one's looking.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (!globeRef.current) return;
+      fireDemoArc({ silent: true });
+    };
+    // Stagger the first call slightly so the page doesn't blast on load
+    const startTimer = window.setTimeout(tick, 1500);
+    const id = window.setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(startTimer);
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [papers.length]);
 
   // Pre-pick the visit/download counts within current event window for the activity panel
   const activity = useMemo(() => {
