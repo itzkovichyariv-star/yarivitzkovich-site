@@ -86,18 +86,20 @@ const DEMO_CITIES: Array<{ name: string; country: string; continent: string; lat
   { name: 'Mexico City',  country: 'Mexico',         continent: 'North America', lat:  19.43, lng:  -99.13 },
 ];
 
-// Editorial palette of 8 hues for arc colors (one per paper). Restrained
-// monochrome variations + complementary muted tones. Order is stable so a
-// given paper always gets the same color across reloads.
+// Vivid warm palette for arc colors — saturated enough to glow against
+// the satellite earth, kept in the red/pink/orange/gold range so they
+// extend the site's existing maroon/rose vocabulary instead of fighting it.
+// One hue per paper, deterministically hashed below so the same paper
+// always renders the same color across reloads.
 const PAPER_HUES = [
-  '#7A1E2B', // deep maroon — site primary
-  '#A85368', // soft rose
-  '#C9A877', // warm sand
-  '#8B9B8E', // sage
-  '#6B8195', // slate
-  '#B89B6E', // mustard
-  '#5A4A5C', // aubergine
-  '#D98B9A', // light pink
+  '#FF3B7A', // vivid magenta
+  '#FF5E3A', // electric coral
+  '#FFB347', // warm gold
+  '#FF77B7', // hot pink
+  '#E8174D', // ruby
+  '#FFA500', // amber
+  '#FF8C8C', // salmon
+  '#D8265E', // cherry
 ];
 
 function colorForPaper(slug: string | null | undefined): string {
@@ -282,13 +284,14 @@ export default function LiveGlobe({ papers }: Props) {
         .polygonCapColor(() => 'rgba(0,0,0,0)')
         .polygonSideColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.10)')
-        // Arcs: animated dashes flow from origin -> destination, single arc
-        // per download event.
-        .arcAltitudeAutoScale(0.5)
-        .arcStroke(0.45)
-        .arcDashLength(0.4)
-        .arcDashGap(2)
-        .arcDashAnimateTime(2200)
+        // Arcs: bright glowing lines, paired with a soft halo for bloom.
+        // Per-arc stroke width comes from the data (`__stroke`) so we can
+        // render a wider translucent halo behind each main arc.
+        .arcAltitudeAutoScale(0.6)
+        .arcStroke((d: any) => d?.__stroke ?? 0.7)
+        .arcDashLength(0.6)
+        .arcDashGap(0.5)
+        .arcDashAnimateTime(1500)
         .arcsTransitionDuration(0)
         // Pin styling for visit dots
         .pointAltitude(0.012)
@@ -531,23 +534,36 @@ export default function LiveGlobe({ papers }: Props) {
       .pointColor((p: any) => p.color)
       .pointRadius((p: any) => p.radius);
 
-    // Arcs: one per download event, from Ariel -> reader city. Color is keyed
-    // to the paper slug so all downloads of the same paper share a hue.
+    // Arcs: one per download event, from Ariel -> reader city. Each arc is
+    // rendered as TWO entries — a wide soft halo behind a thinner bright
+    // core — to fake a glow without three.js post-processing.
     const downloads = placed.filter((e) => e.kind === 'download');
-    const arcs = downloads.map((e) => {
+    const arcs: any[] = [];
+    for (const e of downloads) {
       const hex = colorForPaper(e.paper_slug);
-      return {
+      const halo = {
         startLat: ARIEL_LAT,
         startLng: ARIEL_LNG,
         endLat: Number(e.lat),
         endLng: Number(e.lng),
-        // Gradient: bright at origin, fading at destination. Two stops form
-        // a stronger "moving outward" sense than a single flat color.
-        color: [withAlpha(hex, 0.95), withAlpha(hex, 0.55)] as [string, string],
+        color: [withAlpha(hex, 0.35), withAlpha(hex, 0.10)] as [string, string],
+        __stroke: 2.4,
+        __event: e,
+        __paperColor: hex,
+        __isHalo: true,
+      };
+      const core = {
+        startLat: ARIEL_LAT,
+        startLng: ARIEL_LNG,
+        endLat: Number(e.lat),
+        endLng: Number(e.lng),
+        color: [withAlpha(hex, 1.0), withAlpha(hex, 0.85)] as [string, string],
+        __stroke: 0.7,
         __event: e,
         __paperColor: hex,
       };
-    });
+      arcs.push(halo, core);
+    }
     g.arcsData(arcs)
       .arcColor((d: any) => d.color)
       .arcStartLat((d: any) => d.startLat)
@@ -640,31 +656,37 @@ export default function LiveGlobe({ papers }: Props) {
     const slug = paper?.slug || 'demo';
     const title = paper?.title || 'Demo paper';
     const hex = colorForPaper(slug);
-    const demo: any = {
-      startLat: ARIEL_LAT,
-      startLng: ARIEL_LNG,
-      endLat: city.lat,
-      endLng: city.lng,
-      color: [withAlpha(hex, 0.95), withAlpha(hex, 0.55)] as [string, string],
-      __isDemo: true,
-      __event: {
-        ts: Math.floor(Date.now() / 1000),
-        kind: 'download',
-        visitor_class: 'downloader',
-        paper_slug: slug,
-        paper_title: title,
-        page_path: null,
-        country: null,
-        country_name: city.country,
-        continent: null,
-        continent_name: city.continent,
-        city: city.name,
-        lat: city.lat,
-        lng: city.lng,
-      } as EventRow,
+    const evRow: EventRow = {
+      ts: Math.floor(Date.now() / 1000),
+      kind: 'download',
+      visitor_class: 'downloader',
+      paper_slug: slug,
+      paper_title: title,
+      page_path: null,
+      country: null,
+      country_name: city.country,
+      continent: null,
+      continent_name: city.continent,
+      city: city.name,
+      lat: city.lat,
+      lng: city.lng,
+    };
+    const halo: any = {
+      startLat: ARIEL_LAT, startLng: ARIEL_LNG,
+      endLat: city.lat, endLng: city.lng,
+      color: [withAlpha(hex, 0.35), withAlpha(hex, 0.10)] as [string, string],
+      __stroke: 2.4,
+      __isDemo: true, __isHalo: true, __event: evRow,
+    };
+    const core: any = {
+      startLat: ARIEL_LAT, startLng: ARIEL_LNG,
+      endLat: city.lat, endLng: city.lng,
+      color: [withAlpha(hex, 1.0), withAlpha(hex, 0.85)] as [string, string],
+      __stroke: 0.7,
+      __isDemo: true, __event: evRow,
     };
     const current = g.arcsData() || [];
-    g.arcsData([...current, demo]);
+    g.arcsData([...current, halo, core]);
 
     // Status note in the filter bar (suppressed in silent / auto-loop mode)
     if (!opts.silent) {
@@ -688,9 +710,9 @@ export default function LiveGlobe({ papers }: Props) {
       }, 1500);
     }
 
-    // Remove the arc after enough time to fully animate + linger
+    // Remove the arc pair after enough time to fully animate + linger
     setTimeout(() => {
-      const after = (g.arcsData() || []).filter((a: any) => a !== demo);
+      const after = (g.arcsData() || []).filter((a: any) => a !== halo && a !== core);
       g.arcsData(after);
       if (!opts.silent) setDemoNote(null);
     }, 6000);
