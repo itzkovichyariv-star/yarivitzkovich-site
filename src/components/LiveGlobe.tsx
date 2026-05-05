@@ -70,6 +70,22 @@ const ARIEL_LAT = 32.103;
 const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
+// A handful of major world cities used by the "Demo" button to fire a fake
+// arc so the visitor can see what a real download looks like even when
+// only one or two real downloads exist in the database.
+const DEMO_CITIES: Array<{ name: string; country: string; continent: string; lat: number; lng: number }> = [
+  { name: 'New York',     country: 'United States',  continent: 'North America', lat:  40.71, lng:  -74.01 },
+  { name: 'London',       country: 'United Kingdom', continent: 'Europe',        lat:  51.51, lng:   -0.13 },
+  { name: 'Berlin',       country: 'Germany',        continent: 'Europe',        lat:  52.52, lng:   13.40 },
+  { name: 'Paris',        country: 'France',         continent: 'Europe',        lat:  48.86, lng:    2.35 },
+  { name: 'Tokyo',        country: 'Japan',          continent: 'Asia',          lat:  35.69, lng:  139.69 },
+  { name: 'Sydney',       country: 'Australia',      continent: 'Oceania',       lat: -33.87, lng:  151.21 },
+  { name: 'São Paulo',    country: 'Brazil',         continent: 'South America', lat: -23.55, lng:  -46.63 },
+  { name: 'Cape Town',    country: 'South Africa',   continent: 'Africa',        lat: -33.92, lng:   18.42 },
+  { name: 'Mumbai',       country: 'India',          continent: 'Asia',          lat:  19.08, lng:   72.88 },
+  { name: 'Mexico City',  country: 'Mexico',         continent: 'North America', lat:  19.43, lng:  -99.13 },
+];
+
 // Editorial palette of 8 hues for arc colors (one per paper). Restrained
 // monochrome variations + complementary muted tones. Order is stable so a
 // given paper always gets the same color across reloads.
@@ -106,10 +122,13 @@ const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; ln
 ];
 
 // Camera-distance thresholds (globe.gl camera distance, default range ~200..800).
-// Beyond FAR: only continent labels visible.
-// Below NEAR: country labels at full opacity.
-const ZOOM_NEAR = 240;
-const ZOOM_FAR = 360;
+// Country labels only appear when the user has actively zoomed in close —
+// otherwise 190 names render at once and the page becomes unreadable.
+// Continent labels stay at low opacity always (they help orient at first glance).
+const ZOOM_NEAR = 195;   // country labels at peak
+const ZOOM_FAR  = 235;   // country labels start to appear here
+const MIN_DIST  = 195;   // can't zoom closer than this — prevents texture pixelation
+const MAX_DIST  = 800;
 
 export default function LiveGlobe({ papers }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,6 +145,7 @@ export default function LiveGlobe({ papers }: Props) {
   const [reduced, setReduced] = useState(false);
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
+  const [demoNote, setDemoNote] = useState<string | null>(null);
 
   // Detect prefers-reduced-motion + observe live changes
   useEffect(() => {
@@ -318,13 +338,20 @@ export default function LiveGlobe({ papers }: Props) {
       //  labels still ride above as editorial chrome.)
       const earthPoints: any = null;
 
+      // Add a soft ambient light so the night-side / dark-mode texture is
+      // never crushed to pure black. globe.gl's built-in lighting is
+      // directional — without an ambient pass the unlit hemisphere
+      // disappears, especially with the city-lights night texture.
+      const ambient = new (THREE as any).AmbientLight(0xa8b0c8, 0.65);
+      g.scene().add(ambient);
+
       // Configure controls — auto-rotate, paused on user drag
       const controls = g.controls();
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.3;
       controls.enableZoom = true;
-      controls.minDistance = 200;
-      controls.maxDistance = 800;
+      controls.minDistance = MIN_DIST;
+      controls.maxDistance = MAX_DIST;
 
       const onStart = () => {
         controls.autoRotate = false;
@@ -341,6 +368,13 @@ export default function LiveGlobe({ papers }: Props) {
 
       // Start/freeze rotation based on reduced-motion
       controls.autoRotate = !reduced;
+
+      // Open at a comfortable distance — well above ZOOM_FAR so the page
+      // doesn't render with country labels stacked on top of each other.
+      // Phone canvases otherwise auto-fit the globe much closer than
+      // desktop, which is why the same code rendered fine on desktop and
+      // exploded on mobile.
+      g.pointOfView({ lat: 22, lng: 25, altitude: 2.8 }, 0);
 
       // Render zoom-driven labels: continents always present at low opacity,
       // country names fade in as the user zooms past ZOOM_FAR (and continent
@@ -375,7 +409,7 @@ export default function LiveGlobe({ papers }: Props) {
           el.style.opacity = String(continentOp * 0.32);
         });
         root.querySelectorAll<HTMLElement>('.gl-label-country').forEach((el) => {
-          el.style.opacity = String(countryOp * 0.6);
+          el.style.opacity = String(countryOp * 0.5);
         });
       };
       updateLabelOpacities();
@@ -590,6 +624,72 @@ export default function LiveGlobe({ papers }: Props) {
     }
   }, [events, reduced]);
 
+  // Fire a synthetic download arc so the visitor can see what a real
+   // download event looks like. The arc is added directly to globe.gl's
+   // arcsData (not React state) so it animates immediately, and is removed
+   // after a few seconds. Does NOT touch D1 — purely visual.
+  const fireDemoArc = () => {
+    const g = globeRef.current;
+    if (!g) return;
+    const city = DEMO_CITIES[Math.floor(Math.random() * DEMO_CITIES.length)];
+    const paper = papers.length ? papers[Math.floor(Math.random() * papers.length)] : null;
+    const slug = paper?.slug || 'demo';
+    const title = paper?.title || 'Demo paper';
+    const hex = colorForPaper(slug);
+    const demo: any = {
+      startLat: ARIEL_LAT,
+      startLng: ARIEL_LNG,
+      endLat: city.lat,
+      endLng: city.lng,
+      color: [withAlpha(hex, 0.95), withAlpha(hex, 0.55)] as [string, string],
+      __isDemo: true,
+      __event: {
+        ts: Math.floor(Date.now() / 1000),
+        kind: 'download',
+        visitor_class: 'downloader',
+        paper_slug: slug,
+        paper_title: title,
+        page_path: null,
+        country: null,
+        country_name: city.country,
+        continent: null,
+        continent_name: city.continent,
+        city: city.name,
+        lat: city.lat,
+        lng: city.lng,
+      } as EventRow,
+    };
+    const current = g.arcsData() || [];
+    g.arcsData([...current, demo]);
+
+    // Status note in the filter bar
+    setDemoNote(`Demo · "${title.length > 36 ? title.slice(0, 33) + '…' : title}" → ${city.name}`);
+
+    // Pulse a ring at the destination too, so the arrival is visible
+    if (!reduced) {
+      const ringEntry: any = {
+        lat: city.lat,
+        lng: city.lng,
+        color: withAlpha(hex, 0.95),
+        maxR: 3,
+        speed: 2.5,
+      };
+      const ringsBefore = g.ringsData() || [];
+      g.ringsData([...ringsBefore, ringEntry]);
+      setTimeout(() => {
+        const after = (g.ringsData() || []).filter((r: any) => r !== ringEntry);
+        g.ringsData(after);
+      }, 1500);
+    }
+
+    // Remove the arc after enough time to fully animate + linger
+    setTimeout(() => {
+      const after = (g.arcsData() || []).filter((a: any) => a !== demo);
+      g.arcsData(after);
+      setDemoNote(null);
+    }, 6000);
+  };
+
   // Pre-pick the visit/download counts within current event window for the activity panel
   const activity = useMemo(() => {
     const visits = events.filter((e) => e.kind === 'visit');
@@ -634,7 +734,22 @@ export default function LiveGlobe({ papers }: Props) {
             ))}
           </select>
         </div>
+        <button
+          type="button"
+          onClick={fireDemoArc}
+          className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity"
+          style={{ opacity: 0.65, borderBottom: '1px dashed currentColor', paddingBottom: '2px' }}
+          title="Fire a synthetic download arc so you can see the animation"
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+          Demo arc
+        </button>
         {loading && <span className="opacity-50">Loading…</span>}
+        {demoNote && (
+          <span className="opacity-80" style={{ borderLeft: '1px solid currentColor', paddingLeft: '0.75rem', marginLeft: '0.25rem' }}>
+            {demoNote}
+          </span>
+        )}
       </div>
 
       {/* Globe canvas */}
