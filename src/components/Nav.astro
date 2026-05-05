@@ -10,8 +10,8 @@ interface Props {
 const { lang = 'en', langHref } = Astro.props;
 
 const labels = {
-  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', contact: 'Contact' },
-  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', contact: 'יצירת קשר' },
+  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', live: 'Live', contact: 'Contact' },
+  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', live: 'Live', contact: 'יצירת קשר' },
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
@@ -32,6 +32,10 @@ const en = (path: string) => `/${path}`;
       <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
       <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
       <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
+      <a href={en('live')} class="hover:opacity-60 transition-opacity inline-flex items-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
+        {t.live}
+      </a>
       <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
 
@@ -77,6 +81,10 @@ const en = (path: string) => `/${path}`;
       <a href={en('publications')} class="hover:opacity-60 transition-opacity">{t.work}</a>
       <a href={`${homeHref}#now`} class="hover:opacity-60 transition-opacity">{t.now}</a>
       <a href={en('teaching')} class="hover:opacity-60 transition-opacity">{t.teaching}</a>
+      <a href={en('live')} class="hover:opacity-60 transition-opacity inline-flex items-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
+        {t.live}
+      </a>
       <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
     </nav>
   </div>
