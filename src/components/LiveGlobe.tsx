@@ -79,20 +79,22 @@ const VISIT_COLORS = {
   returning:  '#FFC857', // warm gold — familiar return
 } as const;
 
-// Vivid warm palette for arc colors — saturated enough to glow against
-// the satellite earth, kept in the red/pink/orange/gold range so they
-// extend the site's existing maroon/rose vocabulary instead of fighting it.
-// One hue per paper, deterministically hashed below so the same paper
-// always renders the same color across reloads.
+// Download arcs are all in the WINE family — variations on the site's
+// brand maroon. Each paper still gets its own distinct shade (deterministic
+// hash below), but every download reads as "wine" at a glance, fitting the
+// editorial brand vocabulary. In light mode (cream background) these are
+// rich and saturated; against the dark-tinted globe in night mode they
+// stay visible thanks to the high luminance contrast with the blue-grey
+// earth tint.
 const PAPER_HUES = [
-  '#FF3B7A', // vivid magenta
-  '#FF5E3A', // electric coral
-  '#FFB347', // warm gold
-  '#FF77B7', // hot pink
-  '#E8174D', // ruby
-  '#FFA500', // amber
-  '#FF8C8C', // salmon
-  '#D8265E', // cherry
+  '#7A1E2B', // brand maroon
+  '#921330', // cherry wine
+  '#A02234', // vivid wine
+  '#6B1722', // dark ruby
+  '#B33549', // rose wine
+  '#862D44', // mulberry
+  '#9B2335', // ruby
+  '#7E1C36', // deep wine
 ];
 
 function colorForPaper(slug: string | null | undefined): string {
@@ -862,8 +864,8 @@ export default function LiveGlobe({ papers }: Props) {
           <span>returning visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#FF3B7A" thickness={3.5} glow />
-          <span>download <span className="opacity-60">(colour = paper)</span></span>
+          <ArcSwatch color="#A02234" thickness={3.5} glow />
+          <span>download <span className="opacity-60">(wine, shade = paper)</span></span>
         </span>
       </div>
 
