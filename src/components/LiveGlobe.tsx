@@ -71,30 +71,30 @@ const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
 // Fixed colors for visit-class arcs (download arcs use the per-paper hash).
-// The three classes need to be visibly distinct at a glance — variations of
-// pink read as the same thing. Now: cool teal for "fresh arrival", warm gold
-// for "familiar visitor coming back", vivid magenta-family for downloads.
+// Visits are MUTED — quietly distinct so they don't compete with the more
+// important "download" signal. Downloads (wine, below) are vivid by contrast.
+//   first-time → sage green (fresh arrival)
+//   returning  → warm muted orange (familiar return)
+//   download   → vivid wine (peak engagement, the loudest of the three)
 const VISIT_COLORS = {
-  first_time: '#4DD9C8', // bright teal — fresh, new arrival
-  returning:  '#FFC857', // warm gold — familiar return
+  first_time: '#7DB87E', // sage green — quiet, "fresh"
+  returning:  '#DC8B4F', // warm orange — quiet, "familiar"
 } as const;
 
-// Download arcs are all in the WINE family — variations on the site's
-// brand maroon. Each paper still gets its own distinct shade (deterministic
-// hash below), but every download reads as "wine" at a glance, fitting the
-// editorial brand vocabulary. In light mode (cream background) these are
-// rich and saturated; against the dark-tinted globe in night mode they
-// stay visible thanks to the high luminance contrast with the blue-grey
-// earth tint.
+// Download arcs are all VIVID WINE — saturated variations on the site's
+// brand maroon. Downloads are the loudest of the three classes; the
+// muted green/orange visits sit underneath them in the visual hierarchy.
+// Each paper still gets its own deterministic shade (slug -> hash ->
+// palette index), so all downloads of one paper share a wine.
 const PAPER_HUES = [
-  '#7A1E2B', // brand maroon
-  '#921330', // cherry wine
-  '#A02234', // vivid wine
-  '#6B1722', // dark ruby
-  '#B33549', // rose wine
-  '#862D44', // mulberry
-  '#9B2335', // ruby
-  '#7E1C36', // deep wine
+  '#C9304E', // vivid wine — primary download accent
+  '#D4244A', // cherry red
+  '#B5234A', // saturated wine
+  '#A02234', // brand-leaning vivid maroon
+  '#C42B58', // raspberry wine
+  '#B73552', // rose wine
+  '#BB1F40', // deep cherry
+  '#A82643', // ruby wine
 ];
 
 function colorForPaper(slug: string | null | undefined): string {
@@ -856,15 +856,15 @@ export default function LiveGlobe({ papers }: Props) {
         aria-label="Arc color legend"
       >
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#4DD9C8" thickness={2} glow />
+          <ArcSwatch color="#7DB87E" thickness={2} />
           <span>first-time visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#FFC857" thickness={2.5} glow />
+          <ArcSwatch color="#DC8B4F" thickness={2.5} />
           <span>returning visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#A02234" thickness={3.5} glow />
+          <ArcSwatch color="#C9304E" thickness={3.5} glow />
           <span>download <span className="opacity-60">(wine, shade = paper)</span></span>
         </span>
       </div>
