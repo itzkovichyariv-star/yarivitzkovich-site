@@ -20,21 +20,18 @@ for (let i = 0; i < selected.length; i += 2) {
 
 const fields = [
   {
-    num: '01',
     title: 'Workplace incivility & its transmission',
     desc: 'How mistreatment travels through organizational hierarchies: from supervisors to subordinates, from bystanders to upstanders. Why one rude moment reshapes a team.',
     count: '14 works',
     href: '/publications?topics=incivility',
   },
   {
-    num: '02',
     title: 'Bystander intervention & AI',
     desc: 'Can artificial intelligence act as a real-time bystander to workplace harm? Testing AI-mediated interventions in organizational settings.',
     count: '6 works',
     href: '/publications?topics=bystander,ai',
   },
   {
-    num: '03',
     title: 'Workplace bullying and its cascades',
     desc: 'How bullying moves through teams, higher education, hospitals, and volunteer organizations: scoping reviews, tit-for-tat dynamics, and the bystanders who get pulled in alongside targets.',
     count: '6 works',
@@ -118,10 +115,7 @@ const nowUpdated = nowData.updatedAt;
     <div>
       {fields.map((field) => (
         <div class="grid grid-cols-12 gap-6 py-10 border-t" style="border-color: var(--divider)">
-          <div class="col-span-12 md:col-span-2">
-            <div class="font-mono text-sm text-muted">{field.num}</div>
-          </div>
-          <div class="col-span-12 md:col-span-7">
+          <div class="col-span-12 md:col-span-9">
             <h3 class="font-display text-2xl md:text-3xl mb-3" style="font-weight: 400">{field.title}</h3>
             <p class="text-muted max-w-lg">{field.desc}</p>
           </div>

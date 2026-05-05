@@ -81,9 +81,8 @@ const copy = {
         </div>
       </div>
     </div>
-    <div class="mt-20 pt-6 border-t border-current border-opacity-20 flex items-center justify-between flex-wrap gap-4">
-      <div class="font-mono text-xs uppercase tracking-widest opacity-60">{copy.copy}</div>
-      <div class="flex items-center gap-3">
+    <div class="mt-20">
+      <div class="flex items-center justify-center flex-nowrap gap-x-3 sm:gap-x-5 md:gap-x-6 mb-6 whitespace-nowrap">
         {site.profiles.googleScholar && (
           <a
             href={site.profiles.googleScholar}
@@ -113,7 +112,43 @@ const copy = {
             ORCID
           </a>
         )}
+        {site.profiles.researchGate && (
+          <a
+            href={site.profiles.researchGate}
+            target="_blank"
+            rel="noopener noreferrer me"
+            class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+            aria-label="ResearchGate profile"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="6" cy="6" r="2.5"/>
+              <circle cx="18" cy="6" r="2.5"/>
+              <circle cx="12" cy="18" r="2.5"/>
+              <line x1="8.2" y1="6.6" x2="15.8" y2="6.6"/>
+              <line x1="7.2" y1="8" x2="11" y2="15.8"/>
+              <line x1="16.8" y1="8" x2="13" y2="15.8"/>
+            </svg>
+            ResearchGate
+          </a>
+        )}
+        {site.profiles.webOfScience && (
+          <a
+            href={site.profiles.webOfScience}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+            aria-label="Web of Science profile"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <ellipse cx="12" cy="12" rx="4" ry="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+            </svg>
+            Web of Science
+          </a>
+        )}
       </div>
+      <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">{copy.copy}</div>
     </div>
   </div>
 </footer>
