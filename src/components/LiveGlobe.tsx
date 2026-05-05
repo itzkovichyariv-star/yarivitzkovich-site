@@ -268,10 +268,11 @@ export default function LiveGlobe({ papers }: Props) {
 
       const g: GlobeInstance = Globe()(containerRef.current)
         .backgroundColor('rgba(0,0,0,0)')
-        // Realistic Earth: day texture in light mode, night texture (city
-        // lights, ink-on-blue) in dark mode. Bump map adds subtle terrain
-        // shadowing on top of either.
-        .globeImageUrl(colors?.isDark ? EARTH_NIGHT_URL : EARTH_DAY_URL)
+        // Always use the day texture so continents stay visible. In dark
+        // mode we tint the material below to give the "deep twilight" feel
+        // without losing legibility — the literal night texture (city
+        // lights only) was too dark to make sense of.
+        .globeImageUrl(EARTH_DAY_URL)
         .bumpImageUrl(EARTH_BUMP_URL)
         .showAtmosphere(true)
         .atmosphereColor(colors?.atmosphere || '#7A1E2B')
@@ -334,12 +335,23 @@ export default function LiveGlobe({ papers }: Props) {
       //  labels still ride above as editorial chrome.)
       const earthPoints: any = null;
 
-      // Add a soft ambient light so the night-side / dark-mode texture is
-      // never crushed to pure black. globe.gl's built-in lighting is
-      // directional — without an ambient pass the unlit hemisphere
-      // disappears, especially with the city-lights night texture.
-      const ambient = new (THREE as any).AmbientLight(0xa8b0c8, 0.65);
+      // Add a soft ambient light so the unlit hemisphere is never crushed
+      // to pure black. globe.gl's built-in lighting is directional — without
+      // an ambient pass the back of the sphere disappears.
+      const ambient = new (THREE as any).AmbientLight(0xb8c4dc, 0.85);
       g.scene().add(ambient);
+
+      // Theme tint: in light mode we want the day texture at full color;
+      // in dark mode we tint the globe material with a deep blue-grey so
+      // continents read as a moonlit/twilight earth instead of generic
+      // bright daylight. Texture × tint = the dark-mode look.
+      const setEarthTint = (isDark: boolean) => {
+        const mat: any = g.globeMaterial();
+        if (!mat || !mat.color) return;
+        mat.color.set(isDark ? 0x4d5d7a : 0xffffff);
+        if ('shininess' in mat) mat.shininess = isDark ? 4 : 12;
+      };
+      setEarthTint(!!colors?.isDark);
 
       // Configure controls — auto-rotate, paused on user drag
       const controls = g.controls();
@@ -457,8 +469,8 @@ export default function LiveGlobe({ papers }: Props) {
       const obs = new MutationObserver(() => {
         const c = readThemeColors();
         if (!c) return;
-        // Swap the earth texture between day and night
-        g.globeImageUrl(c.isDark ? EARTH_NIGHT_URL : EARTH_DAY_URL);
+        // Day texture stays; we just retint the material color
+        setEarthTint(c.isDark);
         g.atmosphereColor(c.atmosphere);
         g.polygonStrokeColor(() => c.border);
         // Re-tint existing pins for the new theme
@@ -793,19 +805,31 @@ export default function LiveGlobe({ papers }: Props) {
         {loading && <span className="opacity-50">Loading…</span>}
       </div>
 
-      {/* Legend explaining the three arc colors */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-widest text-soft">
+      {/* Legend explaining the three arc colors — frosted-glass mini panel */}
+      <div
+        className="mb-6 px-4 py-3 inline-flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-widest"
+        style={{
+          backdropFilter: 'blur(20px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+          background: 'color-mix(in srgb, var(--bg) 35%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
+          color: 'var(--text)',
+          boxShadow:
+            '0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.18)',
+        }}
+        aria-label="Arc color legend"
+      >
         <span className="inline-flex items-center gap-2">
-          <span className="inline-block" style={{ width: '18px', height: '2px', background: 'linear-gradient(90deg, #D98B9A, rgba(217,139,154,0.4))', borderRadius: '1px' }} />
-          first-time visit
+          <ArcSwatch color="#D98B9A" thickness={2} />
+          <span>first-time visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="inline-block" style={{ width: '18px', height: '2px', background: 'linear-gradient(90deg, #A85368, rgba(168,83,104,0.4))', borderRadius: '1px' }} />
-          returning visit
+          <ArcSwatch color="#A85368" thickness={2.5} />
+          <span>returning visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <span className="inline-block" style={{ width: '20px', height: '3px', background: 'linear-gradient(90deg, #FF3B7A, rgba(255,59,122,0.5))', borderRadius: '1.5px', boxShadow: '0 0 6px rgba(255,59,122,0.4)' }} />
-          download (color = paper)
+          <ArcSwatch color="#FF3B7A" thickness={3.5} glow />
+          <span>download <span className="opacity-60">(colour = paper)</span></span>
         </span>
       </div>
 
@@ -830,6 +854,46 @@ export default function LiveGlobe({ papers }: Props) {
         />
       )}
     </div>
+  );
+}
+
+// A tiny SVG arc rendered in the legend so the swatches visually echo the
+// arcs flying around on the globe — same gradient + halo treatment, just
+// flattened to a side-on view.
+function ArcSwatch({ color, thickness, glow }: { color: string; thickness: number; glow?: boolean }) {
+  const halo = glow ? thickness * 2.8 : thickness * 2.0;
+  return (
+    <svg
+      width="36"
+      height="14"
+      viewBox="0 0 36 14"
+      aria-hidden="true"
+      style={{ display: 'block' }}
+    >
+      <defs>
+        <linearGradient id={`arc-grad-${color.replace('#', '')}`} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={color} stopOpacity="1" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.4" />
+        </linearGradient>
+      </defs>
+      {/* Halo */}
+      <path
+        d="M 2 12 Q 18 -2 34 12"
+        stroke={color}
+        strokeOpacity={0.35}
+        strokeWidth={halo}
+        fill="none"
+        strokeLinecap="round"
+      />
+      {/* Core */}
+      <path
+        d="M 2 12 Q 18 -2 34 12"
+        stroke={`url(#arc-grad-${color.replace('#', '')})`}
+        strokeWidth={thickness}
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
