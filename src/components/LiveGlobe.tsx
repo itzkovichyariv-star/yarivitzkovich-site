@@ -98,14 +98,34 @@ export default function LiveGlobe({ papers }: Props) {
     const cs = getComputedStyle(document.documentElement);
     const isDark = document.documentElement.classList.contains('dark');
     const text = cs.getPropertyValue('--text').trim() || (isDark ? '#F4EFE6' : '#1A1612');
-    const accent = cs.getPropertyValue('--color-accent').trim() || '#7A1E2B';
+    const accentSoft = cs.getPropertyValue('--color-accent-soft').trim() || '#A85368';
     const accentOnDark = cs.getPropertyValue('--color-accent-on-dark').trim() || '#D98B9A';
     return {
       isDark,
-      // Bump opacity higher so dots actually read against the page bg
-      hexDot: textWithAlpha(text, isDark ? 0.55 : 0.65),
-      atmosphere: isDark ? accentOnDark : accent,
+      // Earth dots: lighter in dark mode (cream on near-black), denser ink in light mode (charcoal on cream)
+      hexDot: textWithAlpha(text, isDark ? 0.55 : 0.45),
+      // Atmosphere: use the softer accent so it harmonises with the editorial cream/ink
+      // rather than the raw deep maroon, which reads as a "dirty halo" in light mode
+      atmosphere: isDark ? accentOnDark : accentSoft,
     };
+  };
+
+  // Theme-aware pin colors. The hierarchy (first-time → returning → downloader)
+  // stays intact in both modes; we lift each class one step in dark mode so the
+  // deep maroon doesn't vanish into the near-black background.
+  const readPinPalette = (isDark: boolean) => {
+    if (isDark) {
+      return {
+        first_time: { color: '#F2C3CC', floor: 0.40 },
+        returning:  { color: '#D98B9A', floor: 0.55 },
+        downloader: { color: '#A85368', floor: 0.75 },
+      } as const;
+    }
+    return {
+      first_time: { color: '#D98B9A', floor: 0.40 },
+      returning:  { color: '#A85368', floor: 0.60 },
+      downloader: { color: '#7A1E2B', floor: 0.85 },
+    } as const;
   };
 
   // Fetch events whenever range or paper filter changes
@@ -181,9 +201,12 @@ export default function LiveGlobe({ papers }: Props) {
         .showAtmosphere(true)
         .atmosphereColor(colors?.atmosphere || '#7A1E2B')
         .atmosphereAltitude(0.12)
-        .hexPolygonResolution(3)
-        .hexPolygonMargin(0.4)
-        .hexPolygonAltitude(0.005)
+        // Denser halftone: bump resolution to 4 (denser grid), drop margin to 0.2
+        // (smaller gaps between dots), drop altitude so dots sit on the sphere.
+        // Result: continents read as recognisable silhouettes instead of patches.
+        .hexPolygonResolution(4)
+        .hexPolygonMargin(0.2)
+        .hexPolygonAltitude(0.001)
         .hexPolygonUseDots(true)
         .hexPolygonColor(() => colors?.hexDot || 'rgba(244,239,230,0.55)')
         .pointAltitude(0.012)
@@ -239,12 +262,22 @@ export default function LiveGlobe({ papers }: Props) {
 
       globeRef.current = g;
 
-      // Watch for theme changes and recolor
+      // Watch for theme changes and recolor everything theme-aware
       const obs = new MutationObserver(() => {
         const c = readThemeColors();
         if (!c) return;
         g.atmosphereColor(c.atmosphere);
         g.hexPolygonColor(() => c.hexDot);
+        // Re-tint existing pins for the new theme
+        const pal = readPinPalette(c.isDark);
+        const data = g.pointsData() || [];
+        data.forEach((p: any) => {
+          const ev = p.__event as EventRow | undefined;
+          if (!ev) return;
+          const def = pal[ev.visitor_class as keyof typeof pal] || pal.first_time;
+          p.color = withAlpha(def.color, def.floor);
+        });
+        g.pointsData([...data]).pointColor((p: any) => p.color);
       });
       obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       themeObserverRef.current = obs;
@@ -284,15 +317,20 @@ export default function LiveGlobe({ papers }: Props) {
     if (!g) return;
 
     const placed = events.filter((e) => isFinite(Number(e.lat)) && isFinite(Number(e.lng)));
+    const themeColors = readThemeColors();
+    const palette = readPinPalette(!!themeColors?.isDark);
 
     // Tag each event so click handler can recover it
     const points = placed.map((e) => {
+      const cls = e.visitor_class as keyof typeof palette;
+      const def = palette[cls] || palette.first_time;
       const style = PIN_STYLES[e.visitor_class] || PIN_STYLES.first_time;
+      // Floor the steady-state opacity so history pins remain visible against the dotted earth
       return {
         lat: Number(e.lat),
         lng: Number(e.lng),
-        color: withAlpha(style.color, Math.max(style.fadeOpacity, 0.55)),
-        radius: 0.18 + style.dotRadius * 0.04,
+        color: withAlpha(def.color, def.floor),
+        radius: 0.32 + style.dotRadius * 0.08,
         __event: e,
       };
     });
@@ -317,6 +355,8 @@ export default function LiveGlobe({ papers }: Props) {
       let cancelled = false;
       const timers: number[] = [];
       subset.forEach((e, i) => {
+        const cls = e.visitor_class as keyof typeof palette;
+        const def = palette[cls] || palette.first_time;
         const style = PIN_STYLES[e.visitor_class] || PIN_STYLES.first_time;
         const delay = Math.random() * 800 + i * 25;
         const t = window.setTimeout(() => {
@@ -325,12 +365,35 @@ export default function LiveGlobe({ papers }: Props) {
           const ringEntry = {
             lat: Number(e.lat),
             lng: Number(e.lng),
-            color: withAlpha(style.color, 0.85),
+            color: withAlpha(def.color, 0.95),
             maxR: style.ringRadius,
             speed: style.ringRadius / (style.ringDurationMs / 1000),
           };
           g.ringsData([...data, ringEntry]);
-          // Drop the ring after its lifetime so the array doesn't accumulate
+          // Downloader gets a second concentric ring offset by 300ms — the spec's
+          // "two concentric rings" treatment that signals the strongest engagement.
+          if (style.ringCount >= 2) {
+            const t3 = window.setTimeout(() => {
+              if (cancelled) return;
+              const data2 = g.ringsData() || [];
+              const ring2 = {
+                lat: ringEntry.lat,
+                lng: ringEntry.lng,
+                color: withAlpha(def.color, 0.55),
+                maxR: style.ringRadius * 0.7,
+                speed: ringEntry.speed,
+              };
+              g.ringsData([...data2, ring2]);
+              const t4 = window.setTimeout(() => {
+                if (cancelled) return;
+                const next = (g.ringsData() || []).filter((r: any) => r !== ring2);
+                g.ringsData(next);
+              }, style.ringDurationMs + 200);
+              timers.push(t4);
+            }, 300);
+            timers.push(t3);
+          }
+          // Drop the primary ring after its lifetime so the array doesn't accumulate
           const t2 = window.setTimeout(() => {
             if (cancelled) return;
             const next = (g.ringsData() || []).filter((r: any) => r !== ringEntry);

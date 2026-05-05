@@ -48,8 +48,25 @@ export default function GlobeHUD({ totals, activity }: Props) {
   const topCountriesMax = Math.max(1, ...(totals?.topCountries.map((c) => c.n) || [0]));
   const topContinentsMax = Math.max(1, ...(totals?.topContinents.map((c) => c.n) || [0]));
 
+  // Below this volume the page is in "sparse state" — hide top-X panels,
+  // soften framing so an empty page reads as honest rather than broken.
+  const SPARSE_THRESHOLD = 25;
+  const isSparse = (since?.total ?? 0) < SPARSE_THRESHOLD;
+  const launchDate = totals?.launchTs ? new Date(totals.launchTs * 1000) : null;
+  const launchDateLabel = launchDate
+    ? launchDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+    : null;
+  const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
+
   return (
     <div className="mt-10 space-y-6">
+      {/* Sparse-state caption — visible only when total event count is small */}
+      {isSparse && launchDateLabel && (
+        <div className="font-mono text-[11px] uppercase tracking-widest text-soft text-center">
+          Tracking started {launchDateLabel} · {since?.total ?? 0} {since?.total === 1 ? 'event' : 'events'} so far
+        </div>
+      )}
+
       {/* Top trio: Since launch · Today · Most recent */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div style={panelStyle}>
@@ -61,7 +78,7 @@ export default function GlobeHUD({ totals, activity }: Props) {
         </div>
 
         <div style={panelStyle}>
-          <Kicker>Today (UTC)</Kicker>
+          <Kicker>Today</Kicker>
           <BigNumber n={(today?.visits ?? 0) + (today?.downloads ?? 0)} />
           <SubLine>
             {today?.visits ?? 0} visits · {today?.downloads ?? 0} downloads
@@ -69,7 +86,7 @@ export default function GlobeHUD({ totals, activity }: Props) {
         </div>
 
         <div style={panelStyle}>
-          <Kicker>Most recent</Kicker>
+          <Kicker>{recentIsStale ? 'Most recent (since launch)' : 'Most recent'}</Kicker>
           {recent ? (
             <>
               <div className="font-display text-2xl leading-tight mt-2">
@@ -113,7 +130,9 @@ export default function GlobeHUD({ totals, activity }: Props) {
         </div>
       </div>
 
-      {/* Top continents + Top countries */}
+      {/* Top continents + Top countries — hidden in sparse state, where a
+          single bar at 100% reads as broken rather than informative */}
+      {!isSparse && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div style={panelStyle}>
           <Kicker>Top continents (24h)</Kicker>
@@ -144,6 +163,7 @@ export default function GlobeHUD({ totals, activity }: Props) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
