@@ -71,10 +71,12 @@ const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
 // Fixed colors for visit-class arcs (download arcs use the per-paper hash).
-// Hierarchy: first-time = quiet pink, returning = warmer rose, download = vivid.
+// The three classes need to be visibly distinct at a glance — variations of
+// pink read as the same thing. Now: cool teal for "fresh arrival", warm gold
+// for "familiar visitor coming back", vivid magenta-family for downloads.
 const VISIT_COLORS = {
-  first_time: '#D98B9A',
-  returning:  '#A85368',
+  first_time: '#4DD9C8', // bright teal — fresh, new arrival
+  returning:  '#FFC857', // warm gold — familiar return
 } as const;
 
 // Vivid warm palette for arc colors — saturated enough to glow against
@@ -284,9 +286,19 @@ export default function LiveGlobe({ papers }: Props) {
         .polygonSideColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.10)')
         // Arcs: bright glowing lines, paired with a soft halo for bloom.
-        // Per-arc stroke width comes from the data (`__stroke`) so we can
-        // render a wider translucent halo behind each main arc.
-        .arcAltitudeAutoScale(0.6)
+        // arcAltitude is a function so very short hops (e.g., Ariel ->
+        // Kfar Saba, 30km) still get a visible lift instead of drawing
+        // a flat line on the surface; long hops still arc dramatically.
+        .arcAltitude((d: any) => {
+          const lat1 = (d.startLat * Math.PI) / 180;
+          const lat2 = (d.endLat * Math.PI) / 180;
+          const dLat = ((d.endLat - d.startLat) * Math.PI) / 180;
+          const dLng = ((d.endLng - d.startLng) * Math.PI) / 180;
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+          const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          // Map great-circle distance (0..π) → altitude (0.18..0.5)
+          return 0.18 + (distRad / Math.PI) * 0.32;
+        })
         .arcStroke((d: any) => d?.__stroke ?? 0.7)
         .arcDashLength(0.6)
         .arcDashGap(0.5)
@@ -673,8 +685,8 @@ export default function LiveGlobe({ papers }: Props) {
     // after another (not all at once on load). Each entrance:
     //   1. Pulses a ring at the destination
     //   2. Auto-pops a transient PinCard for that event (5s lifetime)
-    // Stagger interval: ~2 seconds between events. Slow enough that each
-    // card is tappable before the next one replaces it.
+    // The whole show LOOPS — once all events have fired we restart from the
+    // top, so the page feels alive even with sparse real data.
     if (reduced) {
       g.ringsData([]);
     } else {
@@ -689,63 +701,78 @@ export default function LiveGlobe({ papers }: Props) {
 
       let cancelled = false;
       const timers: number[] = [];
-      const STAGGER_MS = 2000; // gap between event entrances
-      const CARD_AUTO_MS = 5000; // how long an auto-card stays before fading
+      const STAGGER_MS = 2200;     // gap between event entrances
+      const CARD_AUTO_MS = 5000;   // how long an auto-card stays before fading
+      const LOOP_GAP_MS = 2500;    // breath between loops
 
-      subset.forEach((e, i) => {
+      const fireOneEvent = (e: EventRow) => {
         const cls = e.visitor_class as keyof typeof palette;
         const def = palette[cls] || palette.first_time;
         const style = PIN_STYLES[e.visitor_class] || PIN_STYLES.first_time;
-        const delay = i * STAGGER_MS + Math.random() * 250; // slight jitter
-        const t = window.setTimeout(() => {
-          if (cancelled) return;
 
-          // Ring pulse at the destination
-          const data = g.ringsData() || [];
-          const ringEntry = {
-            lat: Number(e.lat),
-            lng: Number(e.lng),
-            color: withAlpha(def.color, 0.95),
-            maxR: style.ringRadius,
-            speed: style.ringRadius / (style.ringDurationMs / 1000),
-          };
-          g.ringsData([...data, ringEntry]);
-          if (style.ringCount >= 2) {
-            const t3 = window.setTimeout(() => {
-              if (cancelled) return;
-              const data2 = g.ringsData() || [];
-              const ring2 = {
-                lat: ringEntry.lat,
-                lng: ringEntry.lng,
-                color: withAlpha(def.color, 0.55),
-                maxR: style.ringRadius * 0.7,
-                speed: ringEntry.speed,
-              };
-              g.ringsData([...data2, ring2]);
-              const t4 = window.setTimeout(() => {
-                if (cancelled) return;
-                const next = (g.ringsData() || []).filter((r: any) => r !== ring2);
-                g.ringsData(next);
-              }, style.ringDurationMs + 200);
-              timers.push(t4);
-            }, 300);
-            timers.push(t3);
-          }
-          const t2 = window.setTimeout(() => {
+        // Ring pulse at the destination
+        const data = g.ringsData() || [];
+        const ringEntry = {
+          lat: Number(e.lat),
+          lng: Number(e.lng),
+          color: withAlpha(def.color, 0.95),
+          maxR: style.ringRadius,
+          speed: style.ringRadius / (style.ringDurationMs / 1000),
+        };
+        g.ringsData([...data, ringEntry]);
+        if (style.ringCount >= 2) {
+          const t3 = window.setTimeout(() => {
             if (cancelled) return;
-            const next = (g.ringsData() || []).filter((r: any) => r !== ringEntry);
-            g.ringsData(next);
-          }, style.ringDurationMs + 200);
-          timers.push(t2);
+            const data2 = g.ringsData() || [];
+            const ring2 = {
+              lat: ringEntry.lat,
+              lng: ringEntry.lng,
+              color: withAlpha(def.color, 0.55),
+              maxR: style.ringRadius * 0.7,
+              speed: ringEntry.speed,
+            };
+            g.ringsData([...data2, ring2]);
+            const t4 = window.setTimeout(() => {
+              if (cancelled) return;
+              const next = (g.ringsData() || []).filter((r: any) => r !== ring2);
+              g.ringsData(next);
+            }, style.ringDurationMs + 200);
+            timers.push(t4);
+          }, 300);
+          timers.push(t3);
+        }
+        const t2 = window.setTimeout(() => {
+          if (cancelled) return;
+          const next = (g.ringsData() || []).filter((r: any) => r !== ringEntry);
+          g.ringsData(next);
+        }, style.ringDurationMs + 200);
+        timers.push(t2);
 
-          // Auto-card: pop a transient PinCard for this event. User can tap
-          // it during the 5-second window to "pin" it (cancel auto-dismiss).
-          const dismissAt = Date.now() + CARD_AUTO_MS;
-          setSelected(e);
-          setAutoUntil(dismissAt);
-        }, delay);
-        timers.push(t);
-      });
+        // Auto-card
+        const dismissAt = Date.now() + CARD_AUTO_MS;
+        setSelected(e);
+        setAutoUntil(dismissAt);
+      };
+
+      const runShow = () => {
+        if (cancelled || subset.length === 0) return;
+
+        subset.forEach((e, i) => {
+          const delay = i * STAGGER_MS + Math.random() * 250;
+          const t = window.setTimeout(() => {
+            if (cancelled) return;
+            fireOneEvent(e);
+          }, delay);
+          timers.push(t);
+        });
+
+        // Schedule the next loop iteration after the current one finishes
+        const cycleDuration = subset.length * STAGGER_MS + LOOP_GAP_MS;
+        const nextStart = window.setTimeout(runShow, cycleDuration);
+        timers.push(nextStart);
+      };
+
+      runShow();
 
       return () => {
         cancelled = true;
@@ -829,11 +856,11 @@ export default function LiveGlobe({ papers }: Props) {
         aria-label="Arc color legend"
       >
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#D98B9A" thickness={2} />
+          <ArcSwatch color="#4DD9C8" thickness={2} glow />
           <span>first-time visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#A85368" thickness={2.5} />
+          <ArcSwatch color="#FFC857" thickness={2.5} glow />
           <span>returning visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
