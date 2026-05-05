@@ -70,21 +70,12 @@ const ARIEL_LAT = 32.103;
 const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
-// A handful of major world cities used by the "Demo" button to fire a fake
-// arc so the visitor can see what a real download looks like even when
-// only one or two real downloads exist in the database.
-const DEMO_CITIES: Array<{ name: string; country: string; continent: string; lat: number; lng: number }> = [
-  { name: 'New York',     country: 'United States',  continent: 'North America', lat:  40.71, lng:  -74.01 },
-  { name: 'London',       country: 'United Kingdom', continent: 'Europe',        lat:  51.51, lng:   -0.13 },
-  { name: 'Berlin',       country: 'Germany',        continent: 'Europe',        lat:  52.52, lng:   13.40 },
-  { name: 'Paris',        country: 'France',         continent: 'Europe',        lat:  48.86, lng:    2.35 },
-  { name: 'Tokyo',        country: 'Japan',          continent: 'Asia',          lat:  35.69, lng:  139.69 },
-  { name: 'Sydney',       country: 'Australia',      continent: 'Oceania',       lat: -33.87, lng:  151.21 },
-  { name: 'São Paulo',    country: 'Brazil',         continent: 'South America', lat: -23.55, lng:  -46.63 },
-  { name: 'Cape Town',    country: 'South Africa',   continent: 'Africa',        lat: -33.92, lng:   18.42 },
-  { name: 'Mumbai',       country: 'India',          continent: 'Asia',          lat:  19.08, lng:   72.88 },
-  { name: 'Mexico City',  country: 'Mexico',         continent: 'North America', lat:  19.43, lng:  -99.13 },
-];
+// Fixed colors for visit-class arcs (download arcs use the per-paper hash).
+// Hierarchy: first-time = quiet pink, returning = warmer rose, download = vivid.
+const VISIT_COLORS = {
+  first_time: '#D98B9A',
+  returning:  '#A85368',
+} as const;
 
 // Vivid warm palette for arc colors — saturated enough to glow against
 // the satellite earth, kept in the red/pink/orange/gold range so they
@@ -152,7 +143,6 @@ export default function LiveGlobe({ papers }: Props) {
   const [reduced, setReduced] = useState(false);
   const [selected, setSelected] = useState<EventRow | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
-  const [demoNote, setDemoNote] = useState<string | null>(null);
 
   // Detect prefers-reduced-motion + observe live changes
   useEffect(() => {
@@ -600,20 +590,38 @@ export default function LiveGlobe({ papers }: Props) {
       .pointColor((p: any) => p.color)
       .pointRadius((p: any) => p.radius);
 
-    // Arcs: one per download event, from Ariel -> reader city. Each arc is
-    // rendered as TWO entries — a wide soft halo behind a thinner bright
-    // core — to fake a glow without three.js post-processing.
-    const downloads = placed.filter((e) => e.kind === 'download');
+    // Arcs: one per event, from Ariel -> reader city. EVERY event gets an
+    // arc now — first-time visits, returning visits, and downloads — so the
+    // page reflects all real activity, not just downloads.
+    //
+    // Visual hierarchy:
+    //   first-time → thin pale pink (quietest)
+    //   returning  → mid rose (warmer, slightly thicker)
+    //   download   → vivid per-paper hue with strong glow (loudest)
+    //
+    // Each arc renders as TWO entries — a wide soft halo behind a thinner
+    // bright core — to fake a glow without three.js post-processing.
     const arcs: any[] = [];
-    for (const e of downloads) {
-      const hex = colorForPaper(e.paper_slug);
+    for (const e of placed) {
+      const isDownload = e.kind === 'download';
+      const isReturning = e.visitor_class === 'returning';
+      const hex = isDownload
+        ? colorForPaper(e.paper_slug)
+        : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
+
+      // Stroke + alpha hierarchy. Halo is generous so clicks always register.
+      const haloStroke = isDownload ? 3.5 : isReturning ? 2.6 : 2.0;
+      const coreStroke = isDownload ? 0.9 : isReturning ? 0.7 : 0.55;
+      const haloAlpha:  [number, number] = isDownload ? [0.40, 0.12] : [0.28, 0.08];
+      const coreAlpha:  [number, number] = isDownload ? [1.00, 0.85] : isReturning ? [0.85, 0.55] : [0.70, 0.40];
+
       const halo = {
         startLat: ARIEL_LAT,
         startLng: ARIEL_LNG,
         endLat: Number(e.lat),
         endLng: Number(e.lng),
-        color: [withAlpha(hex, 0.35), withAlpha(hex, 0.10)] as [string, string],
-        __stroke: 2.4,
+        color: [withAlpha(hex, haloAlpha[0]), withAlpha(hex, haloAlpha[1])] as [string, string],
+        __stroke: haloStroke,
         __event: e,
         __paperColor: hex,
         __isHalo: true,
@@ -623,8 +631,8 @@ export default function LiveGlobe({ papers }: Props) {
         startLng: ARIEL_LNG,
         endLat: Number(e.lat),
         endLng: Number(e.lng),
-        color: [withAlpha(hex, 1.0), withAlpha(hex, 0.85)] as [string, string],
-        __stroke: 0.7,
+        color: [withAlpha(hex, coreAlpha[0]), withAlpha(hex, coreAlpha[1])] as [string, string],
+        __stroke: coreStroke,
         __event: e,
         __paperColor: hex,
       };
@@ -710,102 +718,6 @@ export default function LiveGlobe({ papers }: Props) {
     }
   }, [events, reduced]);
 
-  // Fire a synthetic download arc so the visitor can see what a real
-   // download event looks like. The arc is added directly to globe.gl's
-   // arcsData (not React state) so it animates immediately, and is removed
-   // after a few seconds. Does NOT touch D1 — purely visual.
-  const fireDemoArc = (opts: { silent?: boolean } = {}) => {
-    const g = globeRef.current;
-    if (!g) return;
-    const city = DEMO_CITIES[Math.floor(Math.random() * DEMO_CITIES.length)];
-    const paper = papers.length ? papers[Math.floor(Math.random() * papers.length)] : null;
-    const slug = paper?.slug || 'demo';
-    const title = paper?.title || 'Demo paper';
-    const hex = colorForPaper(slug);
-    const evRow: EventRow = {
-      ts: Math.floor(Date.now() / 1000),
-      kind: 'download',
-      visitor_class: 'downloader',
-      paper_slug: slug,
-      paper_title: title,
-      page_path: null,
-      country: null,
-      country_name: city.country,
-      continent: null,
-      continent_name: city.continent,
-      city: city.name,
-      lat: city.lat,
-      lng: city.lng,
-    };
-    const halo: any = {
-      startLat: ARIEL_LAT, startLng: ARIEL_LNG,
-      endLat: city.lat, endLng: city.lng,
-      color: [withAlpha(hex, 0.35), withAlpha(hex, 0.10)] as [string, string],
-      __stroke: 2.4,
-      __isDemo: true, __isHalo: true, __event: evRow,
-    };
-    const core: any = {
-      startLat: ARIEL_LAT, startLng: ARIEL_LNG,
-      endLat: city.lat, endLng: city.lng,
-      color: [withAlpha(hex, 1.0), withAlpha(hex, 0.85)] as [string, string],
-      __stroke: 0.7,
-      __isDemo: true, __event: evRow,
-    };
-    const current = g.arcsData() || [];
-    g.arcsData([...current, halo, core]);
-
-    // Status note in the filter bar (suppressed in silent / auto-loop mode)
-    if (!opts.silent) {
-      setDemoNote(`Demo · "${title.length > 36 ? title.slice(0, 33) + '…' : title}" → ${city.name}`);
-    }
-
-    // Pulse a ring at the destination too, so the arrival is visible
-    if (!reduced) {
-      const ringEntry: any = {
-        lat: city.lat,
-        lng: city.lng,
-        color: withAlpha(hex, 0.95),
-        maxR: 3,
-        speed: 2.5,
-      };
-      const ringsBefore = g.ringsData() || [];
-      g.ringsData([...ringsBefore, ringEntry]);
-      setTimeout(() => {
-        const after = (g.ringsData() || []).filter((r: any) => r !== ringEntry);
-        g.ringsData(after);
-      }, 1500);
-    }
-
-    // Remove the arc pair after enough time to fully animate + linger
-    setTimeout(() => {
-      const after = (g.arcsData() || []).filter((a: any) => a !== halo && a !== core);
-      g.arcsData(after);
-      if (!opts.silent) setDemoNote(null);
-    }, 6000);
-  };
-
-  // Continuous demo loop — keeps the page feeling alive between real
-  // downloads. Fires a silent synthetic arc every ~4 seconds. Pauses when
-  // the tab is hidden so we don't burn cycles when no one's looking.
-  useEffect(() => {
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      if (typeof document !== 'undefined' && document.hidden) return;
-      if (!globeRef.current) return;
-      fireDemoArc({ silent: true });
-    };
-    // Stagger the first call slightly so the page doesn't blast on load
-    const startTimer = window.setTimeout(tick, 1500);
-    const id = window.setInterval(tick, 4000);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(startTimer);
-      window.clearInterval(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [papers.length]);
-
   // Pre-pick the visit/download counts within current event window for the activity panel
   const activity = useMemo(() => {
     const visits = events.filter((e) => e.kind === 'visit');
@@ -850,22 +762,23 @@ export default function LiveGlobe({ papers }: Props) {
             ))}
           </select>
         </div>
-        <button
-          type="button"
-          onClick={fireDemoArc}
-          className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity"
-          style={{ opacity: 0.65, borderBottom: '1px dashed currentColor', paddingBottom: '2px' }}
-          title="Fire a synthetic download arc so you can see the animation"
-        >
-          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
-          Demo arc
-        </button>
         {loading && <span className="opacity-50">Loading…</span>}
-        {demoNote && (
-          <span className="opacity-80" style={{ borderLeft: '1px solid currentColor', paddingLeft: '0.75rem', marginLeft: '0.25rem' }}>
-            {demoNote}
-          </span>
-        )}
+      </div>
+
+      {/* Legend explaining the three arc colors */}
+      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-widest text-soft">
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-block" style={{ width: '18px', height: '2px', background: 'linear-gradient(90deg, #D98B9A, rgba(217,139,154,0.4))', borderRadius: '1px' }} />
+          first-time visit
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-block" style={{ width: '18px', height: '2px', background: 'linear-gradient(90deg, #A85368, rgba(168,83,104,0.4))', borderRadius: '1px' }} />
+          returning visit
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-block" style={{ width: '20px', height: '3px', background: 'linear-gradient(90deg, #FF3B7A, rgba(255,59,122,0.5))', borderRadius: '1.5px', boxShadow: '0 0 6px rgba(255,59,122,0.4)' }} />
+          download (color = paper)
+        </span>
       </div>
 
       {/* Globe canvas */}
@@ -888,15 +801,29 @@ export default function LiveGlobe({ papers }: Props) {
 function PinCard({ event, onClose }: { event: EventRow; onClose: () => void }) {
   const place = [event.city, event.country_name, event.continent_name].filter(Boolean).join(' · ');
   const isDownload = event.kind === 'download';
+  const isReturning = event.visitor_class === 'returning';
+  // Match the swatch + kicker color to the arc's color, so the card identifies
+  // visually which kind of arc the user clicked.
+  const arcColor = isDownload
+    ? colorForPaper(event.paper_slug)
+    : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
+  const kicker = isDownload
+    ? 'Download'
+    : isReturning
+      ? 'Returning visit'
+      : 'First-time visit';
   return (
     <div
       className="fixed bottom-6 right-6 max-w-sm p-5 z-40"
       style={{
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        background: 'rgba(0,0,0,0.45)',
+        background: 'rgba(0,0,0,0.55)',
         color: 'var(--text, #fff)',
         border: '1px solid var(--divider, rgba(255,255,255,0.18))',
+        // Left edge tinted in the arc's color so each card is visually
+        // tied to its arc on the globe.
+        borderLeft: `3px solid ${arcColor}`,
       }}
       role="dialog"
       aria-label="Event details"
@@ -909,8 +836,13 @@ function PinCard({ event, onClose }: { event: EventRow; onClose: () => void }) {
       >
         ✕
       </button>
-      <div className="font-mono text-[10px] uppercase tracking-widest opacity-60 mb-2">
-        {isDownload ? 'Download' : 'Visit'} · {timeAgo(event.ts)}
+      <div className="font-mono text-[10px] uppercase tracking-widest mb-2 inline-flex items-center gap-2">
+        <span
+          className="inline-block"
+          style={{ width: '10px', height: '10px', borderRadius: '50%', background: arcColor, boxShadow: `0 0 6px ${arcColor}` }}
+        />
+        <span style={{ color: arcColor }}>{kicker}</span>
+        <span className="opacity-50">· {timeAgo(event.ts)}</span>
       </div>
       <div className="font-display text-lg leading-snug mb-3">{place || 'Unknown location'}</div>
       {isDownload && event.paper_title && event.paper_slug && (
