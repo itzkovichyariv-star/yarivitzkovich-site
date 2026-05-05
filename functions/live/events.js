@@ -7,6 +7,7 @@ const RANGE_SECONDS = {
   '24h': 24 * 3600,
   '7d': 7 * 86400,
   '30d': 30 * 86400,
+  '1y': 365 * 86400,
   all: null, // no time bound
 };
 

@@ -374,6 +374,15 @@ export default function LiveGlobe({ papers }: Props) {
       controls.addEventListener('start', onStart);
       controls.addEventListener('end', onEnd);
 
+      // Mobile scroll-fix: by default OrbitControls capture single-finger
+      // touches, which traps page scroll inside the canvas. Require two
+      // fingers for globe interaction; single-finger taps fall through to
+      // normal page scrolling.
+      controls.touches = {
+        ONE: (THREE as any).TOUCH.NONE,
+        TWO: (THREE as any).TOUCH.DOLLY_ROTATE,
+      };
+
       // Start/freeze rotation based on reduced-motion
       controls.autoRotate = !reduced;
 
@@ -833,11 +842,13 @@ export default function LiveGlobe({ papers }: Props) {
         </span>
       </div>
 
-      {/* Globe canvas */}
+      {/* Globe canvas — touch-action: pan-y lets the browser pass single-
+          finger vertical swipes to the page so the user can scroll past
+          the globe instead of getting trapped inside it. */}
       <div
         ref={containerRef}
         className="w-full"
-        style={{ height: 'min(72vh, 720px)' }}
+        style={{ height: 'min(72vh, 720px)', touchAction: 'pan-y' }}
         aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}
       />
 
