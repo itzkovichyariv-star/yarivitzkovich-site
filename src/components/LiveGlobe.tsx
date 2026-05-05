@@ -56,6 +56,44 @@ const RANGE_LABELS: Array<{ key: RangeKey; label: string }> = [
 const COUNTRIES_URL =
   'https://cdn.jsdelivr.net/gh/vasturiano/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson';
 
+// Realistic Earth textures (NASA Blue Marble derivatives, public domain),
+// hosted by the three-globe ecosystem on unpkg. The day texture is used in
+// light mode; the night texture (lit cities) is used in dark mode and reads
+// as the editorial "ink in water" version of the same earth.
+const EARTH_DAY_URL = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+const EARTH_NIGHT_URL = '//unpkg.com/three-globe/example/img/earth-night.jpg';
+const EARTH_BUMP_URL = '//unpkg.com/three-globe/example/img/earth-topology.png';
+
+// Origin point for arcs — Yariv's affiliation. Every download draws an arc
+// from here to the reader's city.
+const ARIEL_LAT = 32.103;
+const ARIEL_LNG = 35.211;
+const ARIEL_LABEL = 'Ariel University, Israel';
+
+// Editorial palette of 8 hues for arc colors (one per paper). Restrained
+// monochrome variations + complementary muted tones. Order is stable so a
+// given paper always gets the same color across reloads.
+const PAPER_HUES = [
+  '#7A1E2B', // deep maroon — site primary
+  '#A85368', // soft rose
+  '#C9A877', // warm sand
+  '#8B9B8E', // sage
+  '#6B8195', // slate
+  '#B89B6E', // mustard
+  '#5A4A5C', // aubergine
+  '#D98B9A', // light pink
+];
+
+function colorForPaper(slug: string | null | undefined): string {
+  if (!slug) return PAPER_HUES[0];
+  // Cheap deterministic hash so the same paper always maps to the same hue
+  let h = 0;
+  for (let i = 0; i < slug.length; i++) {
+    h = (h * 31 + slug.charCodeAt(i)) >>> 0;
+  }
+  return PAPER_HUES[h % PAPER_HUES.length];
+}
+
 // Continent labels — always present, low opacity, big and quiet.
 // Coordinates are rough geographic centroids that read well on a globe.
 const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; lng: number }> = [
@@ -210,29 +248,34 @@ export default function LiveGlobe({ papers }: Props) {
 
       const g: GlobeInstance = Globe()(containerRef.current)
         .backgroundColor('rgba(0,0,0,0)')
-        // Hide the default opaque sphere — only our point cloud + borders render.
-        .globeMaterial(
-          new (THREE as any).MeshBasicMaterial({
-            color: 0x000000,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-          })
-        )
+        // Realistic Earth: day texture in light mode, night texture (city
+        // lights, ink-on-blue) in dark mode. Bump map adds subtle terrain
+        // shadowing on top of either.
+        .globeImageUrl(colors?.isDark ? EARTH_NIGHT_URL : EARTH_DAY_URL)
+        .bumpImageUrl(EARTH_BUMP_URL)
         .showAtmosphere(true)
         .atmosphereColor(colors?.atmosphere || '#7A1E2B')
-        .atmosphereAltitude(0.12)
-        // Country outlines as hairline borders — fill is transparent, only sides
-        // and stroke render. Sit just above the surface so the point cloud beneath
-        // them stays visible.
-        .polygonAltitude(0.0035)
+        .atmosphereAltitude(0.13)
+        // Country outlines as faint hairlines — drop them lower in the
+        // visual hierarchy now that the texture carries continent shapes.
+        .polygonAltitude(0.0025)
         .polygonCapColor(() => 'rgba(0,0,0,0)')
         .polygonSideColor(() => 'rgba(0,0,0,0)')
-        .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.18)')
+        .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.10)')
+        // Arcs: animated dashes flow from origin -> destination, single arc
+        // per download event.
+        .arcAltitudeAutoScale(0.5)
+        .arcStroke(0.45)
+        .arcDashLength(0.4)
+        .arcDashGap(2)
+        .arcDashAnimateTime(2200)
+        .arcsTransitionDuration(0)
+        // Pin styling for visit dots
         .pointAltitude(0.012)
         .pointRadius(0.25)
         .pointResolution(8)
         .pointsTransitionDuration(0)
+        // Ring styling for fresh event pulses
         .ringAltitude(0.008)
         .ringResolution(64)
         .ringPropagationSpeed(2)
@@ -270,46 +313,10 @@ export default function LiveGlobe({ papers }: Props) {
       // after `controls` is set up below so we can hook into camera-change.
       const allLabels = [...CONTINENT_LABELS, ...countryLabels];
 
-      // Build the dotted earth as a THREE.Points cloud over a Fibonacci land
-      // lattice (pre-computed at build time). This is the actual halftone —
-      // uniform dot density that follows continent silhouettes, the way a
-      // printed magazine map would render Earth.
-      let earthPoints: any = null;
-      try {
-        const r = await fetch('/data/land-points.json');
-        if (r.ok) {
-          const data = await r.json();
-          const pts: Array<[number, number]> = data.points || [];
-          if (alive && pts.length) {
-            const positions = new Float32Array(pts.length * 3);
-            for (let i = 0; i < pts.length; i++) {
-              const [lat, lng] = pts[i];
-              const c = g.getCoords(lat, lng, 0.002);
-              positions[i * 3] = c.x;
-              positions[i * 3 + 1] = c.y;
-              positions[i * 3 + 2] = c.z;
-            }
-            const geom = new (THREE as any).BufferGeometry();
-            geom.setAttribute('position', new (THREE as any).BufferAttribute(positions, 3));
-
-            const mat = new (THREE as any).PointsMaterial({
-              size: 1.4,
-              sizeAttenuation: true,
-              transparent: true,
-              depthWrite: false,
-              opacity: colors?.isDark ? 0.62 : 0.55,
-            });
-            mat.color = new (THREE as any).Color(colors?.dotHex || '#1A1612');
-
-            earthPoints = new (THREE as any).Points(geom, mat);
-            earthPoints.renderOrder = -1; // render before pins so pins always sit on top
-            g.scene().add(earthPoints);
-          }
-        }
-      } catch {
-        // Land-point cloud is the visual foundation; failure is loud but
-        // non-fatal — borders + atmosphere still convey Earth.
-      }
+      // (No more THREE.Points cloud — the realistic earth texture above
+      //  carries continent shapes directly. Country borders + zoom-driven
+      //  labels still ride above as editorial chrome.)
+      const earthPoints: any = null;
 
       // Configure controls — auto-rotate, paused on user drag
       const controls = g.controls();
@@ -391,9 +398,17 @@ export default function LiveGlobe({ papers }: Props) {
       };
       breathFrameRef.current = requestAnimationFrame(breathe);
 
-      // Click-pin handler
+      // Click handlers — point or arc both reveal the paper / reader card
       g.onPointClick((pt: any) => {
         if (pt && pt.__event) setSelected(pt.__event as EventRow);
+      });
+      g.onArcClick((arc: any) => {
+        if (arc && arc.__event) setSelected(arc.__event as EventRow);
+      });
+      g.onArcHover((arc: any) => {
+        if (containerRef.current) {
+          containerRef.current.style.cursor = arc ? 'pointer' : '';
+        }
       });
 
       globeRef.current = g;
@@ -402,15 +417,10 @@ export default function LiveGlobe({ papers }: Props) {
       const obs = new MutationObserver(() => {
         const c = readThemeColors();
         if (!c) return;
+        // Swap the earth texture between day and night
+        g.globeImageUrl(c.isDark ? EARTH_NIGHT_URL : EARTH_DAY_URL);
         g.atmosphereColor(c.atmosphere);
-        // Borders use the new theme-aware tint
         g.polygonStrokeColor(() => c.border);
-        // Re-tint the dotted earth point cloud
-        if (earthPoints && earthPoints.material) {
-          earthPoints.material.color = new (THREE as any).Color(c.dotHex);
-          earthPoints.material.opacity = c.isDark ? 0.62 : 0.55;
-          earthPoints.material.needsUpdate = true;
-        }
         // Re-tint existing pins for the new theme
         const pal = readPinPalette(c.isDark);
         const data = g.pointsData() || [];
@@ -455,7 +465,7 @@ export default function LiveGlobe({ papers }: Props) {
     c.autoRotate = !reduced;
   }, [reduced]);
 
-  // Push events into the globe as points and rings
+  // Push events into the globe as points (visits) + arcs (downloads) + rings (entrance pulses).
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
@@ -482,6 +492,30 @@ export default function LiveGlobe({ papers }: Props) {
     g.pointsData(points)
       .pointColor((p: any) => p.color)
       .pointRadius((p: any) => p.radius);
+
+    // Arcs: one per download event, from Ariel -> reader city. Color is keyed
+    // to the paper slug so all downloads of the same paper share a hue.
+    const downloads = placed.filter((e) => e.kind === 'download');
+    const arcs = downloads.map((e) => {
+      const hex = colorForPaper(e.paper_slug);
+      return {
+        startLat: ARIEL_LAT,
+        startLng: ARIEL_LNG,
+        endLat: Number(e.lat),
+        endLng: Number(e.lng),
+        // Gradient: bright at origin, fading at destination. Two stops form
+        // a stronger "moving outward" sense than a single flat color.
+        color: [withAlpha(hex, 0.95), withAlpha(hex, 0.55)] as [string, string],
+        __event: e,
+        __paperColor: hex,
+      };
+    });
+    g.arcsData(arcs)
+      .arcColor((d: any) => d.color)
+      .arcStartLat((d: any) => d.startLat)
+      .arcStartLng((d: any) => d.startLng)
+      .arcEndLat((d: any) => d.endLat)
+      .arcEndLng((d: any) => d.endLng);
 
     // Rings: stagger entrance so we don't pulse all at once on load
     if (reduced) {
