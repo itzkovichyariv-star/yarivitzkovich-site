@@ -286,19 +286,11 @@ export default function LiveGlobe({ papers }: Props) {
         .polygonSideColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.10)')
         // Arcs: bright glowing lines, paired with a soft halo for bloom.
-        // arcAltitude is a function so very short hops (e.g., Ariel ->
-        // Kfar Saba, 30km) still get a visible lift instead of drawing
-        // a flat line on the surface; long hops still arc dramatically.
-        .arcAltitude((d: any) => {
-          const lat1 = (d.startLat * Math.PI) / 180;
-          const lat2 = (d.endLat * Math.PI) / 180;
-          const dLat = ((d.endLat - d.startLat) * Math.PI) / 180;
-          const dLng = ((d.endLng - d.startLng) * Math.PI) / 180;
-          const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-          const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          // Map great-circle distance (0..π) → altitude (0.18..0.5)
-          return 0.18 + (distRad / Math.PI) * 0.32;
-        })
+        // Fixed 0.4 altitude on every arc — even a 30km hop loops dramatically
+        // off the surface so it's always visible, and a 9000km jump still
+        // looks like a generous arc rather than getting absurd. Same look as
+        // GitHub / Stripe globes — visual consistency over physical scaling.
+        .arcAltitude(0.4)
         .arcStroke((d: any) => d?.__stroke ?? 0.7)
         .arcDashLength(0.6)
         .arcDashGap(0.5)
@@ -398,12 +390,18 @@ export default function LiveGlobe({ papers }: Props) {
       // Start/freeze rotation based on reduced-motion
       controls.autoRotate = !reduced;
 
-      // Open at a comfortable distance — well above ZOOM_FAR so the page
-      // doesn't render with country labels stacked on top of each other.
-      // Phone canvases otherwise auto-fit the globe much closer than
-      // desktop, which is why the same code rendered fine on desktop and
-      // exploded on mobile.
-      g.pointOfView({ lat: 22, lng: 25, altitude: 2.8 }, 0);
+      // Open looking at Israel (where our data origin lives) so the user
+      // sees arcs immediately instead of waiting for the rotation to swing
+      // Israel into view. Altitude 2.6 keeps the globe wide enough that
+      // continent context is intact and country labels stay invisible.
+      g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
+
+      // Apply touch-action: pan-y directly to the canvas globe.gl creates,
+      // so iOS Safari doesn't trap single-finger vertical swipes inside the
+      // WebGL surface. Setting it on the parent div alone wasn't enough on
+      // mobile — the canvas overrides its parent's touch behavior.
+      const cnv = containerRef.current?.querySelector('canvas');
+      if (cnv) (cnv as HTMLElement).style.touchAction = 'pan-y';
 
       // Three label tiers:
       //   continent  → always visible at low opacity (spatial anchor)
