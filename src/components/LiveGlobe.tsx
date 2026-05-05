@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PIN_STYLES, withAlpha, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
+import BreakdownDrawer from './BreakdownDrawer';
 
 // We rely on a runtime import for globe.gl because it's a DOM-bound library
 // (depends on three.js, WebGL canvas, etc). Astro builds this island with
@@ -150,6 +151,23 @@ export default function LiveGlobe({ papers }: Props) {
   // Set to null when the user pins (clicks) the card or it auto-dismisses.
   const [autoUntil, setAutoUntil] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  // Owner status checked once on mount via /api/me. The "Details" drawer
+  // button only renders for owners; non-owners never see it.
+  const [isOwner, setIsOwner] = useState(false);
+
+  // Owner check — runs once on mount. Reveals the Details drawer button
+  // when the visitor has a valid signed cookie from /api/auth-owner.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data && data.owner) setIsOwner(true);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Detect prefers-reduced-motion + observe live changes
   useEffect(() => {
@@ -288,11 +306,11 @@ export default function LiveGlobe({ papers }: Props) {
         .polygonSideColor(() => 'rgba(0,0,0,0)')
         .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.10)')
         // Arcs: bright glowing lines, paired with a soft halo for bloom.
-        // Fixed 0.4 altitude on every arc — even a 30km hop loops dramatically
-        // off the surface so it's always visible, and a 9000km jump still
-        // looks like a generous arc rather than getting absurd. Same look as
-        // GitHub / Stripe globes — visual consistency over physical scaling.
-        .arcAltitude(0.4)
+        // Per-arc altitude so multiple events to the same city fan out into
+        // a bouquet of arches at slightly different heights instead of
+        // stacking on top of each other (where only the topmost colour
+        // would read). Each arc carries an __altitude in its data.
+        .arcAltitude((d: any) => d.__altitude ?? 0.4)
         .arcStroke((d: any) => d?.__stroke ?? 0.7)
         .arcDashLength(0.6)
         .arcDashGap(0.5)
@@ -627,29 +645,42 @@ export default function LiveGlobe({ papers }: Props) {
       .pointRadius((p: any) => p.radius);
 
     // Arcs: one per event, from Ariel -> reader city. EVERY event gets an
-    // arc now — first-time visits, returning visits, and downloads — so the
-    // page reflects all real activity, not just downloads.
+    // arc — first-time visits, returning visits, and downloads.
     //
     // Visual hierarchy:
-    //   first-time → thin pale pink (quietest)
-    //   returning  → mid rose (warmer, slightly thicker)
-    //   download   → vivid per-paper hue with strong glow (loudest)
+    //   first-time → muted sage green (quietest)
+    //   returning  → muted warm orange (mid)
+    //   download   → vivid wine with strong glow (loudest)
     //
-    // Each arc renders as TWO entries — a wide soft halo behind a thinner
-    // bright core — to fake a glow without three.js post-processing.
+    // Each arc renders as TWO entries (wide halo + thin core) so we get a
+    // bloom-like glow without three.js post-processing.
+    //
+    // Altitude varies per event index so multiple arcs to the same city
+    // don't stack on top of each other (and disappear behind the wine).
+    // The variation forms a fan of arches at the destination.
     const arcs: any[] = [];
-    for (const e of placed) {
+    placed.forEach((e, idx) => {
       const isDownload = e.kind === 'download';
       const isReturning = e.visitor_class === 'returning';
       const hex = isDownload
         ? colorForPaper(e.paper_slug)
         : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
 
-      // Stroke + alpha hierarchy. Halo is generous so clicks always register.
-      const haloStroke = isDownload ? 3.5 : isReturning ? 2.6 : 2.0;
-      const coreStroke = isDownload ? 0.9 : isReturning ? 0.7 : 0.55;
-      const haloAlpha:  [number, number] = isDownload ? [0.40, 0.12] : [0.28, 0.08];
-      const coreAlpha:  [number, number] = isDownload ? [1.00, 0.85] : isReturning ? [0.85, 0.55] : [0.70, 0.40];
+      // Per-arc altitude: 0.34 .. 0.52, cycled every 7 events. Cycles so a
+      // long event list doesn't push arcs into outer space.
+      const altitude = 0.34 + (idx % 7) * 0.030;
+
+      // Stroke + alpha hierarchy. Visit alphas bumped so the muted greens
+      // and oranges actually read against the dark earth — they were
+      // previously fading into the ocean texture.
+      const haloStroke = isDownload ? 3.5 : isReturning ? 3.0 : 2.6;
+      const coreStroke = isDownload ? 0.9 : isReturning ? 0.75 : 0.65;
+      const haloAlpha:  [number, number] = isDownload ? [0.40, 0.12] : [0.42, 0.16];
+      const coreAlpha:  [number, number] = isDownload
+        ? [1.00, 0.85]
+        : isReturning
+          ? [0.95, 0.70]
+          : [0.92, 0.62];
 
       const halo = {
         startLat: ARIEL_LAT,
@@ -658,6 +689,7 @@ export default function LiveGlobe({ papers }: Props) {
         endLng: Number(e.lng),
         color: [withAlpha(hex, haloAlpha[0]), withAlpha(hex, haloAlpha[1])] as [string, string],
         __stroke: haloStroke,
+        __altitude: altitude,
         __event: e,
         __paperColor: hex,
         __isHalo: true,
@@ -669,11 +701,12 @@ export default function LiveGlobe({ papers }: Props) {
         endLng: Number(e.lng),
         color: [withAlpha(hex, coreAlpha[0]), withAlpha(hex, coreAlpha[1])] as [string, string],
         __stroke: coreStroke,
+        __altitude: altitude,
         __event: e,
         __paperColor: hex,
       };
       arcs.push(halo, core);
-    }
+    });
     g.arcsData(arcs)
       .arcColor((d: any) => d.color)
       .arcStartLat((d: any) => d.startLat)
@@ -839,6 +872,18 @@ export default function LiveGlobe({ papers }: Props) {
           </select>
         </div>
         {loading && <span className="opacity-50">Loading…</span>}
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="ml-auto inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity"
+            style={{ opacity: 0.85, borderBottom: '1px solid currentColor', paddingBottom: '2px' }}
+            title="Owner: open the detailed activity breakdown"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+            Details ↗
+          </button>
+        )}
       </div>
 
       {/* Legend explaining the three arc colors — frosted-glass mini panel */}
@@ -886,10 +931,15 @@ export default function LiveGlobe({ papers }: Props) {
       {selected && (
         <PinCard
           event={selected}
+          papers={papers}
           isAuto={!!autoUntil}
           onPin={() => setAutoUntil(null)}
           onClose={() => { setSelected(null); setAutoUntil(null); }}
         />
+      )}
+
+      {isOwner && (
+        <BreakdownDrawer open={isDrawerOpen} onClose={() => setDrawerOpen(false)} />
       )}
     </div>
   );
@@ -937,15 +987,24 @@ function ArcSwatch({ color, thickness, glow }: { color: string; thickness: numbe
 
 function PinCard({
   event,
+  papers,
   isAuto,
   onPin,
   onClose,
 }: {
   event: EventRow;
+  papers: PaperOption[];
   isAuto: boolean;
   onPin: () => void;
   onClose: () => void;
 }) {
+  // Fallback: if the event row has paper_slug but null paper_title (legacy
+  // PDF events from before P1 stored titles at write time), look up the
+  // title from the publications list passed in from the page.
+  const resolvedTitle =
+    event.paper_title ||
+    (event.paper_slug ? papers.find((p) => p.slug === event.paper_slug)?.title : null) ||
+    null;
   const place = [event.city, event.country_name, event.continent_name].filter(Boolean).join(' · ');
   const isDownload = event.kind === 'download';
   const isReturning = event.visitor_class === 'returning';
@@ -1007,13 +1066,13 @@ function PinCard({
         {isAuto && <span className="opacity-50 ml-1">· tap to keep</span>}
       </div>
       <div className="font-display text-lg leading-snug mb-3">{place || 'Unknown location'}</div>
-      {isDownload && event.paper_title && event.paper_slug && (
+      {isDownload && event.paper_slug && (
         <a
           href={`/publications/${event.paper_slug}`}
-          className="text-sm underline opacity-90 hover:opacity-100"
+          className="text-sm underline opacity-90 hover:opacity-100 italic"
           onClick={(e) => e.stopPropagation()}
         >
-          {event.paper_title}
+          {resolvedTitle || event.paper_slug.replace(/-/g, ' ')}
         </a>
       )}
       {!isDownload && event.page_path && (

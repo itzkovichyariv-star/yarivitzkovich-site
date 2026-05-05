@@ -102,5 +102,21 @@ const papers = allPubs
         inset 0 1px 0 rgba(255, 255, 255, 0.26),
         inset 0 -1px 0 rgba(0, 0, 0, 0.18);
     }
+
+    /* BreakdownDrawer entrance — owner-only details overlay */
+    @keyframes breakdownFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes breakdownPanelIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
   </style>
 </BaseLayout>
