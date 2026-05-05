@@ -28,7 +28,7 @@ const copy = {
     cv: 'Download CV',
     findMe: 'Find me',
     tagline: '',
-    copy: `© ${site.shortName} · ${new Date().getFullYear()}`,
+    copyPrefix: `© ${site.shortName} · `,
   },
   he: {
     kicker: '',
@@ -38,7 +38,7 @@ const copy = {
     cv: 'קורות חיים',
     findMe: 'מצאו אותי',
     tagline: '',
-    copy: `© ${site.shortName} · ${new Date().getFullYear()}`,
+    copyPrefix: `© ${site.shortName} · `,
   },
 }[lang];
 ---
@@ -150,7 +150,14 @@ const copy = {
           </a>
         )}
       </div>
-      <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">{copy.copy}</div>
+      <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">
+        {copy.copyPrefix}<span data-current-year>{new Date().getFullYear()}</span>
+      </div>
+      <script is:inline>
+        document.querySelectorAll('[data-current-year]').forEach((el) => {
+          el.textContent = String(new Date().getFullYear());
+        });
+      </script>
     </div>
   </div>
 </footer>
