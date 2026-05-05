@@ -102,8 +102,12 @@ export default function LiveGlobe({ papers }: Props) {
     const accentOnDark = cs.getPropertyValue('--color-accent-on-dark').trim() || '#D98B9A';
     return {
       isDark,
-      // Earth dots: lighter in dark mode (cream on near-black), denser ink in light mode (charcoal on cream)
-      hexDot: textWithAlpha(text, isDark ? 0.55 : 0.45),
+      // Hex form for THREE.Color — without alpha
+      dotHex: text,
+      // RGBA fallback for non-three layers
+      hexDot: textWithAlpha(text, isDark ? 0.62 : 0.55),
+      // Hairline country borders: soft, never compete with the dots
+      border: textWithAlpha(text, isDark ? 0.18 : 0.20),
       // Atmosphere: use the softer accent so it harmonises with the editorial cream/ink
       // rather than the raw deep maroon, which reads as a "dirty halo" in light mode
       atmosphere: isDark ? accentOnDark : accentSoft,
@@ -188,8 +192,7 @@ export default function LiveGlobe({ papers }: Props) {
 
       const g: GlobeInstance = Globe()(containerRef.current)
         .backgroundColor('rgba(0,0,0,0)')
-        // Hide the default opaque sphere — only the hex dots should render.
-        // Keeps geometry intact so raycasts (clicks) still work via points/rings.
+        // Hide the default opaque sphere — only our point cloud + borders render.
         .globeMaterial(
           new (THREE as any).MeshBasicMaterial({
             color: 0x000000,
@@ -201,14 +204,13 @@ export default function LiveGlobe({ papers }: Props) {
         .showAtmosphere(true)
         .atmosphereColor(colors?.atmosphere || '#7A1E2B')
         .atmosphereAltitude(0.12)
-        // Denser halftone: bump resolution to 4 (denser grid), drop margin to 0.2
-        // (smaller gaps between dots), drop altitude so dots sit on the sphere.
-        // Result: continents read as recognisable silhouettes instead of patches.
-        .hexPolygonResolution(4)
-        .hexPolygonMargin(0.2)
-        .hexPolygonAltitude(0.001)
-        .hexPolygonUseDots(true)
-        .hexPolygonColor(() => colors?.hexDot || 'rgba(244,239,230,0.55)')
+        // Country outlines as hairline borders — fill is transparent, only sides
+        // and stroke render. Sit just above the surface so the point cloud beneath
+        // them stays visible.
+        .polygonAltitude(0.0035)
+        .polygonCapColor(() => 'rgba(0,0,0,0)')
+        .polygonSideColor(() => 'rgba(0,0,0,0)')
+        .polygonStrokeColor(() => colors?.border || 'rgba(244,239,230,0.18)')
         .pointAltitude(0.012)
         .pointRadius(0.25)
         .pointResolution(8)
@@ -216,19 +218,60 @@ export default function LiveGlobe({ papers }: Props) {
         .ringAltitude(0.008)
         .ringResolution(64)
         .ringPropagationSpeed(2)
-        .ringRepeatPeriod(0); // single pulse, not repeating
+        .ringRepeatPeriod(0);
 
-      // Load Natural Earth land outlines for the halftone dotted earth
+      // Load Natural Earth country outlines for the borders layer
       try {
         const r = await fetch(COUNTRIES_URL);
         if (r.ok) {
           const geo = await r.json();
           if (alive && geo?.features) {
-            g.hexPolygonsData(geo.features);
+            g.polygonsData(geo.features);
           }
         }
       } catch {
-        // Network blocked — globe still works, just without continents.
+        // Network blocked — globe still works, just without borders.
+      }
+
+      // Build the dotted earth as a THREE.Points cloud over a Fibonacci land
+      // lattice (pre-computed at build time). This is the actual halftone —
+      // uniform dot density that follows continent silhouettes, the way a
+      // printed magazine map would render Earth.
+      let earthPoints: any = null;
+      try {
+        const r = await fetch('/data/land-points.json');
+        if (r.ok) {
+          const data = await r.json();
+          const pts: Array<[number, number]> = data.points || [];
+          if (alive && pts.length) {
+            const positions = new Float32Array(pts.length * 3);
+            for (let i = 0; i < pts.length; i++) {
+              const [lat, lng] = pts[i];
+              const c = g.getCoords(lat, lng, 0.002);
+              positions[i * 3] = c.x;
+              positions[i * 3 + 1] = c.y;
+              positions[i * 3 + 2] = c.z;
+            }
+            const geom = new (THREE as any).BufferGeometry();
+            geom.setAttribute('position', new (THREE as any).BufferAttribute(positions, 3));
+
+            const mat = new (THREE as any).PointsMaterial({
+              size: 1.4,
+              sizeAttenuation: true,
+              transparent: true,
+              depthWrite: false,
+              opacity: colors?.isDark ? 0.62 : 0.55,
+            });
+            mat.color = new (THREE as any).Color(colors?.dotHex || '#1A1612');
+
+            earthPoints = new (THREE as any).Points(geom, mat);
+            earthPoints.renderOrder = -1; // render before pins so pins always sit on top
+            g.scene().add(earthPoints);
+          }
+        }
+      } catch {
+        // Land-point cloud is the visual foundation; failure is loud but
+        // non-fatal — borders + atmosphere still convey Earth.
       }
 
       // Configure controls — auto-rotate, paused on user drag
@@ -267,7 +310,14 @@ export default function LiveGlobe({ papers }: Props) {
         const c = readThemeColors();
         if (!c) return;
         g.atmosphereColor(c.atmosphere);
-        g.hexPolygonColor(() => c.hexDot);
+        // Borders use the new theme-aware tint
+        g.polygonStrokeColor(() => c.border);
+        // Re-tint the dotted earth point cloud
+        if (earthPoints && earthPoints.material) {
+          earthPoints.material.color = new (THREE as any).Color(c.dotHex);
+          earthPoints.material.opacity = c.isDark ? 0.62 : 0.55;
+          earthPoints.material.needsUpdate = true;
+        }
         // Re-tint existing pins for the new theme
         const pal = readPinPalette(c.isDark);
         const data = g.pointsData() || [];

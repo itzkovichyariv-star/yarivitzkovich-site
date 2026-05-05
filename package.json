@@ -10,7 +10,8 @@
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
     "astro": "astro",
-    "backup": "bash scripts/backup-to-onedrive.sh"
+    "backup": "bash scripts/backup-to-onedrive.sh",
+    "build:land-points": "node scripts/build-land-points.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^5.0.3",
