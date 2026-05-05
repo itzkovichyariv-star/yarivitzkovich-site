@@ -68,5 +68,16 @@ const papers = allPubs
       font-weight: 400;
       letter-spacing: 0.14em;
     }
+    .gl-label-country-active {
+      /* Countries with actual download/visit activity: brighter, larger,
+         tinted in the brand accent so they read as data, not chrome. */
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      color: #FFB347; /* warm gold — pops against blue ocean */
+      text-shadow:
+        0 0 8px rgba(255, 90, 30, 0.55),
+        0 0 14px rgba(0, 0, 0, 0.85);
+    }
   </style>
 </BaseLayout>

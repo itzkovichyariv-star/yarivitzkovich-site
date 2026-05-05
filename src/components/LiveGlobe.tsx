@@ -138,6 +138,11 @@ export default function LiveGlobe({ papers }: Props) {
   const dragTimerRef = useRef<number | null>(null);
   const themeObserverRef = useRef<MutationObserver | null>(null);
   const breathFrameRef = useRef<number | null>(null);
+  // Country centroids keyed by ISO-2 code AND by uppercase name for fallback
+  // matching against event.country / event.country_name. Populated once when
+  // the GeoJSON loads, then read by the events useEffect to surface a label
+  // for every country that has actual activity.
+  const countryCentroidsRef = useRef<Map<string, { lat: number; lng: number; name: string }>>(new Map());
 
   const [events, setEvents] = useState<EventRow[]>([]);
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
@@ -304,37 +309,32 @@ export default function LiveGlobe({ papers }: Props) {
         .ringPropagationSpeed(2)
         .ringRepeatPeriod(0);
 
-      // Load Natural Earth country outlines for the borders layer + label centroids
-      let countryLabels: Array<{ kind: 'country'; text: string; lat: number; lng: number }> = [];
+      // Load Natural Earth country outlines + populate the centroid lookup
+      // used by the events-driven label layer (one label per country with
+      // actual activity).
       try {
         const r = await fetch(COUNTRIES_URL);
         if (r.ok) {
           const geo = await r.json();
           if (alive && geo?.features) {
             g.polygonsData(geo.features);
-            // Compute a crude centroid per country for the label layer
-            countryLabels = geo.features
-              .map((f: any) => {
-                const name =
-                  f.properties?.NAME ||
-                  f.properties?.name ||
-                  f.properties?.ADMIN ||
-                  f.properties?.NAME_LONG;
-                if (!name) return null;
-                const c = polygonCentroid(f.geometry);
-                if (!c) return null;
-                return { kind: 'country' as const, text: String(name).toUpperCase(), lat: c.lat, lng: c.lng };
-              })
-              .filter(Boolean);
+            const map = countryCentroidsRef.current;
+            for (const f of geo.features) {
+              const props = f.properties || {};
+              const name = props.NAME || props.name || props.ADMIN || props.NAME_LONG;
+              if (!name) continue;
+              const c = polygonCentroid(f.geometry);
+              if (!c) continue;
+              const entry = { lat: c.lat, lng: c.lng, name: String(name) };
+              const iso2 = props.ISO_A2 || props.iso_a2;
+              if (iso2 && iso2 !== '-99') map.set(String(iso2).toUpperCase(), entry);
+              map.set(String(name).toUpperCase(), entry);
+            }
           }
         }
       } catch {
         // Network blocked — globe still works, just without borders/labels.
       }
-
-      // Label data assembled — actual rendering + zoom listener are wired
-      // after `controls` is set up below so we can hook into camera-change.
-      const allLabels = [...CONTINENT_LABELS, ...countryLabels];
 
       // (No more THREE.Points cloud — the realistic earth texture above
       //  carries continent shapes directly. Country borders + zoom-driven
@@ -379,20 +379,22 @@ export default function LiveGlobe({ papers }: Props) {
       // exploded on mobile.
       g.pointOfView({ lat: 22, lng: 25, altitude: 2.8 }, 0);
 
-      // Continent labels only, by default. Country labels were causing
-      // visual chaos on smaller viewports (190 names rendered on top of
-      // each other and they didn't read as anchored to specific places).
-      // The continent labels alone give enough orientation; the data is
-      // still computed in countryLabels above so we can re-introduce a
-      // filtered subset later if we want.
-      const visibleLabels = allLabels.filter((l: any) => l.kind === 'continent');
-      g.htmlElementsData(visibleLabels)
+      // Three label tiers:
+      //   continent  → always visible at low opacity (spatial anchor)
+      //   country-active → always visible (countries with real events)
+      //   country    → fades in only when the user zooms close
+      // The events useEffect below populates which countries are "active"
+      // and re-renders the layer; here we just configure the layer once.
+      g.htmlElementsData([...CONTINENT_LABELS])
         .htmlLat((d: any) => d.lat)
         .htmlLng((d: any) => d.lng)
         .htmlAltitude(0.012)
         .htmlElement((d: any) => {
           const el = document.createElement('div');
-          el.className = `gl-label gl-label-${d.kind}`;
+          const kindClass = d.__active
+            ? 'gl-label-country-active'
+            : `gl-label-${d.kind}`;
+          el.className = `gl-label ${kindClass}`;
           el.textContent = d.text;
           el.dataset.kind = d.kind;
           return el;
@@ -403,18 +405,22 @@ export default function LiveGlobe({ papers }: Props) {
 
       const updateLabelOpacities = () => {
         const dist = (controls as any).getDistance ? (controls as any).getDistance() : 400;
-        let continentOp = 1;
-        if (dist < ZOOM_NEAR) continentOp = 0;
-        else if (dist < ZOOM_FAR) continentOp = (dist - ZOOM_NEAR) / (ZOOM_FAR - ZOOM_NEAR);
+        // Inactive country labels fade in only as the user zooms close
         let countryOp = 0;
         if (dist < ZOOM_NEAR) countryOp = 1;
         else if (dist < ZOOM_FAR) countryOp = 1 - (dist - ZOOM_NEAR) / (ZOOM_FAR - ZOOM_NEAR);
 
         const root = containerRef.current;
         if (!root) return;
+        // Continents stay at a constant low opacity regardless of zoom
         root.querySelectorAll<HTMLElement>('.gl-label-continent').forEach((el) => {
-          el.style.opacity = String(continentOp * 0.32);
+          el.style.opacity = '0.32';
         });
+        // Active countries (events-driven) — always visible, brighter
+        root.querySelectorAll<HTMLElement>('.gl-label-country-active').forEach((el) => {
+          el.style.opacity = '0.85';
+        });
+        // Inactive countries fade in/out with zoom
         root.querySelectorAll<HTMLElement>('.gl-label-country').forEach((el) => {
           el.style.opacity = String(countryOp * 0.5);
         });
@@ -505,6 +511,66 @@ export default function LiveGlobe({ papers }: Props) {
     const c = g.controls();
     c.autoRotate = !reduced;
   }, [reduced]);
+
+  // Build the label set: continents + every country (with __active=true for
+  // those with real events, __active=false for the rest). Re-runs whenever
+  // events change, so a new download from Berlin instantly highlights
+  // GERMANY's label on the globe.
+  useEffect(() => {
+    const g = globeRef.current;
+    if (!g) return;
+    const centroids = countryCentroidsRef.current;
+    if (!centroids.size) return;
+
+    // Set of countries with actual events (by ISO-2 code AND uppercase name —
+    // we accept either as a key into the centroid map)
+    const active = new Set<string>();
+    for (const e of events) {
+      if (e.country) active.add(String(e.country).toUpperCase());
+      if (e.country_name) active.add(String(e.country_name).toUpperCase());
+    }
+
+    // De-dupe by name so we don't render the same country twice when both
+    // ISO-2 and name aliases map to it.
+    const seen = new Set<string>();
+    const countryLabels: Array<any> = [];
+    centroids.forEach((entry, key) => {
+      if (seen.has(entry.name.toUpperCase())) return;
+      seen.add(entry.name.toUpperCase());
+      const isActive = active.has(entry.name.toUpperCase()) || active.has(key);
+      countryLabels.push({
+        kind: 'country' as const,
+        text: entry.name.toUpperCase(),
+        lat: entry.lat,
+        lng: entry.lng,
+        __active: isActive,
+      });
+    });
+
+    g.htmlElementsData([...CONTINENT_LABELS, ...countryLabels]);
+
+    // Trigger an opacity recompute so freshly-rendered DOM nodes get
+    // their initial opacity right away (without waiting for camera movement)
+    requestAnimationFrame(() => {
+      const root = containerRef.current;
+      if (!root) return;
+      root.querySelectorAll<HTMLElement>('.gl-label-continent').forEach((el) => {
+        el.style.opacity = '0.32';
+      });
+      root.querySelectorAll<HTMLElement>('.gl-label-country-active').forEach((el) => {
+        el.style.opacity = '0.85';
+      });
+      // Inactive countries: opacity is camera-distance-driven, but at first
+      // render we want them invisible until the user zooms in.
+      const dist = (g.controls() as any).getDistance ? (g.controls() as any).getDistance() : 400;
+      let countryOp = 0;
+      if (dist < ZOOM_NEAR) countryOp = 1;
+      else if (dist < ZOOM_FAR) countryOp = 1 - (dist - ZOOM_NEAR) / (ZOOM_FAR - ZOOM_NEAR);
+      root.querySelectorAll<HTMLElement>('.gl-label-country').forEach((el) => {
+        el.style.opacity = String(countryOp * 0.5);
+      });
+    });
+  }, [events]);
 
   // Push events into the globe as points (visits) + arcs (downloads) + rings (entrance pulses).
   useEffect(() => {
