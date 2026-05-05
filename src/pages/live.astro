@@ -38,4 +38,30 @@ const papers = allPubs
       Privacy: no cookies, no third-party tracking, no IP storage. Country / city geolocation is provided by Cloudflare on every request and used only in aggregate. Bot traffic is logged for audit but excluded from this view.
     </p>
   </section>
+
+  <style is:global>
+    /* Globe labels — positioned by globe.gl as DOM nodes; we style the editorial typography ourselves. */
+    .gl-label {
+      pointer-events: none;
+      user-select: none;
+      transform: translate(-50%, -50%);
+      white-space: nowrap;
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text);
+      transition: opacity 220ms ease-out;
+      will-change: opacity;
+    }
+    .gl-label-continent {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.32em;
+    }
+    .gl-label-country {
+      font-size: 9px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+    }
+  </style>
 </BaseLayout>

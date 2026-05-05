@@ -56,6 +56,23 @@ const RANGE_LABELS: Array<{ key: RangeKey; label: string }> = [
 const COUNTRIES_URL =
   'https://cdn.jsdelivr.net/gh/vasturiano/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson';
 
+// Continent labels — always present, low opacity, big and quiet.
+// Coordinates are rough geographic centroids that read well on a globe.
+const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; lng: number }> = [
+  { kind: 'continent', text: 'AFRICA',        lat:   2, lng:  20 },
+  { kind: 'continent', text: 'EUROPE',        lat:  50, lng:  15 },
+  { kind: 'continent', text: 'ASIA',          lat:  45, lng:  90 },
+  { kind: 'continent', text: 'NORTH AMERICA', lat:  45, lng:-100 },
+  { kind: 'continent', text: 'SOUTH AMERICA', lat: -15, lng: -60 },
+  { kind: 'continent', text: 'OCEANIA',       lat: -25, lng: 135 },
+];
+
+// Camera-distance thresholds (globe.gl camera distance, default range ~200..800).
+// Beyond FAR: only continent labels visible.
+// Below NEAR: country labels at full opacity.
+const ZOOM_NEAR = 240;
+const ZOOM_FAR = 360;
+
 export default function LiveGlobe({ papers }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeInstance | null>(null);
@@ -220,18 +237,37 @@ export default function LiveGlobe({ papers }: Props) {
         .ringPropagationSpeed(2)
         .ringRepeatPeriod(0);
 
-      // Load Natural Earth country outlines for the borders layer
+      // Load Natural Earth country outlines for the borders layer + label centroids
+      let countryLabels: Array<{ kind: 'country'; text: string; lat: number; lng: number }> = [];
       try {
         const r = await fetch(COUNTRIES_URL);
         if (r.ok) {
           const geo = await r.json();
           if (alive && geo?.features) {
             g.polygonsData(geo.features);
+            // Compute a crude centroid per country for the label layer
+            countryLabels = geo.features
+              .map((f: any) => {
+                const name =
+                  f.properties?.NAME ||
+                  f.properties?.name ||
+                  f.properties?.ADMIN ||
+                  f.properties?.NAME_LONG;
+                if (!name) return null;
+                const c = polygonCentroid(f.geometry);
+                if (!c) return null;
+                return { kind: 'country' as const, text: String(name).toUpperCase(), lat: c.lat, lng: c.lng };
+              })
+              .filter(Boolean);
           }
         }
       } catch {
-        // Network blocked — globe still works, just without borders.
+        // Network blocked — globe still works, just without borders/labels.
       }
+
+      // Label data assembled — actual rendering + zoom listener are wired
+      // after `controls` is set up below so we can hook into camera-change.
+      const allLabels = [...CONTINENT_LABELS, ...countryLabels];
 
       // Build the dotted earth as a THREE.Points cloud over a Fibonacci land
       // lattice (pre-computed at build time). This is the actual halftone —
@@ -297,6 +333,45 @@ export default function LiveGlobe({ papers }: Props) {
 
       // Start/freeze rotation based on reduced-motion
       controls.autoRotate = !reduced;
+
+      // Render zoom-driven labels: continents always present at low opacity,
+      // country names fade in as the user zooms past ZOOM_FAR (and continent
+      // names fade out at the same time).
+      g.htmlElementsData(allLabels)
+        .htmlLat((d: any) => d.lat)
+        .htmlLng((d: any) => d.lng)
+        .htmlAltitude(0.012)
+        .htmlElement((d: any) => {
+          const el = document.createElement('div');
+          el.className = `gl-label gl-label-${d.kind}`;
+          el.textContent = d.text;
+          el.dataset.kind = d.kind;
+          return el;
+        })
+        .htmlElementVisibilityModifier((el: any, hidden: boolean) => {
+          el.style.visibility = hidden ? 'hidden' : 'visible';
+        });
+
+      const updateLabelOpacities = () => {
+        const dist = (controls as any).getDistance ? (controls as any).getDistance() : 400;
+        let continentOp = 1;
+        if (dist < ZOOM_NEAR) continentOp = 0;
+        else if (dist < ZOOM_FAR) continentOp = (dist - ZOOM_NEAR) / (ZOOM_FAR - ZOOM_NEAR);
+        let countryOp = 0;
+        if (dist < ZOOM_NEAR) countryOp = 1;
+        else if (dist < ZOOM_FAR) countryOp = 1 - (dist - ZOOM_NEAR) / (ZOOM_FAR - ZOOM_NEAR);
+
+        const root = containerRef.current;
+        if (!root) return;
+        root.querySelectorAll<HTMLElement>('.gl-label-continent').forEach((el) => {
+          el.style.opacity = String(continentOp * 0.32);
+        });
+        root.querySelectorAll<HTMLElement>('.gl-label-country').forEach((el) => {
+          el.style.opacity = String(countryOp * 0.6);
+        });
+      };
+      updateLabelOpacities();
+      controls.addEventListener('change', updateLabelOpacities);
 
       // Click-pin handler
       g.onPointClick((pt: any) => {
@@ -596,4 +671,30 @@ function timeAgo(unix: number): string {
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
   return `${Math.floor(diff / 86400)} d ago`;
+}
+
+// Crude centroid of a Polygon / MultiPolygon — average of the outer-ring
+// vertices of the largest polygon (by vertex count). Good enough as a label
+// anchor for most countries; for Russia/USA the centroid lands somewhere
+// reasonable instead of perfect, which is fine at the zoom levels we show.
+function polygonCentroid(geom: any): { lat: number; lng: number } | null {
+  if (!geom) return null;
+  let polys: number[][][][] = [];
+  if (geom.type === 'Polygon') polys = [geom.coordinates];
+  else if (geom.type === 'MultiPolygon') polys = geom.coordinates;
+  else return null;
+  // Pick the largest sub-polygon (most outer-ring vertices)
+  let best: number[][] | null = null;
+  for (const poly of polys) {
+    const outer = poly[0];
+    if (!outer) continue;
+    if (!best || outer.length > best.length) best = outer;
+  }
+  if (!best) return null;
+  let sx = 0, sy = 0;
+  for (const [x, y] of best) {
+    sx += x;
+    sy += y;
+  }
+  return { lat: sy / best.length, lng: sx / best.length };
 }
