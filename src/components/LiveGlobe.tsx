@@ -102,7 +102,8 @@ export default function LiveGlobe({ papers }: Props) {
     const accentOnDark = cs.getPropertyValue('--color-accent-on-dark').trim() || '#D98B9A';
     return {
       isDark,
-      hexDot: textWithAlpha(text, isDark ? 0.35 : 0.28),
+      // Bump opacity higher so dots actually read against the page bg
+      hexDot: textWithAlpha(text, isDark ? 0.55 : 0.65),
       atmosphere: isDark ? accentOnDark : accent,
     };
   };
@@ -163,8 +164,20 @@ export default function LiveGlobe({ papers }: Props) {
       if (!alive || !containerRef.current) return;
 
       const colors = readThemeColors();
+      const THREE = await import('three');
+
       const g: GlobeInstance = Globe()(containerRef.current)
         .backgroundColor('rgba(0,0,0,0)')
+        // Hide the default opaque sphere — only the hex dots should render.
+        // Keeps geometry intact so raycasts (clicks) still work via points/rings.
+        .globeMaterial(
+          new (THREE as any).MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+          })
+        )
         .showAtmosphere(true)
         .atmosphereColor(colors?.atmosphere || '#7A1E2B')
         .atmosphereAltitude(0.12)
@@ -172,7 +185,7 @@ export default function LiveGlobe({ papers }: Props) {
         .hexPolygonMargin(0.4)
         .hexPolygonAltitude(0.005)
         .hexPolygonUseDots(true)
-        .hexPolygonColor(() => colors?.hexDot || 'rgba(244,239,230,0.35)')
+        .hexPolygonColor(() => colors?.hexDot || 'rgba(244,239,230,0.55)')
         .pointAltitude(0.012)
         .pointRadius(0.25)
         .pointResolution(8)
