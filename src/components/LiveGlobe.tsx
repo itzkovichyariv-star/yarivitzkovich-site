@@ -78,6 +78,7 @@ export default function LiveGlobe({ papers }: Props) {
   const globeRef = useRef<GlobeInstance | null>(null);
   const dragTimerRef = useRef<number | null>(null);
   const themeObserverRef = useRef<MutationObserver | null>(null);
+  const breathFrameRef = useRef<number | null>(null);
 
   const [events, setEvents] = useState<EventRow[]>([]);
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
@@ -373,6 +374,23 @@ export default function LiveGlobe({ papers }: Props) {
       updateLabelOpacities();
       controls.addEventListener('change', updateLabelOpacities);
 
+      // The "liquid" feel: a slow breathing oscillation on the earth + atmosphere.
+      // Scale modulates by ±0.2% over 8s, atmosphere altitude by ±2.5%. Sub-
+      // perceptual on its own; the page just feels alive instead of static.
+      // Skipped entirely under prefers-reduced-motion.
+      const breatheStart = performance.now();
+      const breathe = () => {
+        if (!alive) return;
+        if (!reduced) {
+          const t = ((performance.now() - breatheStart) / 8000) % 1;
+          const s = Math.sin(t * 2 * Math.PI);
+          if (earthPoints) earthPoints.scale.setScalar(1.0 + 0.002 * s);
+          g.atmosphereAltitude(0.121 + 0.003 * s);
+        }
+        breathFrameRef.current = requestAnimationFrame(breathe);
+      };
+      breathFrameRef.current = requestAnimationFrame(breathe);
+
       // Click-pin handler
       g.onPointClick((pt: any) => {
         if (pt && pt.__event) setSelected(pt.__event as EventRow);
@@ -412,6 +430,7 @@ export default function LiveGlobe({ papers }: Props) {
       alive = false;
       if (themeObserverRef.current) themeObserverRef.current.disconnect();
       if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
+      if (breathFrameRef.current) cancelAnimationFrame(breathFrameRef.current);
       // globe.gl exposes _destructor on newer versions
       const g: any = globeRef.current;
       if (g && typeof g._destructor === 'function') g._destructor();

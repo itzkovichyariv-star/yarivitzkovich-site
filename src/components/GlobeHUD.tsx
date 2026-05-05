@@ -38,7 +38,7 @@ const panelStyle: CSSProperties = {
   WebkitBackdropFilter: 'blur(14px)',
   background: 'color-mix(in srgb, var(--bg) 55%, transparent)',
   border: '1px solid var(--divider)',
-  padding: '1.25rem',
+  padding: '1rem 1.125rem',
 };
 
 export default function GlobeHUD({ totals, activity }: Props) {
@@ -178,7 +178,7 @@ function Kicker({ children }: { children: React.ReactNode }) {
 
 function BigNumber({ n }: { n: number }) {
   return (
-    <div className="font-display text-4xl mt-2" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 300 }}>
+    <div className="font-display text-3xl mt-1.5 leading-tight" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 300 }}>
       {n.toLocaleString()}
     </div>
   );
