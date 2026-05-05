@@ -142,6 +142,9 @@ export default function LiveGlobe({ papers }: Props) {
   const [loading, setLoading] = useState(true);
   const [reduced, setReduced] = useState(false);
   const [selected, setSelected] = useState<EventRow | null>(null);
+  // When set, the card is auto-displayed because an arc just fired.
+  // Set to null when the user pins (clicks) the card or it auto-dismisses.
+  const [autoUntil, setAutoUntil] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
 
   // Detect prefers-reduced-motion + observe live changes
@@ -645,7 +648,12 @@ export default function LiveGlobe({ papers }: Props) {
       .arcEndLat((d: any) => d.endLat)
       .arcEndLng((d: any) => d.endLng);
 
-    // Rings: stagger entrance so we don't pulse all at once on load
+    // Rings + auto-cards: stagger each event's "entrance" so they fire one
+    // after another (not all at once on load). Each entrance:
+    //   1. Pulses a ring at the destination
+    //   2. Auto-pops a transient PinCard for that event (5s lifetime)
+    // Stagger interval: ~2 seconds between events. Slow enough that each
+    // card is tappable before the next one replaces it.
     if (reduced) {
       g.ringsData([]);
     } else {
@@ -655,18 +663,23 @@ export default function LiveGlobe({ papers }: Props) {
         .ringPropagationSpeed((r: any) => r.speed)
         .ringRepeatPeriod(0);
 
-      const cap = Math.min(placed.length, 80); // never animate more than 80 at a time
+      const cap = Math.min(placed.length, 80);
       const subset = placed.slice(0, cap);
 
       let cancelled = false;
       const timers: number[] = [];
+      const STAGGER_MS = 2000; // gap between event entrances
+      const CARD_AUTO_MS = 5000; // how long an auto-card stays before fading
+
       subset.forEach((e, i) => {
         const cls = e.visitor_class as keyof typeof palette;
         const def = palette[cls] || palette.first_time;
         const style = PIN_STYLES[e.visitor_class] || PIN_STYLES.first_time;
-        const delay = Math.random() * 800 + i * 25;
+        const delay = i * STAGGER_MS + Math.random() * 250; // slight jitter
         const t = window.setTimeout(() => {
           if (cancelled) return;
+
+          // Ring pulse at the destination
           const data = g.ringsData() || [];
           const ringEntry = {
             lat: Number(e.lat),
@@ -676,8 +689,6 @@ export default function LiveGlobe({ papers }: Props) {
             speed: style.ringRadius / (style.ringDurationMs / 1000),
           };
           g.ringsData([...data, ringEntry]);
-          // Downloader gets a second concentric ring offset by 300ms — the spec's
-          // "two concentric rings" treatment that signals the strongest engagement.
           if (style.ringCount >= 2) {
             const t3 = window.setTimeout(() => {
               if (cancelled) return;
@@ -699,13 +710,18 @@ export default function LiveGlobe({ papers }: Props) {
             }, 300);
             timers.push(t3);
           }
-          // Drop the primary ring after its lifetime so the array doesn't accumulate
           const t2 = window.setTimeout(() => {
             if (cancelled) return;
             const next = (g.ringsData() || []).filter((r: any) => r !== ringEntry);
             g.ringsData(next);
           }, style.ringDurationMs + 200);
           timers.push(t2);
+
+          // Auto-card: pop a transient PinCard for this event. User can tap
+          // it during the 5-second window to "pin" it (cancel auto-dismiss).
+          const dismissAt = Date.now() + CARD_AUTO_MS;
+          setSelected(e);
+          setAutoUntil(dismissAt);
         }, delay);
         timers.push(t);
       });
@@ -717,6 +733,18 @@ export default function LiveGlobe({ papers }: Props) {
       };
     }
   }, [events, reduced]);
+
+  // Auto-dismiss the card after its window expires, unless the user has
+  // already pinned it (autoUntil cleared by clicking the card).
+  useEffect(() => {
+    if (!autoUntil) return;
+    const remaining = Math.max(0, autoUntil - Date.now());
+    const id = window.setTimeout(() => {
+      setSelected(null);
+      setAutoUntil(null);
+    }, remaining);
+    return () => window.clearTimeout(id);
+  }, [autoUntil]);
 
   // Pre-pick the visit/download counts within current event window for the activity panel
   const activity = useMemo(() => {
@@ -793,17 +821,34 @@ export default function LiveGlobe({ papers }: Props) {
       <GlobeHUD totals={totals} activity={activity} />
 
       {/* Click-pin card */}
-      {selected && <PinCard event={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <PinCard
+          event={selected}
+          isAuto={!!autoUntil}
+          onPin={() => setAutoUntil(null)}
+          onClose={() => { setSelected(null); setAutoUntil(null); }}
+        />
+      )}
     </div>
   );
 }
 
-function PinCard({ event, onClose }: { event: EventRow; onClose: () => void }) {
+function PinCard({
+  event,
+  isAuto,
+  onPin,
+  onClose,
+}: {
+  event: EventRow;
+  isAuto: boolean;
+  onPin: () => void;
+  onClose: () => void;
+}) {
   const place = [event.city, event.country_name, event.continent_name].filter(Boolean).join(' · ');
   const isDownload = event.kind === 'download';
   const isReturning = event.visitor_class === 'returning';
   // Match the swatch + kicker color to the arc's color, so the card identifies
-  // visually which kind of arc the user clicked.
+  // visually which kind of arc the user clicked or which arc just fired.
   const arcColor = isDownload
     ? colorForPaper(event.paper_slug)
     : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
@@ -814,23 +859,37 @@ function PinCard({ event, onClose }: { event: EventRow; onClose: () => void }) {
       : 'First-time visit';
   return (
     <div
-      className="fixed bottom-6 right-6 max-w-sm p-5 z-40"
+      className="fixed bottom-6 right-6 max-w-sm p-5 z-40 cursor-pointer pin-card"
       style={{
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        background: 'rgba(0,0,0,0.55)',
+        // Frosted milky glass: heavy blur + saturation boost amplifies
+        // whatever's behind the card, then a low-fill linear gradient gives
+        // the surface a subtle "sign" sheen (top brighter than bottom).
+        backdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
+        background:
+          'linear-gradient(140deg, color-mix(in srgb, var(--bg) 22%, transparent), color-mix(in srgb, var(--bg) 42%, transparent))',
         color: 'var(--text, #fff)',
-        border: '1px solid var(--divider, rgba(255,255,255,0.18))',
+        border: '1px solid color-mix(in srgb, var(--text) 16%, transparent)',
         // Left edge tinted in the arc's color so each card is visually
         // tied to its arc on the globe.
         borderLeft: `3px solid ${arcColor}`,
+        // Depth: drop shadow makes the sign float; inset highlights/shadows
+        // suggest physical edge thickness like a 3D placard.
+        boxShadow: [
+          '0 16px 44px rgba(0, 0, 0, 0.35)',
+          '0 4px 12px rgba(0, 0, 0, 0.18)',
+          'inset 0 1px 0 rgba(255, 255, 255, 0.22)',
+          'inset 0 -1px 0 rgba(0, 0, 0, 0.18)',
+        ].join(', '),
+        animation: 'pinCardIn 320ms cubic-bezier(0.22, 1, 0.36, 1)',
       }}
       role="dialog"
       aria-label="Event details"
+      onClick={() => { if (isAuto) onPin(); }}
     >
       <button
         type="button"
-        onClick={onClose}
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
         className="absolute top-3 right-3 opacity-70 hover:opacity-100 text-xs"
         aria-label="Close"
       >
@@ -839,16 +898,18 @@ function PinCard({ event, onClose }: { event: EventRow; onClose: () => void }) {
       <div className="font-mono text-[10px] uppercase tracking-widest mb-2 inline-flex items-center gap-2">
         <span
           className="inline-block"
-          style={{ width: '10px', height: '10px', borderRadius: '50%', background: arcColor, boxShadow: `0 0 6px ${arcColor}` }}
+          style={{ width: '10px', height: '10px', borderRadius: '50%', background: arcColor, boxShadow: `0 0 8px ${arcColor}` }}
         />
         <span style={{ color: arcColor }}>{kicker}</span>
         <span className="opacity-50">· {timeAgo(event.ts)}</span>
+        {isAuto && <span className="opacity-50 ml-1">· tap to keep</span>}
       </div>
       <div className="font-display text-lg leading-snug mb-3">{place || 'Unknown location'}</div>
       {isDownload && event.paper_title && event.paper_slug && (
         <a
           href={`/publications/${event.paper_slug}`}
           className="text-sm underline opacity-90 hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
         >
           {event.paper_title}
         </a>
