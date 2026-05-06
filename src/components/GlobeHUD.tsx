@@ -68,8 +68,8 @@ export default function GlobeHUD({ totals, activity }: Props) {
           events
         </span>
         <Sep />
-        <Pair color="#5BC288" n={since?.firstTime ?? 0} label="first" />
-        <Pair color="#FF9933" n={since?.returning ?? 0} label="ret" />
+        <Pair color="#22DD66" n={since?.firstTime ?? 0} label="first" />
+        <Pair color="#FFA200" n={since?.returning ?? 0} label="ret" />
         <Pair color="#C9304E" n={since?.downloads ?? 0} label="dl" />
         <Sep />
         <span className="opacity-65">{since?.countries ?? 0} countries · {since?.continents ?? 0} cont</span>

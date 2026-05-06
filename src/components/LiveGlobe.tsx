@@ -72,15 +72,12 @@ const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
 // Fixed colors for visit-class arcs (download arcs use the per-paper hash).
-// Visits are quieter than downloads, but bright enough to read clearly
-// against the dark blue ocean of the satellite earth (the previous
-// muted greens/oranges were getting lost).
-//   first-time → vivid green (fresh arrival)
-//   returning  → vivid orange (familiar return)
-//   download   → vivid wine (peak engagement, still the loudest)
+// Pumped bright on purpose — the satellite earth is busy, and the wine
+// downloads are already saturated, so visits need to be near-neon to read
+// at all on a phone screen.
 const VISIT_COLORS = {
-  first_time: '#5BC288', // vivid green
-  returning:  '#FF9933', // vivid orange
+  first_time: '#22DD66', // near-neon green
+  returning:  '#FFA200', // pure orange
 } as const;
 
 // Download arcs are all VIVID WINE — saturated variations on the site's
@@ -706,17 +703,20 @@ export default function LiveGlobe({ papers }: Props) {
       const classBase = isDownload ? 0.62 : isReturning ? 0.45 : 0.30;
       const altitude = classBase + distLift + fanOffset;
 
-      // Stroke + alpha hierarchy. Visit alphas bumped so the muted greens
-      // and oranges actually read against the dark earth — they were
-      // previously fading into the ocean texture.
-      const haloStroke = isDownload ? 3.5 : isReturning ? 3.0 : 2.6;
-      const coreStroke = isDownload ? 0.9 : isReturning ? 0.75 : 0.65;
-      const haloAlpha:  [number, number] = isDownload ? [0.40, 0.12] : [0.42, 0.16];
+      // Stroke + alpha hierarchy. Visit arcs get THICKER strokes than
+      // downloads (counter-intuitive but necessary) — the wine downloads
+      // already pop because of their saturated colour, while the green
+      // and orange need extra weight to read at a glance against the
+      // satellite earth. Halo opacities also bumped so each visit arc
+      // gets a clear glow envelope.
+      const haloStroke = isDownload ? 3.2 : isReturning ? 4.0 : 3.6;
+      const coreStroke = isDownload ? 0.9 : isReturning ? 1.2 : 1.05;
+      const haloAlpha:  [number, number] = isDownload ? [0.40, 0.12] : [0.55, 0.22];
       const coreAlpha:  [number, number] = isDownload
         ? [1.00, 0.85]
         : isReturning
-          ? [0.95, 0.70]
-          : [0.92, 0.62];
+          ? [1.00, 0.78]
+          : [1.00, 0.72];
 
       const halo = {
         startLat: ARIEL_LAT,
