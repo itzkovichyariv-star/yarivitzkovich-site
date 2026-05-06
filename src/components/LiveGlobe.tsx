@@ -393,23 +393,26 @@ export default function LiveGlobe({ papers }: Props) {
       };
       setEarthTint(!!colors?.isDark);
 
-      // Configure controls — auto-rotate, paused on user drag
+      // Configure controls — keep camera STATIC by default so arcs at the
+      // event hotspot (Israel) stay continuously visible. The previous
+      // 0.3 rpm rotation moved Israel onto the back of the sphere within
+      // ~50s, hiding every arc until the rotation came back around.
+      // The user can drag to spin manually whenever they want.
       const controls = g.controls();
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.3;
+      controls.autoRotate = false;
+      controls.autoRotateSpeed = 0;
       controls.enableZoom = true;
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
 
+      // No auto-rotation to manage on drag start/end any more — controls.
+      // autoRotate stays false. We keep these handlers as no-ops in case
+      // we re-enable rotation later under a user toggle.
       const onStart = () => {
-        controls.autoRotate = false;
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
       };
       const onEnd = () => {
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = window.setTimeout(() => {
-          controls.autoRotate = !reduced;
-        }, 4000);
       };
       controls.addEventListener('start', onStart);
       controls.addEventListener('end', onEnd);
@@ -423,8 +426,7 @@ export default function LiveGlobe({ papers }: Props) {
         TWO: (THREE as any).TOUCH.DOLLY_ROTATE,
       };
 
-      // Start/freeze rotation based on reduced-motion
-      controls.autoRotate = !reduced;
+      // (Auto-rotation intentionally disabled — see controls config above.)
 
       // Open looking at Israel (where our data origin lives) so the user
       // sees arcs immediately instead of waiting for the rotation to swing
@@ -564,12 +566,13 @@ export default function LiveGlobe({ papers }: Props) {
     g.height(size.h);
   }, [size]);
 
-  // Honor reduced-motion live
+  // Honor reduced-motion live (kept for future re-enabling of rotation;
+  // currently a no-op since autoRotate is permanently off).
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
     const c = g.controls();
-    c.autoRotate = !reduced;
+    c.autoRotate = false;
   }, [reduced]);
 
   // Build the label set: continents + every country (with __active=true for
