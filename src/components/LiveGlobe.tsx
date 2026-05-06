@@ -128,6 +128,20 @@ function pseudoFromSeed(seed: number, salt: number): number {
 // within the metro area for the few events at city resolution.
 const ENDPOINT_JITTER_DEG = 0.8;
 
+// WebKit (iOS Safari, iOS Chrome, iOS Edge — all forced to WebKit on
+// iOS — and macOS Safari) has known rendering issues with three.js
+// Line2 thick-line geometry: arcStroke > 0 triggers it, the custom
+// LineMaterial shader silently fails on some WebKit GPU paths, and
+// the arcs simply don't appear. Native thin lines (arcStroke === 0)
+// fall through to gl.LINES and render reliably on every engine.
+// Detect WebKit and use thin lines there, keep the richer thick-line
+// look on Blink (desktop Chrome/Edge) and Gecko (Firefox).
+const isWebKit =
+  typeof navigator !== 'undefined' &&
+  /AppleWebKit/.test(navigator.userAgent) &&
+  !/Chrome|CriOS|FxiOS|EdgA|Edg/.test(navigator.userAgent) ||
+  (typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent));
+
 // Continent labels — always present, low opacity, big and quiet.
 // Coordinates are rough geographic centroids that read well on a globe.
 const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; lng: number }> = [
@@ -352,7 +366,11 @@ export default function LiveGlobe({ papers }: Props) {
         // stacking on top of each other (where only the topmost colour
         // would read). Each arc carries an __altitude in its data.
         .arcAltitude((d: any) => d.__altitude ?? 0.4)
-        .arcStroke((d: any) => d?.__stroke ?? 0.7)
+        // arcStroke = 0 forces native gl.LINES (thin) which renders on
+        // every engine. arcStroke > 0 triggers three.js Line2 (thick),
+        // which silently fails on iOS WebKit GPUs — symptom: numbers
+        // tally but NO arcs draw on Safari/Chrome on iPhone.
+        .arcStroke((d: any) => (isWebKit ? 0 : d?.__stroke ?? 0.7))
         .arcDashLength(0.6)
         .arcDashGap(0.5)
         .arcDashAnimateTime(1500)
@@ -489,10 +507,12 @@ export default function LiveGlobe({ papers }: Props) {
           el.className = `gl-label ${kindClass}`;
           el.textContent = d.text;
           el.dataset.kind = d.kind;
+          // Stash lat/lng on the DOM node so the per-frame visibility
+          // pass below can compute back-face culling without re-walking
+          // the htmlElementsData array.
+          el.dataset.lat = String(d.lat);
+          el.dataset.lng = String(d.lng);
           return el;
-        })
-        .htmlElementVisibilityModifier((el: any, hidden: boolean) => {
-          el.style.visibility = hidden ? 'hidden' : 'visible';
         });
 
       const updateLabelOpacities = () => {
@@ -504,17 +524,53 @@ export default function LiveGlobe({ papers }: Props) {
 
         const root = containerRef.current;
         if (!root) return;
+
+        // Back-face culling: every label has lat/lng on its dataset.
+        // Compute the unit vector from globe centre to that lat/lng, and
+        // dot it with the camera's unit position vector. Positive dot
+        // means the label is on the hemisphere FACING the camera; negative
+        // means it's on the far side and should be hidden. Without this,
+        // Indonesia's name keeps drifting across the viewport even after
+        // Indonesia itself has rotated to the back of the globe.
+        const camera = g.camera();
+        const cp = camera?.position;
+        let cnx = 0, cny = 0, cnz = 1;
+        if (cp) {
+          const len = Math.hypot(cp.x, cp.y, cp.z) || 1;
+          cnx = cp.x / len; cny = cp.y / len; cnz = cp.z / len;
+        }
+        const isFrontFacing = (lat: number, lng: number): boolean => {
+          // Match three-globe's lat/lng → cartesian convention so the
+          // dot-product test agrees with where globe.gl actually draws
+          // the label on the sphere.
+          const phi = ((90 - lat) * Math.PI) / 180;
+          const theta = ((lng + 180) * Math.PI) / 180;
+          const x = -Math.sin(phi) * Math.cos(theta);
+          const y =  Math.cos(phi);
+          const z =  Math.sin(phi) * Math.sin(theta);
+          return (x * cnx + y * cny + z * cnz) > 0.05;
+        };
+
+        const setVisibility = (el: HTMLElement) => {
+          const lat = parseFloat(el.dataset.lat || '0');
+          const lng = parseFloat(el.dataset.lng || '0');
+          el.style.visibility = isFrontFacing(lat, lng) ? 'visible' : 'hidden';
+        };
+
         // Continents stay at a constant low opacity regardless of zoom
         root.querySelectorAll<HTMLElement>('.gl-label-continent').forEach((el) => {
           el.style.opacity = '0.32';
+          setVisibility(el);
         });
         // Active countries (events-driven) — always visible, brighter
         root.querySelectorAll<HTMLElement>('.gl-label-country-active').forEach((el) => {
           el.style.opacity = '0.85';
+          setVisibility(el);
         });
         // Inactive countries fade in/out with zoom
         root.querySelectorAll<HTMLElement>('.gl-label-country').forEach((el) => {
           el.style.opacity = String(countryOp * 0.5);
+          setVisibility(el);
         });
       };
       updateLabelOpacities();
