@@ -106,6 +106,21 @@ function colorForPaper(slug: string | null | undefined): string {
   return PAPER_HUES[h % PAPER_HUES.length];
 }
 
+// Deterministic pseudo-random in [-0.5, 0.5] from a seed + salt. Used to
+// jitter arc endpoints so multiple events to the same city (e.g. several
+// readers in Kfar Saba) fan out into a small bouquet instead of perfectly
+// stacking on top of each other and reading as a single arc. Same event
+// always produces the same offset so arcs stay stable across refreshes.
+function pseudoFromSeed(seed: number, salt: number): number {
+  const x = Math.sin(seed * salt + salt * 1.7) * 10000;
+  return (x - Math.floor(x)) - 0.5;
+}
+
+// Max jitter in degrees applied to arc endpoint lat/lng. ±0.4° ≈ ±44 km,
+// enough to fan out a same-city cluster at globe zoom while staying well
+// within the metro area for the few events at city resolution.
+const ENDPOINT_JITTER_DEG = 0.8;
+
 // Continent labels — always present, low opacity, big and quiet.
 // Coordinates are rough geographic centroids that read well on a globe.
 const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; lng: number }> = [
@@ -687,13 +702,11 @@ export default function LiveGlobe({ papers }: Props) {
         ? colorForPaper(e.paper_slug)
         : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
 
-      // Per-arc altitude — three bands by class, each shifted UP from
-      // the previous draft so even the "low" tier is a clearly-visible
-      // fountain rather than a pinprick on the surface. Local Israel
-      // arcs at altitude 0.30 were too short to read on a phone.
-      //   first-time visit  → 0.52  (low)
-      //   returning visit   → 0.66  (mid)
-      //   download          → 0.80  (high)
+      // Per-arc altitude — equal across all classes so download arcs
+      // don't stack on top of visit arcs at shared destinations. The
+      // visible color mix on the globe should match the HUD's count
+      // ratio (was: downloads always on top, hiding green/orange).
+      // Within-class spread comes from idx-banded fanOffset (6 steps).
       const lat1 = (ARIEL_LAT * Math.PI) / 180;
       const lat2 = (Number(e.lat) * Math.PI) / 180;
       const dLat = ((Number(e.lat) - ARIEL_LAT) * Math.PI) / 180;
@@ -702,9 +715,19 @@ export default function LiveGlobe({ papers }: Props) {
       const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distNorm = Math.min(1, distRad / Math.PI);
       const distLift = (1 - distNorm) * 0.04;
-      const fanOffset = (idx % 4) * 0.022;
-      const classBase = isDownload ? 0.80 : isReturning ? 0.66 : 0.52;
+      const fanOffset = (idx % 6) * 0.025;
+      const classBase = 0.62;
       const altitude = classBase + distLift + fanOffset;
+
+      // Endpoint jitter — fan multiple arcs to the same city out into a
+      // small bouquet instead of letting them stack on identical lat/lng
+      // (which was reading as a single thick arc to a single city). Seed
+      // is the event's ts so each event keeps a stable offset across
+      // refreshes — no flickering between polls.
+      const jitterLat = pseudoFromSeed(e.ts, 91)  * ENDPOINT_JITTER_DEG;
+      const jitterLng = pseudoFromSeed(e.ts, 173) * ENDPOINT_JITTER_DEG;
+      const endLat = Number(e.lat) + jitterLat;
+      const endLng = Number(e.lng) + jitterLng;
 
       // Stroke + alpha hierarchy. Visit arcs get THICKER strokes than
       // downloads (counter-intuitive but necessary) — the wine downloads
@@ -724,8 +747,8 @@ export default function LiveGlobe({ papers }: Props) {
       const halo = {
         startLat: ARIEL_LAT,
         startLng: ARIEL_LNG,
-        endLat: Number(e.lat),
-        endLng: Number(e.lng),
+        endLat,
+        endLng,
         color: [withAlpha(hex, haloAlpha[0]), withAlpha(hex, haloAlpha[1])] as [string, string],
         __stroke: haloStroke,
         __altitude: altitude,
@@ -736,8 +759,8 @@ export default function LiveGlobe({ papers }: Props) {
       const core = {
         startLat: ARIEL_LAT,
         startLng: ARIEL_LNG,
-        endLat: Number(e.lat),
-        endLng: Number(e.lng),
+        endLat,
+        endLng,
         color: [withAlpha(hex, coreAlpha[0]), withAlpha(hex, coreAlpha[1])] as [string, string],
         __stroke: coreStroke,
         __altitude: altitude,
