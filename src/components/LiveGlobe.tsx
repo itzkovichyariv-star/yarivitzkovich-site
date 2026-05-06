@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
 import { PIN_STYLES, withAlpha, ARC_COLORS, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
 import BreakdownDrawer from './BreakdownDrawer';
@@ -503,8 +504,16 @@ export default function LiveGlobe({ papers }: Props) {
       // gestures inside the canvas. Page scroll happens by touching
       // the area above (headline/filter) or below (HUD/footer) the
       // canvas, so we don't need pan-y pass-through inside the globe.
+      // Cursor styling tells desktop users the canvas is draggable.
       const cnv = containerRef.current?.querySelector('canvas');
-      if (cnv) (cnv as HTMLElement).style.touchAction = 'none';
+      if (cnv) {
+        const cnvEl = cnv as HTMLElement;
+        cnvEl.style.touchAction = 'none';
+        cnvEl.style.cursor = 'grab';
+        cnvEl.addEventListener('pointerdown', () => { cnvEl.style.cursor = 'grabbing'; });
+        cnvEl.addEventListener('pointerup',   () => { cnvEl.style.cursor = 'grab'; });
+        cnvEl.addEventListener('pointerleave', () => { cnvEl.style.cursor = 'grab'; });
+      }
 
       // Three label tiers:
       //   continent  → always visible at low opacity (spatial anchor)
