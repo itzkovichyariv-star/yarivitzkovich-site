@@ -72,14 +72,15 @@ const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
 // Fixed colors for visit-class arcs (download arcs use the per-paper hash).
-// Visits are MUTED — quietly distinct so they don't compete with the more
-// important "download" signal. Downloads (wine, below) are vivid by contrast.
-//   first-time → sage green (fresh arrival)
-//   returning  → warm muted orange (familiar return)
-//   download   → vivid wine (peak engagement, the loudest of the three)
+// Visits are quieter than downloads, but bright enough to read clearly
+// against the dark blue ocean of the satellite earth (the previous
+// muted greens/oranges were getting lost).
+//   first-time → vivid green (fresh arrival)
+//   returning  → vivid orange (familiar return)
+//   download   → vivid wine (peak engagement, still the loudest)
 const VISIT_COLORS = {
-  first_time: '#7DB87E', // sage green — quiet, "fresh"
-  returning:  '#DC8B4F', // warm orange — quiet, "familiar"
+  first_time: '#5BC288', // vivid green
+  returning:  '#FF9933', // vivid orange
 } as const;
 
 // Download arcs are all VIVID WINE — saturated variations on the site's
@@ -230,28 +231,43 @@ export default function LiveGlobe({ papers }: Props) {
     } as const;
   };
 
-  // Fetch events whenever range or paper filter changes
+  // Fetch events whenever range or paper filter changes — and re-poll
+  // every 45 seconds so new visitors and downloads appear without the user
+  // having to reload the page.
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     const params = new URLSearchParams();
     params.set('range', range);
     if (paper) params.set('paper', paper);
-    fetch(`/live/events?${params.toString()}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        setEvents(data.events || []);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setEvents([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    const url = `/live/events?${params.toString()}`;
+
+    const load = (showSpinner: boolean) => {
+      if (showSpinner) setLoading(true);
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return;
+          setEvents(data.events || []);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          // Don't wipe existing events on a transient network blip
+        })
+        .finally(() => {
+          if (!cancelled && showSpinner) setLoading(false);
+        });
+    };
+
+    load(true);
+    // Background refresh — silent, no spinner. Skips if tab is hidden.
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      load(false);
+    }, 45_000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(id);
     };
   }, [range, paper]);
 
@@ -901,11 +917,11 @@ export default function LiveGlobe({ papers }: Props) {
         aria-label="Arc color legend"
       >
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#7DB87E" thickness={2} />
+          <ArcSwatch color="#5BC288" thickness={2} />
           <span>first-time visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#DC8B4F" thickness={2.5} />
+          <ArcSwatch color="#FF9933" thickness={2.5} />
           <span>returning visit</span>
         </span>
         <span className="inline-flex items-center gap-2">
