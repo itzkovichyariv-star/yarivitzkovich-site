@@ -482,14 +482,15 @@ export default function LiveGlobe({ papers }: Props) {
       // ~3 seconds while staying calm enough that Israel only swings off
       // for a manageable window before coming back around.
       const controls = g.controls();
-      // Defensive: explicitly enable everything in case some prior
-      // config or library default turned it off.
+      // Defensive: explicitly enable rotate + pan, but DISABLE OrbitControls'
+      // own zoom handling — we own wheel events ourselves (plain scroll
+      // rotates, Cmd/Ctrl+scroll zooms) so OrbitControls' default wheel-zoom
+      // would conflict with our custom mapping.
       controls.enabled = true;
       controls.enableRotate = true;
-      controls.enableZoom = true;
+      controls.enableZoom = false;
       controls.enablePan = true;
       controls.rotateSpeed = 1.0;
-      controls.zoomSpeed = 1.0;
       controls.panSpeed = 1.0;
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.8;
@@ -582,47 +583,27 @@ export default function LiveGlobe({ papers }: Props) {
           lastY = e.clientY;
           downX = e.clientX;
           downY = e.clientY;
-          // Right-click → pan immediately (desktop power-user shortcut).
-          // Otherwise default to rotate; the long-press timer below flips
-          // to pan if the user holds still for ~400ms before moving.
-          // Two-finger touch is also pan (handled below).
-          mode = e.button === 2 ? 'pan' : 'rotate';
-          cnvEl.style.cursor = 'grabbing';
-          controls.autoRotate = false;
-          // Start the long-press timer only for left-click / single-finger.
-          if (longPressTimer !== null) window.clearTimeout(longPressTimer);
-          if (e.button !== 2) {
-            longPressTimer = window.setTimeout(() => {
-              // User has held still past the threshold → switch to pan.
-              if (mode === 'rotate') {
-                mode = 'pan';
-                cnvEl.style.cursor = 'move';
-              }
-              longPressTimer = null;
-            }, LONG_PRESS_MS);
+          // Simple gesture mapping per owner spec:
+          //   Desktop (mouse, any button) → click+drag = PAN.
+          //   Mobile single finger        → drag = ROTATE.
+          //   Mobile two fingers          → drag = PAN (handled in onMove).
+          if (e.pointerType === 'mouse') {
+            mode = 'pan';
+          } else {
+            mode = activePointers.size >= 2 ? 'pan' : 'rotate';
           }
+          cnvEl.style.cursor = mode === 'pan' ? 'move' : 'grabbing';
+          controls.autoRotate = false;
         };
 
         const onMove = (e: PointerEvent) => {
           if (activePointerId === null) return;
           if (e.pointerId !== activePointerId) return;
 
-          // Two-finger drag on touch → pan (overrides rotate if a second
-          // finger has joined).
+          // Mobile: if a second finger joins mid-gesture, switch to pan.
           if (e.pointerType === 'touch' && activePointers.size >= 2 && mode === 'rotate') {
             mode = 'pan';
             cnvEl.style.cursor = 'move';
-          }
-
-          // If the user moved before the long-press timer fired, they
-          // intend to swipe — commit to rotate mode and cancel the timer.
-          if (longPressTimer !== null) {
-            const dragDx = e.clientX - downX;
-            const dragDy = e.clientY - downY;
-            if (Math.hypot(dragDx, dragDy) > MOVE_THRESHOLD_PX) {
-              window.clearTimeout(longPressTimer);
-              longPressTimer = null;
-            }
           }
 
           const dx = e.clientX - lastX;
@@ -647,10 +628,6 @@ export default function LiveGlobe({ papers }: Props) {
         const onUp = (e: PointerEvent) => {
           activePointers.delete(e.pointerId);
           if (e.pointerId !== activePointerId) return;
-          if (longPressTimer !== null) {
-            window.clearTimeout(longPressTimer);
-            longPressTimer = null;
-          }
           activePointerId = null;
           mode = null;
           cnvEl.style.cursor = 'grab';
@@ -660,12 +637,43 @@ export default function LiveGlobe({ papers }: Props) {
           }, 1500);
         };
 
+        // Desktop scroll wheel:
+        //   plain scroll  → rotate horizontally (azimuth)
+        //   shift + scroll → rotate vertically (polar)
+        //   Cmd/Ctrl + scroll → zoom
+        // (We disabled controls.enableZoom above so the default OrbitControls
+        // wheel handler doesn't compete with this.)
+        const onWheel = (e: WheelEvent) => {
+          e.preventDefault();
+          if (e.ctrlKey || e.metaKey) {
+            // Zoom — adjust camera distance toward/away from target.
+            const offset = new THREE.Vector3()
+              .copy(camera.position)
+              .sub(controls.target);
+            const dollyScale = e.deltaY > 0 ? 1.08 : 0.92;
+            offset.multiplyScalar(dollyScale);
+            const dist = Math.max(MIN_DIST, Math.min(MAX_DIST, offset.length()));
+            offset.setLength(dist);
+            camera.position.copy(controls.target).add(offset);
+          } else if (e.shiftKey) {
+            // Rotate vertically (polar)
+            const eps = 0.01;
+            const cur = controls.getPolarAngle();
+            const next = cur + e.deltaY * 0.005;
+            controls.setPolarAngle(Math.max(eps, Math.min(Math.PI - eps, next)));
+          } else {
+            // Rotate horizontally (azimuth)
+            controls.setAzimuthalAngle(controls.getAzimuthalAngle() + e.deltaY * 0.005);
+          }
+        };
+
         // Suppress the desktop right-click context menu so right-drag
         // panning isn't interrupted.
         const onContextMenu = (e: Event) => e.preventDefault();
 
         cnvEl.addEventListener('pointerdown', onDown);
         cnvEl.addEventListener('contextmenu', onContextMenu);
+        cnvEl.addEventListener('wheel', onWheel, { passive: false });
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         window.addEventListener('pointercancel', onUp);
@@ -673,6 +681,7 @@ export default function LiveGlobe({ papers }: Props) {
         const cleanupCustomDrag = () => {
           cnvEl.removeEventListener('pointerdown', onDown);
           cnvEl.removeEventListener('contextmenu', onContextMenu);
+          cnvEl.removeEventListener('wheel', onWheel);
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onUp);
