@@ -1091,7 +1091,7 @@ function PinCard({
         backdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
         WebkitBackdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
         background:
-          'linear-gradient(140deg, color-mix(in srgb, var(--bg) 22%, transparent), color-mix(in srgb, var(--bg) 42%, transparent))',
+          'linear-gradient(140deg, color-mix(in srgb, var(--surface) 22%, transparent), color-mix(in srgb, var(--surface) 42%, transparent))',
         color: 'var(--text, #fff)',
         border: '1px solid color-mix(in srgb, var(--text) 16%, transparent)',
         // Left edge tinted in the arc's color so each card is visually

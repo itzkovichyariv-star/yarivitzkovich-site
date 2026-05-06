@@ -12,6 +12,7 @@
 
 import { recordEvent } from '../_lib/events.js';
 import { hashPerson } from '../_lib/dedup.js';
+import { isOwner } from '../_lib/auth.js';
 
 export const onRequestGet = async (ctx) => {
   const { request, env, params, next, waitUntil } = ctx;
@@ -26,6 +27,9 @@ export const onRequestGet = async (ctx) => {
     waitUntil(
       (async () => {
         try {
+          // Skip the owner's own downloads so they don't inflate analytics.
+          if (await isOwner(request, env)) return;
+
           // Has this person already been recorded visiting today (any page)?
           // Scope: person_hash is per-day, so checking any kind='visit'
           // event with this person_hash is equivalent to "today".

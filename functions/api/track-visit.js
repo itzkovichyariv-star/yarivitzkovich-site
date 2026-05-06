@@ -14,10 +14,22 @@
 //   { "ok": true, "recorded": <bool>, "reason": "duplicate" | "no_db_binding" | undefined }
 
 import { recordEvent } from '../_lib/events.js';
+import { isOwner } from '../_lib/auth.js';
 
 const ALLOWED_CLASSES = new Set(['first_time', 'returning']);
 
 export const onRequestPost = async ({ request, env }) => {
+  // Skip the owner's own pageviews — they're the one watching the
+  // analytics, so their browsing would otherwise inflate the numbers
+  // they're trying to read. Identification is via the signed owner
+  // cookie set by /api/auth-owner.
+  if (await isOwner(request, env)) {
+    return new Response(
+      JSON.stringify({ ok: true, recorded: false, reason: 'owner' }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  }
+
   let body;
   try {
     body = await request.json();

@@ -139,7 +139,7 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
       style={{
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        background: 'color-mix(in srgb, var(--bg) 60%, transparent)',
+        background: 'color-mix(in srgb, var(--surface) 60%, transparent)',
         animation: 'breakdownFadeIn 220ms ease-out',
       }}
       role="dialog"
@@ -155,7 +155,7 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
           // read. Subtle gradient keeps the editorial feel without sacrificing
           // legibility.
           background:
-            'linear-gradient(140deg, var(--bg), color-mix(in srgb, var(--bg) 92%, var(--text) 4%))',
+            'linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--text) 4%))',
           border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
           color: 'var(--text)',
           maxHeight: 'calc(100vh - 3rem)',
