@@ -26,16 +26,31 @@ export const onRequestGet = async ({ env }) => {
     // Total events ever (excluding bots)
     env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE is_bot = 0`).first(),
 
-    // Class breakdown since launch — first-time vs returning vs download.
-    // 'returning' is a reserved word in SQLite (used in RETURNING clause),
-    // so we alias to returningN to keep the parser happy.
+    // Class breakdown since launch — counted per VISITOR rather than per
+    // event-kind, so a download from Hong Kong (someone's only event)
+    // counts in BOTH 'firstTime' AND 'downloads'. A returning visitor who
+    // also downloaded counts in BOTH 'returning' AND 'downloads'.
+    //
+    // Mechanism: ROW_NUMBER() partitioned by ip_hash, ordered by ts. The
+    // first row for each ip_hash is that visitor's first appearance
+    // ('firstTime'); subsequent rows are returns ('returning').
+    // Downloads are a separate subset count.
+    //
+    // Math after this query: firstTime + returning = total non-bot events.
+    // downloads is an OVERLAPPING subset of those (same event row).
     env.DB.prepare(
-      `SELECT
+      `WITH ranked AS (
+         SELECT
+           kind,
+           ROW_NUMBER() OVER (PARTITION BY ip_hash ORDER BY ts ASC, id ASC) AS rn
+         FROM events
+         WHERE is_bot = 0
+       )
+       SELECT
          SUM(CASE WHEN kind = 'download' THEN 1 ELSE 0 END) AS downloads,
-         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'returning' THEN 1 ELSE 0 END) AS returningN,
-         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'first_time' THEN 1 ELSE 0 END) AS firstTime
-       FROM events
-       WHERE is_bot = 0`
+         SUM(CASE WHEN rn = 1 THEN 1 ELSE 0 END) AS firstTime,
+         SUM(CASE WHEN rn > 1 THEN 1 ELSE 0 END) AS returningN
+       FROM ranked`
     ).first(),
 
     // Distinct countries + continents seen since launch
