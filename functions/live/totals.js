@@ -15,6 +15,7 @@ export const onRequestGet = async ({ env }) => {
   // Run independent queries in parallel — D1 supports concurrent prepare/run.
   const [
     sinceLaunchRow,
+    sinceLaunchByClassRow,
     countriesContinentsRow,
     todayRow,
     topCountriesResult,
@@ -24,6 +25,16 @@ export const onRequestGet = async ({ env }) => {
   ] = await Promise.all([
     // Total events ever (excluding bots)
     env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE is_bot = 0`).first(),
+
+    // Class breakdown since launch — first-time vs returning vs download
+    env.DB.prepare(
+      `SELECT
+         SUM(CASE WHEN kind = 'download' THEN 1 ELSE 0 END) AS downloads,
+         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'returning' THEN 1 ELSE 0 END) AS returning,
+         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'first_time' THEN 1 ELSE 0 END) AS firstTime
+       FROM events
+       WHERE is_bot = 0`
+    ).first(),
 
     // Distinct countries + continents seen since launch
     env.DB.prepare(
@@ -82,6 +93,9 @@ export const onRequestGet = async ({ env }) => {
       total: sinceLaunchRow?.n || 0,
       countries: countriesContinentsRow?.countries || 0,
       continents: countriesContinentsRow?.continents || 0,
+      firstTime: sinceLaunchByClassRow?.firstTime || 0,
+      returning: sinceLaunchByClassRow?.returning || 0,
+      downloads: sinceLaunchByClassRow?.downloads || 0,
     },
     today: {
       visits: todayRow?.visits || 0,

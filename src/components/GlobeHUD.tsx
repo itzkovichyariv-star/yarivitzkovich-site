@@ -1,7 +1,14 @@
 import type { CSSProperties } from 'react';
 
 interface Totals {
-  sinceLaunch: { total: number; countries: number; continents: number };
+  sinceLaunch: {
+    total: number;
+    countries: number;
+    continents: number;
+    firstTime?: number;
+    returning?: number;
+    downloads?: number;
+  };
   today: { visits: number; downloads: number };
   topCountries: Array<{ country: string; country_name: string; n: number }>;
   topContinents: Array<{ continent: string; continent_name: string; n: number }>;
@@ -75,6 +82,18 @@ export default function GlobeHUD({ totals, activity }: Props) {
           <SubLine>
             {(since?.countries ?? 0)} countries · {(since?.continents ?? 0)} continents
           </SubLine>
+          {/* Class breakdown — visible only when totals endpoint provides
+              the new fields. Renders as one mono line with the same colour
+              dots used on the globe arcs (green / orange / wine). */}
+          {(since?.firstTime !== undefined || since?.returning !== undefined || since?.downloads !== undefined) && (
+            <div className="mt-3 font-mono text-[10px] uppercase tracking-widest opacity-75 leading-relaxed">
+              <ClassDot color="#5BC288" /> {since?.firstTime ?? 0} first-time
+              <span className="opacity-50"> · </span>
+              <ClassDot color="#FF9933" /> {since?.returning ?? 0} returning
+              <span className="opacity-50"> · </span>
+              <ClassDot color="#C9304E" /> {since?.downloads ?? 0} downloads
+            </div>
+          )}
         </div>
 
         <div style={panelStyle}>
@@ -165,6 +184,22 @@ export default function GlobeHUD({ totals, activity }: Props) {
       </div>
       )}
     </div>
+  );
+}
+
+function ClassDot({ color }: { color: string }) {
+  return (
+    <span
+      className="inline-block align-middle mr-1"
+      style={{
+        width: '7px',
+        height: '7px',
+        borderRadius: '50%',
+        background: color,
+        boxShadow: `0 0 4px ${color}`,
+      }}
+      aria-hidden="true"
+    />
   );
 }
 
