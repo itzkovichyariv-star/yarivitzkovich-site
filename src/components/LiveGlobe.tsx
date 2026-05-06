@@ -545,13 +545,11 @@ export default function LiveGlobe({ papers }: Props) {
         // never setPointerCapture.
         const camera = g.camera();
 
-        type Mode = 'rotate' | 'pan' | null;
-        let mode: Mode = null;
         let lastCx = 0;
         let lastCy = 0;
         // Track LATEST position for every active pointer. Centroid of the
-        // map drives motion — fixes two-finger pan (was previously only
-        // the first finger's motion) and "lift first finger first" jumps.
+        // map drives motion — robust to multi-touch and "lift first finger
+        // first" iOS quirks.
         const pointers = new Map<number, { x: number; y: number; type: string }>();
 
         const centroid = () => {
@@ -560,63 +558,48 @@ export default function LiveGlobe({ papers }: Props) {
           return n ? { x: sx / n, y: sy / n, n } : { x: 0, y: 0, n: 0 };
         };
 
-        // Rotation by direct spherical math, bypassing
-        // controls.setAzimuthalAngle / setPolarAngle — those method names
-        // are NOT on the OrbitControls instance bundled inside globe.gl
-        // 2.45.3 (TypeError: setAzimuthalAngle is not a function), only
-        // in newer standalone three.js builds. THREE.Spherical is core
-        // three.js and is always available.
-        const _sphericalTmp = new THREE.Spherical();
-        const _offsetTmp = new THREE.Vector3();
-        const rotateBy = (thetaDelta: number, phiDelta: number) => {
-          _offsetTmp.copy(camera.position).sub(controls.target);
-          _sphericalTmp.setFromVector3(_offsetTmp);
-          _sphericalTmp.theta -= thetaDelta;
-          _sphericalTmp.phi = Math.max(0.01, Math.min(Math.PI - 0.01,
-            _sphericalTmp.phi - phiDelta
-          ));
-          _offsetTmp.setFromSpherical(_sphericalTmp);
-          camera.position.copy(controls.target).add(_offsetTmp);
-          camera.lookAt(controls.target);
+        // ALL gesture handling now goes through globe.gl's public
+        // pointOfView({ lat, lng, altitude }, durationMs) API. This is
+        // the API globe.gl itself uses internally and is guaranteed to
+        // be present and stable across versions — unlike OrbitControls'
+        // setAzimuthalAngle/setPolarAngle/rotateLeft/rotateUp etc., whose
+        // availability depends on which three.js build is bundled inside
+        // globe.gl. After three days of patching API mismatches, this is
+        // simply the right level to drive the camera from.
+        //
+        // For a globe, "drag" = bring a different lat/lng to the centre
+        // of the canvas. There's no separate "pan" — panning a globe and
+        // rotating a globe are the same gesture, semantically. Drag
+        // horizontally to spin, drag vertically to tilt.
+        const moveByPixels = (dx: number, dy: number) => {
+          if (dx === 0 && dy === 0) return;
+          const pov = g.pointOfView();
+          const h = cnvEl.clientHeight || 1;
+          const w = cnvEl.clientWidth || 1;
+          // 180° per canvas height for latitude → drag bottom-to-top
+          // sweeps from south pole to north pole.
+          // 360° per canvas width for longitude → drag full canvas
+          // spins one half of the globe.
+          // Sign convention: dragging right brings the LEFT side of the
+          // globe into view (lng decreases — natural finger-follows feel).
+          const newLat = Math.max(-89, Math.min(89, pov.lat + 180 * dy / h));
+          const newLng = pov.lng - 360 * dx / w;
+          g.pointOfView({ lat: newLat, lng: newLng, altitude: pov.altitude }, 0);
         };
 
-        const panCamera = (deltaX: number, deltaY: number) => {
-          // Make sure camera matrix reflects the latest transform before
-          // we read column basis.
-          camera.updateMatrixWorld();
-          const targetDist = camera.position.distanceTo(controls.target);
-          const fovRad = ((camera as any).fov || 50) * (Math.PI / 180);
-          const worldPerPx = (2 * targetDist * Math.tan(fovRad / 2)) / (cnvEl.clientHeight || 1);
-          const xCol = new THREE.Vector3()
-            .setFromMatrixColumn(camera.matrixWorld, 0)
-            .multiplyScalar(-deltaX * worldPerPx);
-          const yCol = new THREE.Vector3()
-            .setFromMatrixColumn(camera.matrixWorld, 1)
-            .multiplyScalar( deltaY * worldPerPx);
-          const offset = xCol.add(yCol);
-          controls.target.add(offset);
-          camera.position.add(offset);
-          // CRITICAL: tell OrbitControls about the new state so its next
-          // update() call doesn't rebuild camera.position from the stale
-          // spherical coords (which would silently undo the pan and was
-          // the actual reason pan looked like nothing happened).
-          controls.update();
+        const zoomBy = (factor: number) => {
+          const pov = g.pointOfView();
+          const MIN_ALT = 1.6;
+          const MAX_ALT = 8;
+          const newAlt = Math.max(MIN_ALT, Math.min(MAX_ALT, pov.altitude * factor));
+          g.pointOfView({ lat: pov.lat, lng: pov.lng, altitude: newAlt }, 0);
         };
 
         const onDown = (e: PointerEvent) => {
           pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
           const c = centroid();
           lastCx = c.x; lastCy = c.y;
-          // Mode mapping per owner spec:
-          //   mouse        → click+drag = PAN (any button)
-          //   touch, 1     → drag = ROTATE
-          //   touch, 2+    → drag = PAN (also flips mid-gesture in onMove)
-          if (e.pointerType === 'mouse') {
-            mode = 'pan';
-          } else {
-            mode = pointers.size >= 2 ? 'pan' : 'rotate';
-          }
-          cnvEl.style.cursor = mode === 'pan' ? 'move' : 'grabbing';
+          cnvEl.style.cursor = 'grabbing';
           controls.autoRotate = false;
         };
 
@@ -625,46 +608,24 @@ export default function LiveGlobe({ papers }: Props) {
           pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
           const c = centroid();
           if (!c.n) return;
-
-          // If a touch user grew to 2 fingers mid-gesture, switch to pan.
-          if (e.pointerType === 'touch' && pointers.size >= 2 && mode === 'rotate') {
-            mode = 'pan';
-            cnvEl.style.cursor = 'move';
-          }
-
           const dx = c.x - lastCx;
           const dy = c.y - lastCy;
           lastCx = c.x; lastCy = c.y;
-          if (dx === 0 && dy === 0) return;
-
-          if (mode === 'rotate') {
-            const h = cnvEl.clientHeight || 1;
-            const azDelta = (2 * Math.PI * dx) / h;
-            const polDelta = (2 * Math.PI * dy) / h;
-            rotateBy(azDelta, polDelta);
-          } else if (mode === 'pan') {
-            panCamera(dx, dy);
-          }
+          moveByPixels(dx, dy);
         };
 
         const onUp = (e: PointerEvent) => {
           pointers.delete(e.pointerId);
           if (pointers.size === 0) {
-            mode = null;
             cnvEl.style.cursor = 'grab';
             if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
             dragTimerRef.current = window.setTimeout(() => {
               controls.autoRotate = true;
             }, 1500);
           } else {
-            // Recenter so we don't get a one-frame jump when one finger lifts.
+            // Recenter when a finger lifts so we don't get a frame jump.
             const c = centroid();
             lastCx = c.x; lastCy = c.y;
-            // Touch: if dropping from 2→1 fingers, fall back to rotate.
-            if (e.pointerType === 'touch' && pointers.size === 1 && mode === 'pan') {
-              mode = 'rotate';
-              cnvEl.style.cursor = 'grabbing';
-            }
           }
         };
 
@@ -677,24 +638,15 @@ export default function LiveGlobe({ papers }: Props) {
         const onWheel = (e: WheelEvent) => {
           e.preventDefault();
           if (e.ctrlKey || e.metaKey) {
-            // Zoom — adjust camera distance toward/away from target.
-            const offset = new THREE.Vector3()
-              .copy(camera.position)
-              .sub(controls.target);
-            const dollyScale = e.deltaY > 0 ? 1.08 : 0.92;
-            offset.multiplyScalar(dollyScale);
-            const dist = Math.max(MIN_DIST, Math.min(MAX_DIST, offset.length()));
-            offset.setLength(dist);
-            camera.position.copy(controls.target).add(offset);
+            // Zoom via altitude — Cmd/Ctrl+scroll on desktop, also matches
+            // what macOS trackpad pinch gestures fire natively.
+            zoomBy(e.deltaY > 0 ? 1.08 : 0.92);
           } else if (e.shiftKey) {
-            // Rotate vertically (polar). 0.01 instead of 0.005 because
-            // macOS trackpad scroll fires sub-pixel deltaY values.
-            // Negative phiDelta in rotateBy => phi += d, matching the
-            // previous setPolarAngle(cur + d) direction.
-            rotateBy(0, -e.deltaY * 0.01);
+            // Shift+scroll → vertical rotation (latitude).
+            moveByPixels(0, -e.deltaY * 0.6);
           } else {
-            // Rotate horizontally (azimuth). Same sign convention.
-            rotateBy(-e.deltaY * 0.01, 0);
+            // Plain scroll → horizontal rotation (longitude).
+            moveByPixels(-e.deltaY * 0.6, 0);
           }
         };
 
