@@ -217,13 +217,23 @@ export default function LiveGlobe({ papers }: Props) {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
-  // Track parent size for responsive globe canvas
+  // Track parent size for responsive globe canvas. The previous
+  // Math.max(320, ...) / Math.max(380, ...) floor was forcing globe.gl to
+  // render at sizes LARGER than the container on small phones — e.g.
+  // canvas div = 360px tall but globe.gl was told height=380, leaving
+  // the sphere drawn off-centre and clipped at the bottom by the parent's
+  // overflow:hidden. Use the actual measured size; the canvas wrapper's
+  // own clamp(360px, 80vmin, 580px) already enforces a sensible floor.
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
-      setSize({ w: Math.max(320, r.width), h: Math.max(380, r.height) });
+      // Round to integer pixels — fractional sizes can confuse three.js's
+      // pixel-ratio math and produce shimmering on subpixel boundaries.
+      const w = Math.round(r.width);
+      const h = Math.round(r.height);
+      if (w > 0 && h > 0) setSize({ w, h });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -367,12 +377,16 @@ export default function LiveGlobe({ papers }: Props) {
         .arcAltitude((d: any) => d.__altitude ?? 0.4)
         // arcStroke = 0 forces native gl.LINES (thin) which renders on
         // every engine. arcStroke > 0 triggers three.js Line2 (thick),
-        // which silently fails on iOS WebKit GPUs — symptom: numbers
-        // tally but NO arcs draw on Safari/Chrome on iPhone.
+        // which silently fails on iOS WebKit GPUs.
         .arcStroke((d: any) => (isWebKit ? 0 : d?.__stroke ?? 0.7))
-        .arcDashLength(0.6)
-        .arcDashGap(0.5)
-        .arcDashAnimateTime(1500)
+        // On WebKit, also draw arcs as SOLID lines (full dash, no gap,
+        // no animation). Three-globe's default dashed/animated arcs
+        // disappear entirely on some iOS Safari versions even with
+        // stroke=0; making the arc geometry a single solid segment
+        // bypasses whatever shader path is failing.
+        .arcDashLength(isWebKit ? 1 : 0.6)
+        .arcDashGap(isWebKit ? 0 : 0.5)
+        .arcDashAnimateTime(isWebKit ? 0 : 1500)
         .arcsTransitionDuration(0)
         // Pin styling for visit dots
         .pointAltitude(0.012)
