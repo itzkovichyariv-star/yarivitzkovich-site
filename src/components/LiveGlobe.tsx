@@ -899,11 +899,17 @@ export default function LiveGlobe({ papers }: Props) {
             title="Filter to events tied to a specific paper (downloads of its PDF + visits to its detail page)"
           >
             <option value="">All activity</option>
-            {papers.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                Only: {p.title.length > 50 ? p.title.slice(0, 47) + '…' : p.title}
-              </option>
-            ))}
+            {/* Only show papers that have actual activity — derived from the
+                current events feed instead of dumping the full 28-paper
+                publications list. */}
+            {Array.from(new Set(events.map((e) => e.paper_slug).filter(Boolean) as string[]))
+              .map((slug) => papers.find((p) => p.slug === slug) || { slug, title: slug.replace(/-/g, ' ') })
+              .sort((a, b) => a.title.localeCompare(b.title))
+              .map((p) => (
+                <option key={p.slug} value={p.slug}>
+                  Only: {p.title.length > 50 ? p.title.slice(0, 47) + '…' : p.title}
+                </option>
+              ))}
           </select>
         </div>
         {loading && <span className="opacity-50">Loading…</span>}
@@ -1039,7 +1045,7 @@ function PinCard({
       : 'First-time visit';
   return (
     <div
-      className="fixed bottom-6 right-6 max-w-sm p-5 z-40 cursor-pointer pin-card"
+      className="fixed left-3 right-3 bottom-3 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-sm p-4 sm:p-5 z-40 cursor-pointer pin-card"
       style={{
         // Frosted milky glass: heavy blur + saturation boost amplifies
         // whatever's behind the card, then a low-fill linear gradient gives
