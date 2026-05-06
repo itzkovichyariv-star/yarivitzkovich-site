@@ -558,11 +558,20 @@ export default function LiveGlobe({ papers }: Props) {
           const dy = e.clientY - lastY;
           lastX = e.clientX;
           lastY = e.clientY;
-          // Convert pixel delta to a rotation angle. The factor matches
-          // OrbitControls' default: 2π × delta / canvasHeight.
+          // Convert pixel delta to spherical-angle delta and apply to
+          // OrbitControls' public azimuthal/polar setters (rotateLeft /
+          // rotateUp aren't part of the public API across three.js
+          // versions, hence the earlier silent up-down failure).
           const h = cnvEl.clientHeight || 1;
-          controls.rotateLeft((2 * Math.PI * dx) / h);
-          controls.rotateUp((2 * Math.PI * dy) / h);
+          const azDelta = (2 * Math.PI * dx) / h;
+          const polDelta = (2 * Math.PI * dy) / h;
+          const eps = 0.01; // keep polar angle off the exact pole
+          const newAz = controls.getAzimuthalAngle() - azDelta;
+          const newPol = Math.max(eps, Math.min(Math.PI - eps,
+            controls.getPolarAngle() - polDelta
+          ));
+          controls.setAzimuthalAngle(newAz);
+          controls.setPolarAngle(newPol);
         };
         const onUp = (e: PointerEvent) => {
           if (e.pointerId !== activePointerId) return;
