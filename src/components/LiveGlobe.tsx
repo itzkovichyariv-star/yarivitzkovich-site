@@ -418,26 +418,32 @@ export default function LiveGlobe({ papers }: Props) {
       };
       setEarthTint(!!colors?.isDark);
 
-      // Configure controls — keep camera STATIC by default so arcs at the
-      // event hotspot (Israel) stay continuously visible. The previous
-      // 0.3 rpm rotation moved Israel onto the back of the sphere within
-      // ~50s, hiding every arc until the rotation came back around.
-      // The user can drag to spin manually whenever they want.
+      // Configure controls — gentle auto-rotation makes the labels'
+      // anchoring obvious (you can see them stick to their countries as
+      // the globe drifts) and gives the page subtle motion. Speed is
+      // dialed way down from the original 0.3 rpm so Israel doesn't fly
+      // off-screen and hide arcs — at 0.4 (≈ 1 orbit / 2.5 min) it
+      // takes ~75s to rotate Israel out of view, which is plenty of time
+      // to read the active arcs before they swing back around.
       const controls = g.controls();
-      controls.autoRotate = false;
-      controls.autoRotateSpeed = 0;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.4;
       controls.enableZoom = true;
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
 
-      // No auto-rotation to manage on drag start/end any more — controls.
-      // autoRotate stays false. We keep these handlers as no-ops in case
-      // we re-enable rotation later under a user toggle.
+      // Pause auto-rotation while the user is actively interacting with
+      // the globe; resume after 4 seconds of inactivity so they have time
+      // to read what they zoomed/rotated to before motion picks up again.
       const onStart = () => {
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
+        controls.autoRotate = false;
       };
       const onEnd = () => {
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
+        dragTimerRef.current = window.setTimeout(() => {
+          controls.autoRotate = true;
+        }, 4000);
       };
       controls.addEventListener('start', onStart);
       controls.addEventListener('end', onEnd);
@@ -451,12 +457,11 @@ export default function LiveGlobe({ papers }: Props) {
         TWO: (THREE as any).TOUCH.DOLLY_ROTATE,
       };
 
-      // (Auto-rotation intentionally disabled — see controls config above.)
-
       // Open looking at Israel (where our data origin lives) so the user
-      // sees arcs immediately instead of waiting for the rotation to swing
-      // Israel into view. Altitude 2.6 keeps the globe wide enough that
-      // continent context is intact and country labels stay invisible.
+      // sees arcs immediately even though the gentle auto-rotation will
+      // eventually swing Israel out of view. Altitude 2.6 keeps the globe
+      // wide enough that continent context is intact and country labels
+      // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
       // Apply touch-action: pan-y directly to the canvas globe.gl creates,
@@ -591,13 +596,15 @@ export default function LiveGlobe({ papers }: Props) {
     g.height(size.h);
   }, [size]);
 
-  // Honor reduced-motion live (kept for future re-enabling of rotation;
-  // currently a no-op since autoRotate is permanently off).
+  // Honor reduced-motion live: pause the gentle auto-rotation when the
+  // user has "reduce motion" enabled in their OS settings; otherwise let
+  // it drift. The drag-pause logic in the init effect sits on top of
+  // this — user interaction always takes precedence over both.
   useEffect(() => {
     const g = globeRef.current;
     if (!g) return;
     const c = g.controls();
-    c.autoRotate = false;
+    c.autoRotate = !reduced;
   }, [reduced]);
 
   // Build the label set: continents + every country (with __active=true for
