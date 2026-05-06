@@ -469,21 +469,12 @@ export default function LiveGlobe({ papers }: Props) {
       controls.maxDistance = MAX_DIST;
       controls.screenSpacePanning = true;
 
-      // Pause auto-rotation while the user is interacting, resume 1.5s
-      // after the last gesture. The previous 4s window let any stray
-      // touch keep rotation paused for the whole session on mobile.
-      const onStart = () => {
-        if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
-        controls.autoRotate = false;
-      };
-      const onEnd = () => {
-        if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
-        dragTimerRef.current = window.setTimeout(() => {
-          controls.autoRotate = true;
-        }, 1500);
-      };
-      controls.addEventListener('start', onStart);
-      controls.addEventListener('end', onEnd);
+      // (Pause-on-drag logic removed — was running alongside OrbitControls'
+      // own internal start/end handling and may have been suppressing the
+      // camera updates that normally accompany a drag. If we want a
+      // pause-on-interaction behaviour back later, it should be implemented
+      // by reading controls.target rather than mutating autoRotate flags
+      // mid-gesture.)
 
       // Use literal numeric constants instead of THREE.TOUCH.* enum
       // references so we don't depend on the bundled three.js version
