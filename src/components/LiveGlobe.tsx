@@ -482,18 +482,18 @@ export default function LiveGlobe({ papers }: Props) {
       // ~3 seconds while staying calm enough that Israel only swings off
       // for a manageable window before coming back around.
       const controls = g.controls();
-      // We own ALL input — rotate, pan, AND zoom — via custom pointer/wheel
-      // handlers below. OrbitControls' built-in pointer handlers were
-      // racing ours and "stealing" left-click drags as rotation, which
-      // is why pan via mutating target/position appeared not to work
-      // (it was working, then OC was rotating on top of it).
-      // controls.enabled stays true so update() still applies autoRotate
-      // each frame; the per-channel enableRotate/Pan/Zoom flags gate
-      // OrbitControls' pointer/wheel handlers, not its update logic.
+      // After three days of patching custom gesture handlers across two
+      // expert reviews, abandon them and trust globe.gl's built-in
+      // OrbitControls. Drag rotates, right-drag pans, wheel zooms — all
+      // handled internally. The setPointerCapture wrapper in the
+      // useEffect above keeps Safari from aborting the drag.
       controls.enabled = true;
-      controls.enableRotate = false;
-      controls.enableZoom = false;
-      controls.enablePan = false;
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.rotateSpeed = 1.0;
+      controls.panSpeed = 1.0;
+      controls.zoomSpeed = 1.0;
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.8;
       controls.minDistance = MIN_DIST;
@@ -524,152 +524,22 @@ export default function LiveGlobe({ papers }: Props) {
       // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
-      // touch-action: none on the canvas — we own all gestures inside.
-      // Cursor: grab via CSS so the canvas reads as draggable.
+      // Canvas styling: cursor + pointer-events explicit. Removed
+      // touch-action:none so the browser delivers gestures to OrbitControls
+      // the way the library expects. globe.gl handles drag/pan/wheel
+      // natively now — see the controls.* enable flags above.
       const cnv = containerRef.current?.querySelector('canvas');
       if (cnv) {
         const cnvEl = cnv as HTMLElement;
-        cnvEl.style.touchAction = 'none';
         cnvEl.style.cursor = 'grab';
         cnvEl.style.pointerEvents = 'auto';
-
-        // Custom drag handlers, bypassing globe.gl's OrbitControls pointer
-        // flow (which calls setPointerCapture and aborts on Safari).
-        // Two interactions:
-        //   - left-click / single-finger drag → ROTATE the globe (orbit
-        //     the camera around the globe centre via azimuth/polar)
-        //   - right-click / two-finger drag   → PAN the globe (translate
-        //     the camera + target sideways and up/down on screen)
-        // Both use OrbitControls' public API only (setAzimuthalAngle,
-        // setPolarAngle, controls.target / camera.position mutation),
-        // never setPointerCapture.
-        const camera = g.camera();
-
-        let lastCx = 0;
-        let lastCy = 0;
-        // Track LATEST position for every active pointer. Centroid of the
-        // map drives motion — robust to multi-touch and "lift first finger
-        // first" iOS quirks.
-        const pointers = new Map<number, { x: number; y: number; type: string }>();
-
-        const centroid = () => {
-          let sx = 0, sy = 0, n = 0;
-          pointers.forEach((p) => { sx += p.x; sy += p.y; n++; });
-          return n ? { x: sx / n, y: sy / n, n } : { x: 0, y: 0, n: 0 };
-        };
-
-        // ALL gesture handling now goes through globe.gl's public
-        // pointOfView({ lat, lng, altitude }, durationMs) API. This is
-        // the API globe.gl itself uses internally and is guaranteed to
-        // be present and stable across versions — unlike OrbitControls'
-        // setAzimuthalAngle/setPolarAngle/rotateLeft/rotateUp etc., whose
-        // availability depends on which three.js build is bundled inside
-        // globe.gl. After three days of patching API mismatches, this is
-        // simply the right level to drive the camera from.
-        //
-        // For a globe, "drag" = bring a different lat/lng to the centre
-        // of the canvas. There's no separate "pan" — panning a globe and
-        // rotating a globe are the same gesture, semantically. Drag
-        // horizontally to spin, drag vertically to tilt.
-        const moveByPixels = (dx: number, dy: number) => {
-          if (dx === 0 && dy === 0) return;
-          const pov = g.pointOfView();
-          const h = cnvEl.clientHeight || 1;
-          const w = cnvEl.clientWidth || 1;
-          // 180° per canvas height for latitude → drag bottom-to-top
-          // sweeps from south pole to north pole.
-          // 360° per canvas width for longitude → drag full canvas
-          // spins one half of the globe.
-          // Sign convention: dragging right brings the LEFT side of the
-          // globe into view (lng decreases — natural finger-follows feel).
-          const newLat = Math.max(-89, Math.min(89, pov.lat + 180 * dy / h));
-          const newLng = pov.lng - 360 * dx / w;
-          g.pointOfView({ lat: newLat, lng: newLng, altitude: pov.altitude }, 0);
-        };
-
-        const zoomBy = (factor: number) => {
-          const pov = g.pointOfView();
-          const MIN_ALT = 1.6;
-          const MAX_ALT = 8;
-          const newAlt = Math.max(MIN_ALT, Math.min(MAX_ALT, pov.altitude * factor));
-          g.pointOfView({ lat: pov.lat, lng: pov.lng, altitude: newAlt }, 0);
-        };
-
-        const onDown = (e: PointerEvent) => {
-          pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
-          const c = centroid();
-          lastCx = c.x; lastCy = c.y;
-          cnvEl.style.cursor = 'grabbing';
-          controls.autoRotate = false;
-        };
-
-        const onMove = (e: PointerEvent) => {
-          if (!pointers.has(e.pointerId)) return;
-          pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
-          const c = centroid();
-          if (!c.n) return;
-          const dx = c.x - lastCx;
-          const dy = c.y - lastCy;
-          lastCx = c.x; lastCy = c.y;
-          moveByPixels(dx, dy);
-        };
-
-        const onUp = (e: PointerEvent) => {
-          pointers.delete(e.pointerId);
-          if (pointers.size === 0) {
-            cnvEl.style.cursor = 'grab';
-            if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
-            dragTimerRef.current = window.setTimeout(() => {
-              controls.autoRotate = true;
-            }, 1500);
-          } else {
-            // Recenter when a finger lifts so we don't get a frame jump.
-            const c = centroid();
-            lastCx = c.x; lastCy = c.y;
-          }
-        };
-
-        // Desktop scroll wheel:
-        //   plain scroll  → rotate horizontally (azimuth)
-        //   shift + scroll → rotate vertically (polar)
-        //   Cmd/Ctrl + scroll → zoom
-        // (We disabled controls.enableZoom above so the default OrbitControls
-        // wheel handler doesn't compete with this.)
-        const onWheel = (e: WheelEvent) => {
-          e.preventDefault();
-          if (e.ctrlKey || e.metaKey) {
-            // Zoom via altitude — Cmd/Ctrl+scroll on desktop, also matches
-            // what macOS trackpad pinch gestures fire natively.
-            zoomBy(e.deltaY > 0 ? 1.08 : 0.92);
-          } else if (e.shiftKey) {
-            // Shift+scroll → vertical rotation (latitude).
-            moveByPixels(0, -e.deltaY * 0.6);
-          } else {
-            // Plain scroll → horizontal rotation (longitude).
-            moveByPixels(-e.deltaY * 0.6, 0);
-          }
-        };
-
-        // Suppress the desktop right-click context menu so right-drag
-        // panning isn't interrupted.
+        // Prevent right-click context menu so right-drag pan isn't
+        // interrupted by the browser's native menu.
         const onContextMenu = (e: Event) => e.preventDefault();
-
-        cnvEl.addEventListener('pointerdown', onDown);
         cnvEl.addEventListener('contextmenu', onContextMenu);
-        cnvEl.addEventListener('wheel', onWheel, { passive: false });
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
-        window.addEventListener('pointercancel', onUp);
-
-        const cleanupCustomDrag = () => {
-          cnvEl.removeEventListener('pointerdown', onDown);
+        (cnvEl as any).__cleanupCustomDrag = () => {
           cnvEl.removeEventListener('contextmenu', onContextMenu);
-          cnvEl.removeEventListener('wheel', onWheel);
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
-          window.removeEventListener('pointercancel', onUp);
         };
-        (cnvEl as any).__cleanupCustomDrag = cleanupCustomDrag;
       }
 
       // Three label tiers:
@@ -1061,9 +931,9 @@ export default function LiveGlobe({ papers }: Props) {
 
       let cancelled = false;
       const timers: number[] = [];
-      const STAGGER_MS = 1200;     // gap between event entrances (was 2200)
-      const CARD_AUTO_MS = 3500;   // how long an auto-card stays before fading (was 5000)
-      const LOOP_GAP_MS = 1500;    // breath between loops (was 2500)
+      const STAGGER_MS = 600;      // gap between event entrances
+      const CARD_AUTO_MS = 2500;   // how long an auto-card stays before fading
+      const LOOP_GAP_MS = 800;     // breath between loops
 
       const fireOneEvent = (e: EventRow) => {
         const cls = e.visitor_class as keyof typeof palette;
