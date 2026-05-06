@@ -40,9 +40,9 @@ interface Props {
   activity: Activity;
 }
 
-// Editorial-typography HUD — no boxed panels, just typography, whitespace,
-// and thin horizontal rules. Reads like a magazine sidebar rather than a
-// dashboard grid.
+// Dense editorial layout — masthead-style summary line, then a tight
+// 2-column grid for class breakdown + most recent, then top
+// countries/continents inline. No boxed cards. Information per pixel.
 
 export default function GlobeHUD({ totals, activity }: Props) {
   const since = totals?.sinceLaunch;
@@ -55,54 +55,64 @@ export default function GlobeHUD({ totals, activity }: Props) {
   const isSparse = (since?.total ?? 0) < SPARSE_THRESHOLD;
   const launchDate = totals?.launchTs ? new Date(totals.launchTs * 1000) : null;
   const launchDateLabel = launchDate
-    ? launchDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+    ? launchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     : null;
   const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
 
   return (
-    <div className="mt-12 space-y-10">
-      {/* ── Headline strip: Since launch is the lede ───────────────────── */}
-      <section>
-        <Kicker>Since launch{launchDateLabel ? ` · ${launchDateLabel}` : ''}</Kicker>
-        <div className="grid grid-cols-12 gap-x-6 gap-y-3 mt-3 items-baseline">
-          <div className="col-span-12 md:col-span-4">
-            <BigSerif>{(since?.total ?? 0).toLocaleString()}</BigSerif>
-            <SubLine>events · {since?.countries ?? 0} countries · {since?.continents ?? 0} continents</SubLine>
-          </div>
-          <div className="col-span-12 md:col-span-8">
-            {(since?.firstTime !== undefined || since?.returning !== undefined || since?.downloads !== undefined) && (
-              <div className="space-y-2 font-mono text-xs uppercase tracking-widest">
-                <ClassRow color="#5BC288" n={since?.firstTime ?? 0} label="first-time visits" />
-                <ClassRow color="#FF9933" n={since?.returning ?? 0} label="returning visits" />
-                <ClassRow color="#C9304E" n={since?.downloads ?? 0} label="downloads" />
-              </div>
-            )}
+    <div className="mt-10">
+      {/* ── Masthead: huge serif lede + dot-class ledger inline ───────── */}
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+        <div>
+          <Kicker>Since {launchDateLabel || 'launch'}</Kicker>
+          <div
+            className="font-display leading-none mt-0.5"
+            style={{
+              fontVariantNumeric: 'tabular-nums',
+              fontWeight: 300,
+              fontSize: 'clamp(3rem, 8vw, 5rem)',
+            }}
+          >
+            {(since?.total ?? 0).toLocaleString()}
           </div>
         </div>
-      </section>
 
-      <Rule />
-
-      {/* ── Today + Most recent, side-by-side as headlines ─────────────── */}
-      <section className="grid grid-cols-12 gap-x-6 gap-y-8">
-        <div className="col-span-12 md:col-span-5">
-          <Kicker>Today</Kicker>
-          <BigSerif>{(today?.visits ?? 0) + (today?.downloads ?? 0)}</BigSerif>
-          <SubLine>{today?.visits ?? 0} visits · {today?.downloads ?? 0} downloads</SubLine>
+        <div className="flex flex-col gap-y-1.5 font-mono text-xs uppercase tracking-widest">
+          <ClassRow color="#5BC288" n={since?.firstTime ?? 0} label="first-time" />
+          <ClassRow color="#FF9933" n={since?.returning ?? 0} label="returning" />
+          <ClassRow color="#C9304E" n={since?.downloads ?? 0} label="downloads" />
         </div>
-        <div className="col-span-12 md:col-span-7">
-          <Kicker>{recentIsStale ? 'Most recent (since launch)' : 'Most recent'}</Kicker>
+
+        <div className="ml-auto font-mono text-[11px] uppercase tracking-widest opacity-60 text-right">
+          <div>{since?.countries ?? 0} countries</div>
+          <div>{since?.continents ?? 0} continents</div>
+          <div className="opacity-65">
+            today · {(today?.visits ?? 0)} v · {(today?.downloads ?? 0)} d
+          </div>
+        </div>
+      </div>
+
+      {/* ── Hairline divider — gradient-faded edges so it doesn't read as a box ── */}
+      <Rule className="my-7" />
+
+      {/* ── Most recent + activity (current view) — flows inline ────── */}
+      <div className="flex flex-wrap items-start gap-x-10 gap-y-5">
+        <div className="min-w-0 flex-1">
+          <Kicker>{recentIsStale ? 'Most recent · since launch' : 'Most recent'}</Kicker>
           {recent ? (
             <>
-              <div className="font-display text-2xl md:text-3xl mt-2 leading-tight" style={{ fontWeight: 300 }}>
+              <div
+                className="font-display mt-1 leading-tight"
+                style={{ fontWeight: 300, fontSize: 'clamp(1.25rem, 3vw, 1.75rem)' }}
+              >
                 {[recent.city, recent.country_name].filter(Boolean).join(', ') || 'Unknown'}
+                <span className="opacity-50 font-mono text-xs ml-2 align-middle">
+                  · {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
+                </span>
               </div>
-              <SubLine>
-                {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
-              </SubLine>
               {recent.paper_title && (
-                <p className="font-display italic text-sm mt-2 opacity-80">
-                  {truncate(recent.paper_title, 80)}
+                <p className="font-display italic text-sm opacity-75 mt-1">
+                  {truncate(recent.paper_title, 90)}
                 </p>
               )}
             </>
@@ -110,45 +120,29 @@ export default function GlobeHUD({ totals, activity }: Props) {
             <SubLine>Awaiting first event…</SubLine>
           )}
         </div>
-      </section>
 
-      <Rule />
-
-      {/* ── Activity in current view ───────────────────────────────────── */}
-      <section>
-        <Kicker>Activity in current view</Kicker>
-        <div className="grid grid-cols-12 gap-x-6 mt-3 font-mono text-sm">
-          <div className="col-span-6 md:col-span-3">
-            <span className="opacity-60">visits</span>{' '}
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.visits}</span>
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <span className="opacity-60">first-time</span>{' '}
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.firstTime}</span>
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <span className="opacity-60">returning</span>{' '}
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.returning}</span>
-          </div>
-          <div className="col-span-6 md:col-span-3">
-            <span className="opacity-60">downloads</span>{' '}
-            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.downloads}</span>
+        <div className="font-mono text-xs uppercase tracking-widest opacity-65 text-right whitespace-nowrap">
+          <Kicker>In current view</Kicker>
+          <div className="mt-1">
+            <Tab>{activity.visits}</Tab> v
+            <span className="mx-1 opacity-30">·</span>
+            <Tab>{activity.downloads}</Tab> d
+            {activity.papersTouched > 0 && (
+              <span className="opacity-50 ml-2">· {activity.papersTouched} papers</span>
+            )}
           </div>
         </div>
-      </section>
+      </div>
 
+      {/* ── Bars (top continents | top countries) — only when there's enough data ── */}
       {!isSparse && (
         <>
-          <Rule />
-
-          {/* ── Top continents + countries (24h) ──────────────────────── */}
-          <section className="grid grid-cols-12 gap-x-6 gap-y-8">
-            <div className="col-span-12 md:col-span-5">
-              <Kicker>Top continents · last 24h</Kicker>
-              <div className="mt-3 space-y-2">
-                {(totals?.topContinents || []).length === 0 && (
-                  <SubLine>No data yet.</SubLine>
-                )}
+          <Rule className="my-7" />
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-x-10 gap-y-6">
+            <div className="md:col-span-5">
+              <Kicker>Top continents · 24h</Kicker>
+              <div className="mt-2 space-y-1.5">
+                {(totals?.topContinents || []).length === 0 && <SubLine>No data yet.</SubLine>}
                 {(totals?.topContinents || []).map((c) => (
                   <BarRow
                     key={c.continent}
@@ -159,12 +153,10 @@ export default function GlobeHUD({ totals, activity }: Props) {
                 ))}
               </div>
             </div>
-            <div className="col-span-12 md:col-span-7">
-              <Kicker>Top countries · last 24h</Kicker>
-              <div className="mt-3 space-y-2">
-                {(totals?.topCountries || []).length === 0 && (
-                  <SubLine>No data yet.</SubLine>
-                )}
+            <div className="md:col-span-7">
+              <Kicker>Top countries · 24h</Kicker>
+              <div className="mt-2 space-y-1.5">
+                {(totals?.topCountries || []).length === 0 && <SubLine>No data yet.</SubLine>}
                 {(totals?.topCountries || []).map((c) => (
                   <BarRow
                     key={c.country}
@@ -175,19 +167,19 @@ export default function GlobeHUD({ totals, activity }: Props) {
                 ))}
               </div>
             </div>
-          </section>
+          </div>
         </>
       )}
     </div>
   );
 }
 
-function Rule() {
-  // Editorial section break — single hairline at very low opacity, generous
-  // vertical rhythm via the parent's space-y-10.
+/* ─── Helpers ────────────────────────────────────────────────────────── */
+
+function Rule({ className = '' }: { className?: string }) {
   return (
     <hr
-      className="border-0"
+      className={`border-0 ${className}`}
       style={{
         height: '1px',
         background:
@@ -205,21 +197,6 @@ function Kicker({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BigSerif({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="font-display mt-1 leading-none"
-      style={{
-        fontVariantNumeric: 'tabular-nums',
-        fontWeight: 300,
-        fontSize: 'clamp(2.5rem, 6vw, 3.75rem)',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 function SubLine({ children }: { children: React.ReactNode }) {
   return (
     <div className="font-mono text-[11px] uppercase tracking-widest opacity-65 mt-1">
@@ -228,9 +205,17 @@ function SubLine({ children }: { children: React.ReactNode }) {
   );
 }
 
+function Tab({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="font-display text-base mr-0.5" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 400 }}>
+      {children}
+    </span>
+  );
+}
+
 function ClassRow({ color, n, label }: { color: string; n: number; label: string }) {
   return (
-    <div className="grid grid-cols-[16px_3rem_1fr] items-center gap-2">
+    <div className="flex items-center gap-2 whitespace-nowrap">
       <span
         aria-hidden="true"
         style={{
@@ -239,10 +224,13 @@ function ClassRow({ color, n, label }: { color: string; n: number; label: string
           borderRadius: '50%',
           background: color,
           boxShadow: `0 0 5px ${color}`,
-          justifySelf: 'center',
+          flexShrink: 0,
         }}
       />
-      <span style={{ fontVariantNumeric: 'tabular-nums' }} className="font-display text-base" data-class-count="">
+      <span
+        className="font-display text-base"
+        style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 400, minWidth: '2.5ch' }}
+      >
         {n}
       </span>
       <span className="opacity-65">{label}</span>
