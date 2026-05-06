@@ -218,28 +218,34 @@ export default function LiveGlobe({ papers }: Props) {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
-  // Defensive: globe.gl's bundled OrbitControls calls canvas.setPointerCapture()
-  // during pointerdown. On Safari (both macOS and iOS), under common pointer-state
-  // combinations the call throws "NotFoundError: The object can not be found here."
-  // and the drag handler bails — so the globe renders fine but never rotates by drag.
-  // Wrap setPointerCapture to swallow that specific error so the drag handler runs
-  // to completion. Restored on unmount so we don't pollute the prototype globally.
+  // Defensive: globe.gl's bundled OrbitControls calls
+  // canvas.setPointerCapture() AND canvas.releasePointerCapture() during
+  // drag handling. On Safari both can throw "NotFoundError" / "InvalidStateError"
+  // depending on pointer state, aborting the drag handler. Wrap both so the
+  // drag continues regardless. Pointer capture is just a "nice to have" —
+  // the drag tracker still receives pointermove without it.
   useEffect(() => {
     const proto = (window as any).Element?.prototype;
-    if (!proto || !proto.setPointerCapture) return;
-    const orig = proto.setPointerCapture;
-    proto.setPointerCapture = function (...args: any[]) {
-      try {
-        return orig.apply(this, args);
-      } catch (e: any) {
-        // NotFoundError, InvalidStateError — both safe to ignore here:
-        // the drag handler doesn't actually need pointer capture to track
-        // pointermove on the same element, just helpful for cross-element drags.
-        if (e?.name === 'NotFoundError' || e?.name === 'InvalidStateError') return;
-        throw e;
-      }
+    if (!proto) return;
+    const wrap = (name: string) => {
+      const orig = proto[name];
+      if (typeof orig !== 'function') return null;
+      proto[name] = function (...args: any[]) {
+        try {
+          return orig.apply(this, args);
+        } catch (e: any) {
+          if (e?.name === 'NotFoundError' || e?.name === 'InvalidStateError') return;
+          throw e;
+        }
+      };
+      return orig;
     };
-    return () => { proto.setPointerCapture = orig; };
+    const origSet = wrap('setPointerCapture');
+    const origRelease = wrap('releasePointerCapture');
+    return () => {
+      if (origSet) proto.setPointerCapture = origSet;
+      if (origRelease) proto.releasePointerCapture = origRelease;
+    };
   }, []);
 
   // Track parent size for responsive globe canvas. The previous
@@ -400,16 +406,14 @@ export default function LiveGlobe({ papers }: Props) {
         // stacking on top of each other (where only the topmost colour
         // would read). Each arc carries an __altitude in its data.
         .arcAltitude((d: any) => d.__altitude ?? 0.4)
-        // Uniform arc rendering across all browsers: a small non-zero
-        // stroke so Lines2 produces a visible thickness, plus solid
-        // (dashLength=1, dashGap=0) and no animation. This combination
-        // has the broadest WebGL implementation support — earlier
-        // configs that combined thick strokes with dashed/animated
-        // patterns silently failed on Safari (both macOS and iOS).
+        // Arcs animated again — earlier static config was a workaround
+        // for the Safari bug that turned out to be a setPointerCapture
+        // throw (now patched). dashLength=0.6 + dashGap=0.5 produces a
+        // running-line effect; 1500ms loop reads as a steady pulse.
         .arcStroke(0.5)
-        .arcDashLength(1)
-        .arcDashGap(0)
-        .arcDashAnimateTime(0)
+        .arcDashLength(0.6)
+        .arcDashGap(0.5)
+        .arcDashAnimateTime(1500)
         .arcsTransitionDuration(0)
         // Pin styling for visit dots
         .pointAltitude(0.012)
@@ -624,6 +628,16 @@ export default function LiveGlobe({ papers }: Props) {
       const breatheStart = performance.now();
       const breathe = () => {
         if (!alive) return;
+        // Explicit per-frame OrbitControls update — globe.gl normally
+        // calls this from its own render loop, but on Safari the loop
+        // appears to skip ticks once the page is interactive, leaving
+        // autoRotate frozen and dragged-rotation un-applied. Calling
+        // update() ourselves each frame is harmless if it's already
+        // being called (it's idempotent) and unblocks the Safari case.
+        try {
+          const c = g.controls?.();
+          if (c?.update) c.update();
+        } catch { /* ignore — controls may not be ready on first tick */ }
         if (!reduced) {
           const t = ((performance.now() - breatheStart) / 8000) % 1;
           const s = Math.sin(t * 2 * Math.PI);
