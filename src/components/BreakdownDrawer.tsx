@@ -287,20 +287,23 @@ function Column({
 function EventRow({ event, papers }: { event: DetailEvent; papers: PaperOption[] }) {
   const place = [event.city, event.country_name].filter(Boolean).join(', ');
   const continent = event.continent_name;
+  const isDownload = event.kind === 'download';
 
-  // Resolve paper title — fall back to the publications list if the event
-  // row was written before P1 stored titles at write time (early download
-  // events have paper_title === null).
-  const resolvedTitle =
-    event.paper_title ||
-    (event.paper_slug ? papers.find((p) => p.slug === event.paper_slug)?.title : null) ||
-    null;
+  // Paper citation only renders under DOWNLOAD rows — a visit is just
+  // an entry to the site (the paper context belongs to its download).
+  // Resolve via the publications list so early download events whose
+  // paper_title was null still render their title here.
+  const downloadTitle = isDownload
+    ? event.paper_title ||
+      (event.paper_slug ? papers.find((p) => p.slug === event.paper_slug)?.title : null)
+    : null;
 
-  // Any event tied to a paper (download, paper-detail visit, or a
-  // synthesized first-time visit from a PDF deep-link) should display
-  // the paper citation — not the raw /pdfs/...pdf or /publications/...
-  // path. Visits to other pages (like /live or /) keep the page_path.
-  const isPaperEvent = !!event.paper_slug;
+  // For visits, show page_path so we know what they hit — but hide the
+  // /pdfs/<slug>.pdf paths that come from synthesized first-time visits,
+  // since those are an internal artifact (the matching download row in
+  // the next column already carries the paper info).
+  const showPagePath =
+    !isDownload && event.page_path && !event.page_path.startsWith('/pdfs/');
 
   return (
     <div className="py-3 border-b border-current border-opacity-5" style={{ borderColor: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
@@ -309,15 +312,15 @@ function EventRow({ event, papers }: { event: DetailEvent; papers: PaperOption[]
         {continent && <>{continent} · </>}
         {timeAgo(event.ts)}
       </div>
-      {isPaperEvent && resolvedTitle && event.paper_slug && (
+      {isDownload && downloadTitle && event.paper_slug && (
         <a
           href={`/publications/${event.paper_slug}`}
           className="block mt-1 font-display text-xs italic underline opacity-80 hover:opacity-100"
         >
-          {truncate(resolvedTitle, 80)}
+          {truncate(downloadTitle, 80)}
         </a>
       )}
-      {!isPaperEvent && event.kind === 'visit' && event.page_path && (
+      {showPagePath && event.page_path && (
         <div className="mt-1 font-mono text-[11px] opacity-65">{event.page_path}</div>
       )}
     </div>
