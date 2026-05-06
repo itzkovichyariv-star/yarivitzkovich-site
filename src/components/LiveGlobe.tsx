@@ -682,14 +682,13 @@ export default function LiveGlobe({ papers }: Props) {
         ? colorForPaper(e.paper_slug)
         : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
 
-      // Per-arc altitude — separated into THREE BANDS by class so each
-      // tier renders at its own height and the green/orange visit arcs
-      // aren't visually buried under the wine downloads:
-      //   first-time visit  → low band  (0.30..0.40)
-      //   returning visit   → mid band  (0.45..0.55)
-      //   download          → high band (0.62..0.78)
-      // Plus a small per-arc fan offset so multiple arcs to the same city
-      // separate into a bouquet rather than stacking.
+      // Per-arc altitude — three bands by class, each shifted UP from
+      // the previous draft so even the "low" tier is a clearly-visible
+      // fountain rather than a pinprick on the surface. Local Israel
+      // arcs at altitude 0.30 were too short to read on a phone.
+      //   first-time visit  → 0.52  (low)
+      //   returning visit   → 0.66  (mid)
+      //   download          → 0.80  (high)
       const lat1 = (ARIEL_LAT * Math.PI) / 180;
       const lat2 = (Number(e.lat) * Math.PI) / 180;
       const dLat = ((Number(e.lat) - ARIEL_LAT) * Math.PI) / 180;
@@ -697,10 +696,9 @@ export default function LiveGlobe({ papers }: Props) {
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
       const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distNorm = Math.min(1, distRad / Math.PI);
-      // Distance compensation: short arcs in any band still need extra lift
-      const distLift = (1 - distNorm) * 0.06;
+      const distLift = (1 - distNorm) * 0.04;
       const fanOffset = (idx % 4) * 0.022;
-      const classBase = isDownload ? 0.62 : isReturning ? 0.45 : 0.30;
+      const classBase = isDownload ? 0.80 : isReturning ? 0.66 : 0.52;
       const altitude = classBase + distLift + fanOffset;
 
       // Stroke + alpha hierarchy. Visit arcs get THICKER strokes than
