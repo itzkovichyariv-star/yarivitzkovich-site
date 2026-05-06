@@ -28,9 +28,18 @@ interface Counts {
   bots: number;
 }
 
+interface PaperOption {
+  slug: string;
+  title: string;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Publications list used to resolve paper titles when an event row was
+      written before P1 paper-title lookup, or to render a citation under
+      first-time visits triggered by a PDF deep-link. */
+  papers: PaperOption[];
 }
 
 type RangeKey = '24h' | '7d' | '30d' | '1y' | 'all';
@@ -47,7 +56,7 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
 // tied to the arcs on the globe. (Single source of truth in globePalette.)
 const CLASS_COLORS = ARC_COLORS;
 
-export default function BreakdownDrawer({ open, onClose }: Props) {
+export default function BreakdownDrawer({ open, onClose, papers }: Props) {
   const [range, setRange] = useState<RangeKey>('7d');
   const [events, setEvents] = useState<DetailEvent[]>([]);
   const [counts, setCounts] = useState<Counts>({ firstTime: 0, returning: 0, downloads: 0, bots: 0 });
@@ -205,18 +214,21 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
             count={counts.firstTime}
             color={CLASS_COLORS.first_time}
             events={groups.fresh}
+            papers={papers}
           />
           <Column
             title="Returning visits"
             count={counts.returning}
             color={CLASS_COLORS.returning}
             events={groups.ret}
+            papers={papers}
           />
           <Column
             title="Downloads"
             count={counts.downloads}
             color={CLASS_COLORS.download}
             events={groups.dl}
+            papers={papers}
           />
         </div>
 
@@ -235,11 +247,13 @@ function Column({
   count,
   color,
   events,
+  papers,
 }: {
   title: string;
   count: number;
   color: string;
   events: DetailEvent[];
+  papers: PaperOption[];
 }) {
   return (
     <div>
@@ -263,16 +277,31 @@ function Column({
           <p className="font-mono text-xs opacity-40 py-3">No events in range.</p>
         )}
         {events.map((e) => (
-          <EventRow key={e.id} event={e} />
+          <EventRow key={e.id} event={e} papers={papers} />
         ))}
       </div>
     </div>
   );
 }
 
-function EventRow({ event }: { event: DetailEvent }) {
+function EventRow({ event, papers }: { event: DetailEvent; papers: PaperOption[] }) {
   const place = [event.city, event.country_name].filter(Boolean).join(', ');
   const continent = event.continent_name;
+
+  // Resolve paper title — fall back to the publications list if the event
+  // row was written before P1 stored titles at write time (early download
+  // events have paper_title === null).
+  const resolvedTitle =
+    event.paper_title ||
+    (event.paper_slug ? papers.find((p) => p.slug === event.paper_slug)?.title : null) ||
+    null;
+
+  // Any event tied to a paper (download, paper-detail visit, or a
+  // synthesized first-time visit from a PDF deep-link) should display
+  // the paper citation — not the raw /pdfs/...pdf or /publications/...
+  // path. Visits to other pages (like /live or /) keep the page_path.
+  const isPaperEvent = !!event.paper_slug;
+
   return (
     <div className="py-3 border-b border-current border-opacity-5" style={{ borderColor: 'color-mix(in srgb, var(--text) 8%, transparent)' }}>
       <div className="font-display text-sm leading-tight">{place || 'Unknown'}</div>
@@ -280,15 +309,15 @@ function EventRow({ event }: { event: DetailEvent }) {
         {continent && <>{continent} · </>}
         {timeAgo(event.ts)}
       </div>
-      {event.kind === 'download' && event.paper_title && event.paper_slug && (
+      {isPaperEvent && resolvedTitle && event.paper_slug && (
         <a
           href={`/publications/${event.paper_slug}`}
           className="block mt-1 font-display text-xs italic underline opacity-80 hover:opacity-100"
         >
-          {truncate(event.paper_title, 80)}
+          {truncate(resolvedTitle, 80)}
         </a>
       )}
-      {event.kind === 'visit' && event.page_path && (
+      {!isPaperEvent && event.kind === 'visit' && event.page_path && (
         <div className="mt-1 font-mono text-[11px] opacity-65">{event.page_path}</div>
       )}
     </div>
@@ -300,9 +329,16 @@ function timeAgo(unix: number): string {
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
-  if (diff < 30 * 86400) return `${Math.floor(diff / 86400)} d ago`;
-  if (diff < 365 * 86400) return `${Math.floor(diff / (30 * 86400))} mo ago`;
-  return `${Math.floor(diff / (365 * 86400))} y ago`;
+  // After 24 hours, "5 d ago" / "2 mo ago" / "1 y ago" carry less
+  // information than the actual date. Switch to a calendar date —
+  // omit the year when the event is in the current year.
+  const date = new Date(unix * 1000);
+  const now = new Date();
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 function truncate(s: string, max: number): string {

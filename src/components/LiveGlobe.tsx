@@ -1021,7 +1021,7 @@ export default function LiveGlobe({ papers }: Props) {
       )}
 
       {isOwner && (
-        <BreakdownDrawer open={isDrawerOpen} onClose={() => setDrawerOpen(false)} />
+        <BreakdownDrawer open={isDrawerOpen} onClose={() => setDrawerOpen(false)} papers={papers} />
       )}
     </div>
   );
@@ -1201,7 +1201,14 @@ function timeAgo(unix: number): string {
   if (diff < 60) return `${diff}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
-  return `${Math.floor(diff / 86400)} d ago`;
+  // After 24h, switch to a calendar date.
+  const date = new Date(unix * 1000);
+  const now = new Date();
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 // Crude centroid of a Polygon / MultiPolygon — average of the outer-ring

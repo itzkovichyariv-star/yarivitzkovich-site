@@ -302,7 +302,15 @@ function timeAgoShort(seconds: number): string {
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-  return `${Math.floor(s / 86400)} d ago`;
+  // After 24h, switch to a real date — relative ("5 d ago") carries
+  // less information than "5 May" once you're past a day.
+  const date = new Date((Date.now() / 1000 - s) * 1000);
+  const now = new Date();
+  return date.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 function truncate(s: string, max: number): string {
