@@ -136,9 +136,15 @@ const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; ln
 // Country labels only appear when the user has actively zoomed in close —
 // otherwise 190 names render at once and the page becomes unreadable.
 // Continent labels stay at low opacity always (they help orient at first glance).
-const ZOOM_NEAR = 195;   // country labels at peak
-const ZOOM_FAR  = 235;   // country labels start to appear here
-const MIN_DIST  = 195;   // can't zoom closer than this — prevents texture pixelation
+//
+// MIN_DIST raised from 195 → 260 so users can't pinch-zoom the sphere
+// large enough to spill its atmosphere onto the HUD/text below the canvas.
+// 260 keeps the sphere inside ~80% of the canvas at peak zoom regardless
+// of screen size — text and globe stay visually decoupled without manual
+// per-device tuning.
+const ZOOM_NEAR = 260;   // country labels at peak
+const ZOOM_FAR  = 320;   // country labels start to appear here
+const MIN_DIST  = 260;   // closest pinch-zoom — globe stays inside its canvas
 const MAX_DIST  = 800;
 
 export default function LiveGlobe({ papers }: Props) {
@@ -959,20 +965,23 @@ export default function LiveGlobe({ papers }: Props) {
           below already shows the three colours alongside the actual counts,
           so there's no need for two legends on the same page.) */}
 
-      {/* Globe canvas — touch-action: pan-y lets the browser pass single-
-          finger vertical swipes to the page so the user can scroll past
-          the globe instead of getting trapped inside it. overflow-hidden
-          clips the atmosphere glow so it can't bleed onto the HUD when
-          the globe is interactively zoomed. */}
+      {/* Globe canvas — sized off vmin (smaller of viewport width/height)
+          so the canvas is roughly square on every device without per-
+          breakpoint tuning. Combined with MIN_DIST=260 on the camera, the
+          sphere always sits inside ~80% of the canvas; the atmosphere can
+          never bleed onto the HUD/text below regardless of pinch-zoom or
+          orientation. touch-action: pan-y lets single-finger vertical
+          swipes scroll the page through the globe area on mobile. */}
       <div
         ref={containerRef}
-        className="w-full overflow-hidden mb-12 md:mb-10"
+        className="w-full overflow-hidden mb-10 md:mb-8"
         style={{
-          // Globe height — shorter on phones so the HUD/text below is
-          // never visually run-over by the canvas or its atmosphere glow.
-          // Using clamp lets it grow gracefully on tablets while staying
-          // restrained on small screens.
-          height: 'clamp(360px, 48vh, 580px)',
+          // 85vmin: ~85% of the smaller viewport dimension → square-ish.
+          // 70vh: prevents super-tall globes on portrait tablets where
+          //       vmin would otherwise grow past comfortable screen share.
+          // 580px: hard cap on large desktops so the canvas doesn't
+          //        dominate the editorial layout.
+          height: 'min(85vmin, 70vh, 580px)',
           touchAction: 'pan-y',
         }}
         aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}

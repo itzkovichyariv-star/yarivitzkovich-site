@@ -149,10 +149,13 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
         ref={panelRef}
         className="mx-auto my-6 w-full max-w-6xl px-6 md:px-10 py-8 overflow-y-auto"
         style={{
-          backdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(170%) brightness(106%)',
+          // Fully opaque panel — the WebGL globe behind doesn't blur cleanly
+          // through backdrop-filter on Safari, so a translucent panel let
+          // download arcs bleed through and made the breakdown text hard to
+          // read. Subtle gradient keeps the editorial feel without sacrificing
+          // legibility.
           background:
-            'linear-gradient(140deg, color-mix(in srgb, var(--bg) 28%, transparent), color-mix(in srgb, var(--bg) 48%, transparent))',
+            'linear-gradient(140deg, var(--bg), color-mix(in srgb, var(--bg) 92%, var(--text) 4%))',
           border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
           color: 'var(--text)',
           maxHeight: 'calc(100vh - 3rem)',
