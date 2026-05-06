@@ -1,3 +1,5 @@
+import { ARC_COLORS } from '../lib/globePalette';
+
 interface Totals {
   sinceLaunch: {
     total: number;
@@ -68,9 +70,9 @@ export default function GlobeHUD({ totals, activity }: Props) {
           events
         </span>
         <Sep />
-        <Pair color="#22DD66" n={since?.firstTime ?? 0} label="first" />
-        <Pair color="#FFA200" n={since?.returning ?? 0} label="ret" />
-        <Pair color="#C9304E" n={since?.downloads ?? 0} label="dl" />
+        <Pair color={ARC_COLORS.first_time} n={since?.firstTime ?? 0} label="first" />
+        <Pair color={ARC_COLORS.returning}  n={since?.returning ?? 0} label="ret" />
+        <Pair color={ARC_COLORS.download}   n={since?.downloads ?? 0} label="dl" />
         <Sep />
         <span className="opacity-65">{since?.countries ?? 0} countries · {since?.continents ?? 0} cont</span>
         <Sep />

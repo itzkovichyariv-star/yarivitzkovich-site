@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ARC_COLORS } from '../lib/globePalette';
 
 interface DetailEvent {
   id: number;
@@ -43,12 +44,8 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
 ];
 
 // Same colors as the legend in LiveGlobe — keeps the drawer visually
-// tied to the arcs on the globe.
-const CLASS_COLORS = {
-  first_time: '#7DB87E',
-  returning:  '#DC8B4F',
-  download:   '#C9304E',
-} as const;
+// tied to the arcs on the globe. (Single source of truth in globePalette.)
+const CLASS_COLORS = ARC_COLORS;
 
 export default function BreakdownDrawer({ open, onClose }: Props) {
   const [range, setRange] = useState<RangeKey>('7d');
@@ -139,7 +136,7 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
       style={{
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        background: 'color-mix(in srgb, var(--surface) 60%, transparent)',
+        background: 'color-mix(in srgb, var(--surface) 78%, transparent)',
         animation: 'breakdownFadeIn 220ms ease-out',
       }}
       role="dialog"
@@ -147,7 +144,7 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
     >
       <div
         ref={panelRef}
-        className="mx-auto my-6 w-full max-w-6xl px-6 md:px-10 py-8 overflow-y-auto"
+        className="mx-auto my-6 w-full max-w-6xl px-6 md:px-10 py-8 overflow-y-auto rounded-lg md:rounded-xl"
         style={{
           // Fully opaque panel — the WebGL globe behind doesn't blur cleanly
           // through backdrop-filter on Safari, so a translucent panel let
@@ -158,7 +155,9 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
             'linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--text) 4%))',
           border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
           color: 'var(--text)',
-          maxHeight: 'calc(100vh - 3rem)',
+          // 100dvh follows the iOS Safari URL bar collapse — 100vh would
+          // hide the bottom of the panel under the dynamic toolbar.
+          maxHeight: 'calc(100dvh - 3rem)',
           boxShadow:
             '0 18px 48px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.20)',
           animation: 'breakdownPanelIn 320ms cubic-bezier(0.22, 1, 0.36, 1)',

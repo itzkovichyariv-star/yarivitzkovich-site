@@ -99,6 +99,18 @@ a {
   background-size: 3px 3px;
 }
 
+/* Body padding pushed by the live-globe pin card so the HUD/text below
+   the globe stays scrollable past the fixed-bottom card on phones.
+   Disabled on ≥sm where the card is small and right-aligned and doesn't
+   span the viewport. Eased so the layout doesn't snap on mount. */
+body.pin-card-open {
+  padding-bottom: 220px;
+  transition: padding-bottom 240ms ease-out;
+}
+@media (min-width: 640px) {
+  body.pin-card-open { padding-bottom: 0; }
+}
+
 .fade-up {
   opacity: 0;
   transform: translateY(12px);

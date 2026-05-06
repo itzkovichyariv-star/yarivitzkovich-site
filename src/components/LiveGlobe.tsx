@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PIN_STYLES, withAlpha, type VisitorClass } from '../lib/globePalette';
+import { PIN_STYLES, withAlpha, ARC_COLORS, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
 import BreakdownDrawer from './BreakdownDrawer';
 
@@ -71,13 +71,12 @@ const ARIEL_LAT = 32.103;
 const ARIEL_LNG = 35.211;
 const ARIEL_LABEL = 'Ariel University, Israel';
 
-// Fixed colors for visit-class arcs (download arcs use the per-paper hash).
-// Pumped bright on purpose — the satellite earth is busy, and the wine
-// downloads are already saturated, so visits need to be near-neon to read
-// at all on a phone screen.
+// Visit-arc colors imported from the shared palette so the HUD legend,
+// drawer columns, and on-globe arcs all reference the same hex values.
+// Download arcs use the per-paper hash (PAPER_HUES) for variation.
 const VISIT_COLORS = {
-  first_time: '#22DD66', // near-neon green
-  returning:  '#FFA200', // pure orange
+  first_time: ARC_COLORS.first_time,
+  returning:  ARC_COLORS.returning,
 } as const;
 
 // Download arcs are all VIVID WINE — saturated variations on the site's
@@ -907,35 +906,45 @@ export default function LiveGlobe({ papers }: Props) {
 
   return (
     <div className="relative w-full">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mb-8 font-mono text-xs uppercase tracking-widest text-soft">
-        <div className="flex items-center gap-3">
+      {/* Filter bar — stacks into 2 clean rows on mobile (Range row, then
+          Filter row with Details right-aligned), single row on ≥sm. Tap
+          targets bumped to ~36px tall via py-1.5/px-2 for WCAG 44px. */}
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-y-3 sm:gap-y-3 sm:gap-x-6 mb-8 font-mono text-xs uppercase tracking-widest text-soft">
+        <div className="flex items-center gap-3 flex-wrap">
           <span className="opacity-60">Range</span>
           {RANGE_LABELS.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setRange(key)}
-              className="hover:opacity-100 transition-opacity"
-              style={{ opacity: range === key ? 1 : 0.55, borderBottom: range === key ? '1px solid currentColor' : '1px solid transparent', paddingBottom: '2px' }}
+              className="hover:opacity-100 transition-opacity py-1.5 px-2 -mx-1"
+              style={{
+                opacity: range === key ? 1 : 0.55,
+                borderBottom: range === key ? '2px solid currentColor' : '2px solid transparent',
+              }}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
           <span className="opacity-60">Filter</span>
           <select
             value={paper}
             onChange={(e) => setPaper(e.target.value)}
-            className="bg-transparent border-b border-current border-opacity-40 font-mono text-xs uppercase tracking-widest pr-6 py-1 hover:border-opacity-100 transition"
-            style={{ color: 'inherit' }}
+            className="appearance-none bg-transparent border-b-2 border-current border-opacity-40 font-mono text-xs uppercase tracking-widest pr-6 py-1.5 hover:border-opacity-100 transition cursor-pointer"
+            style={{
+              color: 'inherit',
+              // Inline custom caret (down chevron) so iOS Safari doesn't
+              // render the default grey-pill native select.
+              backgroundImage:
+                "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='currentColor' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 4px center',
+            }}
             title="Filter to events tied to a specific paper (downloads of its PDF + visits to its detail page)"
           >
             <option value="">All activity</option>
-            {/* Only show papers that have actual activity — derived from the
-                current events feed instead of dumping the full 28-paper
-                publications list. */}
             {Array.from(new Set(events.map((e) => e.paper_slug).filter(Boolean) as string[]))
               .map((slug) => papers.find((p) => p.slug === slug) || { slug, title: slug.replace(/-/g, ' ') })
               .sort((a, b) => a.title.localeCompare(b.title))
@@ -945,20 +954,20 @@ export default function LiveGlobe({ papers }: Props) {
                 </option>
               ))}
           </select>
+          {loading && <span className="opacity-50">Loading…</span>}
+          {isOwner && (
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(true)}
+              className="ml-auto sm:ml-auto inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2 -mr-2"
+              style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
+              title="Owner: open the detailed activity breakdown"
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+              Details ↗
+            </button>
+          )}
         </div>
-        {loading && <span className="opacity-50">Loading…</span>}
-        {isOwner && (
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="ml-auto inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity"
-            style={{ opacity: 0.85, borderBottom: '1px solid currentColor', paddingBottom: '2px' }}
-            title="Owner: open the detailed activity breakdown"
-          >
-            <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
-            Details ↗
-          </button>
-        )}
       </div>
 
       {/* (The above-globe legend was removed — the HUD's class breakdown
@@ -976,12 +985,14 @@ export default function LiveGlobe({ papers }: Props) {
         ref={containerRef}
         className="w-full overflow-hidden mb-10 md:mb-8"
         style={{
-          // 85vmin: ~85% of the smaller viewport dimension → square-ish.
-          // 70vh: prevents super-tall globes on portrait tablets where
-          //       vmin would otherwise grow past comfortable screen share.
-          // 580px: hard cap on large desktops so the canvas doesn't
-          //        dominate the editorial layout.
-          height: 'min(85vmin, 70vh, 580px)',
+          // 95vmin: ~95% of the smaller viewport dimension. On a 390×844
+          //         portrait phone vmin = 390, so canvas ≈ 370px high —
+          //         hugs the sphere with no empty WebGL bands above/below.
+          // 60vh:   prevents super-tall canvas on portrait tablets where
+          //         vmin would otherwise dominate.
+          // 580px:  hard cap on desktops so the canvas doesn't dominate
+          //         the editorial layout.
+          height: 'min(95vmin, 60vh, 580px)',
           touchAction: 'pan-y',
         }}
         aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}
@@ -1081,6 +1092,17 @@ function PinCard({
     : isReturning
       ? 'Returning visit'
       : 'First-time visit';
+
+  // While the pin card is mounted, add a body class that adds bottom
+  // padding on mobile — the card sits at the bottom of the viewport and
+  // would otherwise hide the HUD/text below the globe even when the user
+  // scrolls. Removed on unmount. Desktop ignores this class because the
+  // card is small and right-aligned at sm: breakpoint and above.
+  useEffect(() => {
+    document.body.classList.add('pin-card-open');
+    return () => document.body.classList.remove('pin-card-open');
+  }, []);
+
   return (
     <div
       className="fixed left-3 right-3 bottom-3 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-sm p-4 sm:p-5 z-40 cursor-pointer pin-card"

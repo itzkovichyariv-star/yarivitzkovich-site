@@ -61,3 +61,22 @@ export function withAlpha(hex: string, alpha: number): string {
 
 /** Pin classes ordered by hierarchy (cool → warm → hot). */
 export const VISITOR_CLASSES: VisitorClass[] = ['first_time', 'returning', 'downloader'];
+
+/**
+ * Single source of truth for the three on-globe arc colors.
+ *
+ * Imported by LiveGlobe (arc rendering), GlobeHUD (the legend dots), the
+ * BreakdownDrawer (column headers), and the live page intro copy. Keeping
+ * one definition prevents the green/orange in the drawer from drifting
+ * away from the green/orange on the globe — which was happening before:
+ * three different greens, two different oranges, one consistent wine.
+ *
+ * The wine for downloads is the brand maroon at full saturation; visit
+ * arcs run brighter (near-neon) on purpose so they read against the busy
+ * satellite earth at small sizes.
+ */
+export const ARC_COLORS = {
+  first_time: '#22DD66', // near-neon green — visits, low altitude band
+  returning:  '#FFA200', // pure orange — return visits, mid band
+  download:   '#C9304E', // vivid wine — primary download color (PAPER_HUES[0])
+} as const;
