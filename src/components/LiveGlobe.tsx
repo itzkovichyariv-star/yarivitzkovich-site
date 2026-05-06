@@ -27,10 +27,18 @@ interface EventRow {
 }
 
 interface TotalsResponse {
-  sinceLaunch: { total: number; countries: number; continents: number };
+  sinceLaunch: {
+    total: number;
+    countries: number;
+    continents: number;
+    firstTime?: number;
+    returning?: number;
+    downloads?: number;
+  };
   today: { visits: number; downloads: number };
   topCountries: Array<{ country: string; country_name: string; n: number }>;
   topContinents: Array<{ continent: string; continent_name: string; n: number }>;
+  topPapers: Array<{ paper_slug: string; paper_title: string | null; n: number }>;
   mostRecent: EventRow | null;
   launchTs: number | null;
   serverNow: number;

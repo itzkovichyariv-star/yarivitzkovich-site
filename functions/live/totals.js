@@ -20,6 +20,7 @@ export const onRequestGet = async ({ env }) => {
     todayRow,
     topCountriesResult,
     topContinentsResult,
+    topPapersResult,
     mostRecentRow,
     launchTsRow,
   ] = await Promise.all([
@@ -79,6 +80,21 @@ export const onRequestGet = async ({ env }) => {
        LIMIT 7`
     ).bind(last24h).all(),
 
+    // Top papers by download count in last 24h. MAX(paper_title) picks any
+    // non-null title for the slug — early download events were recorded
+    // without a title, so we coalesce up to the most-recent labeled one.
+    env.DB.prepare(
+      `SELECT paper_slug,
+              MAX(paper_title) AS paper_title,
+              COUNT(*) AS n
+       FROM events
+       WHERE is_bot = 0 AND ts >= ?
+         AND kind = 'download' AND paper_slug IS NOT NULL
+       GROUP BY paper_slug
+       ORDER BY n DESC
+       LIMIT 5`
+    ).bind(last24h).all(),
+
     // Most-recent non-bot event
     env.DB.prepare(
       `SELECT ts, kind, visitor_class, paper_slug, paper_title,
@@ -108,6 +124,7 @@ export const onRequestGet = async ({ env }) => {
     },
     topCountries: topCountriesResult?.results || [],
     topContinents: topContinentsResult?.results || [],
+    topPapers: topPapersResult?.results || [],
     mostRecent: mostRecentRow || null,
     launchTs: launchTsRow ? Number(launchTsRow.value) : null,
     serverNow: now,
