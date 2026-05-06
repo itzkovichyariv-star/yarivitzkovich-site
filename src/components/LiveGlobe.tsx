@@ -931,7 +931,15 @@ export default function LiveGlobe({ papers }: Props) {
       <div
         ref={containerRef}
         className="w-full"
-        style={{ height: 'min(72vh, 720px)', touchAction: 'pan-y' }}
+        style={{
+          // Globe height — capped a bit more conservatively on phones so
+          // the canvas doesn't bleed visually into the HUD section below.
+          // The atmosphere glow extends past the canvas edge by a few px,
+          // so leaving more clear space prevents the overlap the user saw.
+          height: 'min(58vh, 640px)',
+          marginBottom: '2.5rem',
+          touchAction: 'pan-y',
+        }}
         aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}
       />
 
