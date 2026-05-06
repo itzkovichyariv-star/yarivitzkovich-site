@@ -10,7 +10,9 @@
 //     resulting opaque token.
 
 const COOKIE_NAME = 'yi_owner_token';
-const COOKIE_MAX_AGE_SEC = 30 * 86400; // 30 days
+const COOKIE_MAX_AGE_SEC = 365 * 86400; // 1 year — Safari clears
+                                        // shorter-lived cookies more
+                                        // aggressively, so we go long.
 
 async function importHmacKey(secret) {
   const enc = new TextEncoder().encode(secret);

@@ -685,23 +685,26 @@ export default function LiveGlobe({ papers }: Props) {
         ? colorForPaper(e.paper_slug)
         : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
 
-      // Per-arc altitude: SHORT arcs get TALL altitude so a 30km Israel-
-      // local hop loops dramatically up off the surface and is visible at
-      // a global zoom level. Long arcs (e.g., Hong Kong) need less
-      // vertical compensation since they already span horizontally.
-      // Plus a small index-based offset so multiple arcs to the same city
-      // fan out into a bouquet of arches.
+      // Per-arc altitude — separated into THREE BANDS by class so each
+      // tier renders at its own height and the green/orange visit arcs
+      // aren't visually buried under the wine downloads:
+      //   first-time visit  → low band  (0.30..0.40)
+      //   returning visit   → mid band  (0.45..0.55)
+      //   download          → high band (0.62..0.78)
+      // Plus a small per-arc fan offset so multiple arcs to the same city
+      // separate into a bouquet rather than stacking.
       const lat1 = (ARIEL_LAT * Math.PI) / 180;
       const lat2 = (Number(e.lat) * Math.PI) / 180;
       const dLat = ((Number(e.lat) - ARIEL_LAT) * Math.PI) / 180;
       const dLng = ((Number(e.lng) - ARIEL_LNG) * Math.PI) / 180;
       const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
       const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distNorm = Math.min(1, distRad / Math.PI); // 0..1
-      // Short → 0.58 (very tall fountain); antipodal → 0.30 (still nice arc)
-      const baseAltitude = 0.58 - distNorm * 0.28;
-      const fanOffset = (idx % 5) * 0.025;
-      const altitude = baseAltitude + fanOffset;
+      const distNorm = Math.min(1, distRad / Math.PI);
+      // Distance compensation: short arcs in any band still need extra lift
+      const distLift = (1 - distNorm) * 0.06;
+      const fanOffset = (idx % 4) * 0.022;
+      const classBase = isDownload ? 0.62 : isReturning ? 0.45 : 0.30;
+      const altitude = classBase + distLift + fanOffset;
 
       // Stroke + alpha hierarchy. Visit alphas bumped so the muted greens
       // and oranges actually read against the dark earth — they were
@@ -889,17 +892,18 @@ export default function LiveGlobe({ papers }: Props) {
           ))}
         </div>
         <div className="flex items-center gap-3">
-          <span className="opacity-60">Paper</span>
+          <span className="opacity-60">Filter</span>
           <select
             value={paper}
             onChange={(e) => setPaper(e.target.value)}
             className="bg-transparent border-b border-current border-opacity-40 font-mono text-xs uppercase tracking-widest pr-6 py-1 hover:border-opacity-100 transition"
             style={{ color: 'inherit' }}
+            title="Filter to events tied to a specific paper (downloads of its PDF + visits to its detail page)"
           >
-            <option value="">All papers</option>
+            <option value="">All activity</option>
             {papers.map((p) => (
               <option key={p.slug} value={p.slug}>
-                {p.title.length > 60 ? p.title.slice(0, 57) + '…' : p.title}
+                Only: {p.title.length > 50 ? p.title.slice(0, 47) + '…' : p.title}
               </option>
             ))}
           </select>
@@ -919,33 +923,9 @@ export default function LiveGlobe({ papers }: Props) {
         )}
       </div>
 
-      {/* Legend explaining the three arc colors — frosted-glass mini panel */}
-      <div
-        className="mb-6 px-4 py-3 inline-flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] uppercase tracking-widest"
-        style={{
-          backdropFilter: 'blur(20px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-          background: 'color-mix(in srgb, var(--bg) 35%, transparent)',
-          border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
-          color: 'var(--text)',
-          boxShadow:
-            '0 6px 18px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.18)',
-        }}
-        aria-label="Arc color legend"
-      >
-        <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#5BC288" thickness={2} />
-          <span>first-time visit</span>
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#FF9933" thickness={2.5} />
-          <span>returning visit</span>
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <ArcSwatch color="#C9304E" thickness={3.5} glow />
-          <span>download <span className="opacity-60">(wine, shade = paper)</span></span>
-        </span>
-      </div>
+      {/* (The above-globe legend was removed — the HUD's class breakdown
+          below already shows the three colours alongside the actual counts,
+          so there's no need for two legends on the same page.) */}
 
       {/* Globe canvas — touch-action: pan-y lets the browser pass single-
           finger vertical swipes to the page so the user can scroll past

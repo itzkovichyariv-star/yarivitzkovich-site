@@ -39,7 +39,7 @@ export const onRequestGet = async ({ request, env }) => {
   <style>body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:3rem;color:#1A1612;background:#F4EFE6}</style>
 </head>
 <body>
-  <p>Owner mode enabled · valid for 30 days</p>
+  <p>Owner mode enabled · valid for 1 year</p>
   <p><a href="/live">Continue to /live →</a></p>
 </body>
 </html>`;

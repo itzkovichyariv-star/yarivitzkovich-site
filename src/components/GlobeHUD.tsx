@@ -38,8 +38,9 @@ interface Props {
   activity: Activity;
 }
 
-// Maximally compact HUD — three short sections, no boxes, all key data
-// visible above the fold on a phone.
+// ULTRA-COMPACT HUD — three single-line sections in mono. Aggressively
+// flat: no big serif numbers, no side-by-side columns that wrap on phones.
+// Total vertical footprint ≈ 8 lines including dividers.
 
 export default function GlobeHUD({ totals, activity }: Props) {
   const since = totals?.sinceLaunch;
@@ -49,108 +50,103 @@ export default function GlobeHUD({ totals, activity }: Props) {
 
   const launchDate = totals?.launchTs ? new Date(totals.launchTs * 1000) : null;
   const launchDateLabel = launchDate
-    ? launchDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    ? launchDate.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
     : null;
-  const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
   const todaySum = (today?.visits ?? 0) + (today?.downloads ?? 0);
+  const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
 
   return (
-    <div className="mt-8">
-      {/* ── ONE-LINE MASTHEAD: total · class breakdown · today · countries ── */}
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 font-mono text-xs uppercase tracking-widest">
-        <span className="opacity-55">Since {launchDateLabel || 'launch'}</span>
-        <span className="font-display text-2xl md:text-3xl mx-1" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 300 }}>
-          {(since?.total ?? 0).toLocaleString()}
+    <div className="mt-6 space-y-3 text-[11px] uppercase tracking-widest font-mono leading-relaxed">
+
+      {/* LINE 1 — masthead totals, single horizontal flow */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="opacity-55">Since {launchDateLabel || '—'}</span>
+        <span style={{ fontVariantNumeric: 'tabular-nums' }} className="opacity-90">
+          <strong className="font-display text-base mr-1" style={{ fontWeight: 400 }}>
+            {(since?.total ?? 0).toLocaleString()}
+          </strong>
+          events
         </span>
-        <span className="opacity-65">events</span>
-
-        <span className="opacity-30">·</span>
-
-        <span className="inline-flex items-center gap-1.5">
-          <Dot color="#5BC288" /> <Tab>{since?.firstTime ?? 0}</Tab>
-          <span className="opacity-55">first</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Dot color="#FF9933" /> <Tab>{since?.returning ?? 0}</Tab>
-          <span className="opacity-55">return</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Dot color="#C9304E" /> <Tab>{since?.downloads ?? 0}</Tab>
-          <span className="opacity-55">dl</span>
-        </span>
-
-        <span className="opacity-30">·</span>
-
-        <span className="opacity-55">today</span>
-        <span className="font-display text-base" style={{ fontVariantNumeric: 'tabular-nums' }}>{todaySum}</span>
-
-        <span className="opacity-30">·</span>
-
-        <span className="opacity-55">{since?.countries ?? 0} countries · {since?.continents ?? 0} continents</span>
+        <Sep />
+        <Pair color="#5BC288" n={since?.firstTime ?? 0} label="first" />
+        <Pair color="#FF9933" n={since?.returning ?? 0} label="ret" />
+        <Pair color="#C9304E" n={since?.downloads ?? 0} label="dl" />
+        <Sep />
+        <span className="opacity-65">{since?.countries ?? 0} countries · {since?.continents ?? 0} cont</span>
+        <Sep />
+        <span className="opacity-65">today {todaySum} ({today?.visits ?? 0}v / {today?.downloads ?? 0}d)</span>
       </div>
 
-      <Rule className="my-5" />
+      <Rule />
 
-      {/* ── MOST RECENT — single line ────────────────────────────────── */}
-      {recent && (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <span className="font-mono text-[10px] uppercase tracking-widest opacity-55">
-            {recentIsStale ? 'Latest event · since launch' : 'Latest event'}
-          </span>
-          <span className="font-display text-base md:text-lg leading-tight" style={{ fontWeight: 400 }}>
-            {[recent.city, recent.country_name].filter(Boolean).join(', ') || 'Unknown'}
-          </span>
-          <span className="font-mono text-[11px] opacity-55">
-            · {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
-          </span>
-          {recent.paper_title && (
-            <span className="block w-full font-display italic text-sm opacity-75 mt-0.5">
-              {truncate(recent.paper_title, 90)}
+      {/* LINE 2 — most recent: city/country/continent inline, paper title under */}
+      {recent ? (
+        <div className="space-y-0.5">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <span className="opacity-55">{recentIsStale ? 'Latest · since launch' : 'Latest'}</span>
+            <span className="font-display text-sm normal-case tracking-normal" style={{ fontWeight: 500 }}>
+              {[recent.city, recent.country_name].filter(Boolean).join(', ') || 'Unknown'}
             </span>
+            <span className="opacity-55">
+              · {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
+            </span>
+          </div>
+          {recent.paper_title && (
+            <div className="font-display italic text-[12px] normal-case tracking-normal opacity-75 leading-snug">
+              {truncate(recent.paper_title, 90)}
+            </div>
           )}
         </div>
+      ) : (
+        <div className="opacity-55">Awaiting first event…</div>
       )}
 
-      {/* ── TOP COUNTRIES — single horizontal bar row, only when there's enough data ── */}
-      {(totals?.topCountries || []).length > 1 && (
-        <>
-          <Rule className="my-5" />
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[11px] uppercase tracking-widest">
-            <span className="opacity-55 mr-2">Top 24h</span>
-            {(totals?.topCountries || []).slice(0, 6).map((c) => (
-              <span key={c.country} className="inline-flex items-center gap-2 mr-3">
-                <span className="opacity-80">{c.country_name || c.country}</span>
-                <span
-                  className="inline-block h-[2px]"
-                  style={{
-                    width: `${Math.max(8, Math.round((c.n / topCountriesMax) * 36))}px`,
-                    background: 'var(--color-accent, #7A1E2B)',
-                  }}
-                />
-                <span className="opacity-55" style={{ fontVariantNumeric: 'tabular-nums' }}>{c.n}</span>
-              </span>
-            ))}
-          </div>
-        </>
+      <Rule />
+
+      {/* LINE 3 — top countries (24h) inline with mini bars */}
+      {(totals?.topCountries || []).length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="opacity-55">Top 24h</span>
+          {(totals?.topCountries || []).slice(0, 6).map((c) => (
+            <span key={c.country} className="inline-flex items-center gap-1.5">
+              <span className="opacity-80">{c.country_name || c.country}</span>
+              <span
+                className="inline-block h-[2px]"
+                style={{
+                  width: `${Math.max(8, Math.round((c.n / topCountriesMax) * 32))}px`,
+                  background: 'var(--color-accent, #7A1E2B)',
+                }}
+                aria-hidden="true"
+              />
+              <span className="opacity-55" style={{ fontVariantNumeric: 'tabular-nums' }}>{c.n}</span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="opacity-55">Top 24h · no data yet</div>
       )}
 
-      <Rule className="my-5" />
+      <Rule />
 
-      {/* ── ACTIVITY (smaller mono line at the bottom — quietly informative) ── */}
-      <div className="font-mono text-[10px] uppercase tracking-widest opacity-55">
-        In current view: {activity.visits} visits ({activity.firstTime} first / {activity.returning} returning) · {activity.downloads} downloads
-        {activity.papersTouched > 0 && <> · {activity.papersTouched} papers touched</>}
+      {/* LINE 4 — current-view tally (smallest, dimmest) */}
+      <div className="opacity-55 text-[10px]">
+        In view: {activity.visits}v ({activity.firstTime}f/{activity.returning}r) · {activity.downloads}d
+        {activity.papersTouched > 0 && <> · {activity.papersTouched} papers</>}
       </div>
     </div>
   );
 }
 
-/* ─── Tiny helpers ──────────────────────────────────────────────────── */
+/* ─── Tiny inline helpers ─────────────────────────────────────────── */
 
-function Rule({ className = '' }: { className?: string }) {
+function Sep() {
+  return <span className="opacity-25">·</span>;
+}
+
+function Rule() {
   return (
     <hr
-      className={`border-0 ${className}`}
+      className="border-0"
       style={{
         height: '1px',
         background:
@@ -160,26 +156,22 @@ function Rule({ className = '' }: { className?: string }) {
   );
 }
 
-function Dot({ color }: { color: string }) {
+function Pair({ color, n, label }: { color: string; n: number; label: string }) {
   return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: '7px',
-        height: '7px',
-        borderRadius: '50%',
-        background: color,
-        boxShadow: `0 0 4px ${color}`,
-        display: 'inline-block',
-      }}
-    />
-  );
-}
-
-function Tab({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="font-display text-base" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 400 }}>
-      {children}
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: color,
+          boxShadow: `0 0 4px ${color}`,
+          display: 'inline-block',
+        }}
+      />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }} className="opacity-90">{n}</span>
+      <span className="opacity-55">{label}</span>
     </span>
   );
 }
