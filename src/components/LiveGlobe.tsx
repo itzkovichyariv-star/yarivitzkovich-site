@@ -260,7 +260,7 @@ export default function LiveGlobe({ papers }: Props) {
     const id = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       load(false);
-    }, 45_000);
+    }, 15_000);
 
     return () => {
       cancelled = true;
@@ -280,7 +280,7 @@ export default function LiveGlobe({ papers }: Props) {
         .catch(() => {});
     };
     load();
-    const id = setInterval(load, 30_000);
+    const id = setInterval(load, 15_000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -938,17 +938,18 @@ export default function LiveGlobe({ papers }: Props) {
 
       {/* Globe canvas — touch-action: pan-y lets the browser pass single-
           finger vertical swipes to the page so the user can scroll past
-          the globe instead of getting trapped inside it. */}
+          the globe instead of getting trapped inside it. overflow-hidden
+          clips the atmosphere glow so it can't bleed onto the HUD when
+          the globe is interactively zoomed. */}
       <div
         ref={containerRef}
-        className="w-full"
+        className="w-full overflow-hidden mb-12 md:mb-10"
         style={{
-          // Globe height — capped a bit more conservatively on phones so
-          // the canvas doesn't bleed visually into the HUD section below.
-          // The atmosphere glow extends past the canvas edge by a few px,
-          // so leaving more clear space prevents the overlap the user saw.
-          height: 'min(58vh, 640px)',
-          marginBottom: '2.5rem',
+          // Globe height — shorter on phones so the HUD/text below is
+          // never visually run-over by the canvas or its atmosphere glow.
+          // Using clamp lets it grow gracefully on tablets while staying
+          // restrained on small screens.
+          height: 'clamp(360px, 48vh, 580px)',
           touchAction: 'pan-y',
         }}
         aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}

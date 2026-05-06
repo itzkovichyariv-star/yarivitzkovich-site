@@ -67,7 +67,7 @@ export const onRequestGet = async ({ request, env }) => {
         'content-type': 'application/json',
         // Cache briefly at the edge so repeated loads don't hammer D1.
         // P2 will replace this with SSE-driven freshness.
-        'cache-control': 'public, max-age=30, s-maxage=30',
+        'cache-control': 'public, max-age=10, s-maxage=10',
       },
     }
   );

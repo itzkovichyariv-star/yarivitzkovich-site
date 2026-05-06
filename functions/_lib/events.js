@@ -3,7 +3,7 @@
 // endpoint and the PDF-tracking endpoint.
 
 import { extractGeo } from './geo.js';
-import { hashVisitor, isDuplicate } from './dedup.js';
+import { hashVisitor, hashPerson, isDuplicate } from './dedup.js';
 import { isBot } from './bot.js';
 
 /**
@@ -26,7 +26,10 @@ export async function recordEvent({
 
   const { is_bot, ua_class } = isBot(request);
   const geo = extractGeo(request);
-  const ip_hash = await hashVisitor({ request, kind, paper_slug: paper_slug || '' });
+  const [ip_hash, person_hash] = await Promise.all([
+    hashVisitor({ request, kind, paper_slug: paper_slug || '' }),
+    hashPerson({ request }),
+  ]);
 
   // Dedup: same hash + kind + paper within 24h → skip.
   // Bots are also logged but with the dedup window applied.
@@ -42,8 +45,8 @@ export async function recordEvent({
       `INSERT INTO events (
         ts, kind, visitor_class, paper_slug, paper_title, page_path,
         country, country_name, continent, continent_name, city, region,
-        lat, lng, ip_hash, ua_class, is_bot
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        lat, lng, ip_hash, person_hash, ua_class, is_bot
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       ts,
@@ -61,6 +64,7 @@ export async function recordEvent({
       geo.lat,
       geo.lng,
       ip_hash,
+      person_hash,
       ua_class,
       is_bot ? 1 : 0
     )

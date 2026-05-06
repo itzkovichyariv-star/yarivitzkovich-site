@@ -40,6 +40,19 @@ export async function hashVisitor({ request, kind, paper_slug = '' }) {
 }
 
 /**
+ * Hash an IP into a stable per-person identifier for the day. Unlike
+ * hashVisitor, the kind and paper_slug are not part of the salt, so the
+ * same person visiting the homepage and then downloading a PDF produces
+ * the same person_hash for both events. Used for cross-kind person counts
+ * (e.g. "first-time visitors, with downloads counting as visits too").
+ */
+export async function hashPerson({ request }) {
+  const ip = clientIp(request);
+  const day = todayUtc();
+  return await sha256Hex(`person|${ip}|${day}`);
+}
+
+/**
  * Check whether this exact (ip_hash, kind, paper_slug) has already been
  * recorded in the last 24 hours. Returns true if a duplicate exists.
  */

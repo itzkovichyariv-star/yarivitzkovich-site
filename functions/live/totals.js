@@ -26,16 +26,12 @@ export const onRequestGet = async ({ env }) => {
     // Total events ever (excluding bots)
     env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE is_bot = 0`).first(),
 
-    // Class breakdown since launch.
-    // Counts events by visitor_class field (set client-side via localStorage
-    // for visits) plus a separate downloads count.
-    //
-    // Note: a follow-up will introduce a stable person_hash field so that
-    // downloads can ALSO count toward first-time / returning based on
-    // whether the same IP had prior events. Today's ip_hash includes the
-    // event kind for dedup purposes, so it can't be used as a cross-kind
-    // person identifier — that's why the previous ROW_NUMBER attempt
-    // counted every event as first-time.
+    // Class breakdown since launch — event-level, mutually exclusive.
+    // Each event falls into exactly one bucket so firstTime+returning+
+    // downloads = total non-bot events. The fairness fix for direct PDF
+    // downloaders happens at WRITE time in /pdfs/[paper].js, which now
+    // synthesizes a first_time visit alongside the download when the
+    // person had no prior visit event today.
     env.DB.prepare(
       `SELECT
          SUM(CASE WHEN kind = 'download' THEN 1 ELSE 0 END) AS downloads,
@@ -121,7 +117,7 @@ export const onRequestGet = async ({ env }) => {
     status: 200,
     headers: {
       'content-type': 'application/json',
-      'cache-control': 'public, max-age=30, s-maxage=30',
+      'cache-control': 'public, max-age=10, s-maxage=10',
     },
   });
 };
