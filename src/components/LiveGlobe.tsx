@@ -682,9 +682,23 @@ export default function LiveGlobe({ papers }: Props) {
         ? colorForPaper(e.paper_slug)
         : (isReturning ? VISIT_COLORS.returning : VISIT_COLORS.first_time);
 
-      // Per-arc altitude: 0.34 .. 0.52, cycled every 7 events. Cycles so a
-      // long event list doesn't push arcs into outer space.
-      const altitude = 0.34 + (idx % 7) * 0.030;
+      // Per-arc altitude: SHORT arcs get TALL altitude so a 30km Israel-
+      // local hop loops dramatically up off the surface and is visible at
+      // a global zoom level. Long arcs (e.g., Hong Kong) need less
+      // vertical compensation since they already span horizontally.
+      // Plus a small index-based offset so multiple arcs to the same city
+      // fan out into a bouquet of arches.
+      const lat1 = (ARIEL_LAT * Math.PI) / 180;
+      const lat2 = (Number(e.lat) * Math.PI) / 180;
+      const dLat = ((Number(e.lat) - ARIEL_LAT) * Math.PI) / 180;
+      const dLng = ((Number(e.lng) - ARIEL_LNG) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      const distRad = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distNorm = Math.min(1, distRad / Math.PI); // 0..1
+      // Short → 0.58 (very tall fountain); antipodal → 0.30 (still nice arc)
+      const baseAltitude = 0.58 - distNorm * 0.28;
+      const fanOffset = (idx % 5) * 0.025;
+      const altitude = baseAltitude + fanOffset;
 
       // Stroke + alpha hierarchy. Visit alphas bumped so the muted greens
       // and oranges actually read against the dark earth — they were

@@ -26,11 +26,13 @@ export const onRequestGet = async ({ env }) => {
     // Total events ever (excluding bots)
     env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE is_bot = 0`).first(),
 
-    // Class breakdown since launch — first-time vs returning vs download
+    // Class breakdown since launch — first-time vs returning vs download.
+    // 'returning' is a reserved word in SQLite (used in RETURNING clause),
+    // so we alias to returningN to keep the parser happy.
     env.DB.prepare(
       `SELECT
          SUM(CASE WHEN kind = 'download' THEN 1 ELSE 0 END) AS downloads,
-         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'returning' THEN 1 ELSE 0 END) AS returning,
+         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'returning' THEN 1 ELSE 0 END) AS returningN,
          SUM(CASE WHEN kind = 'visit' AND visitor_class = 'first_time' THEN 1 ELSE 0 END) AS firstTime
        FROM events
        WHERE is_bot = 0`
@@ -94,7 +96,7 @@ export const onRequestGet = async ({ env }) => {
       countries: countriesContinentsRow?.countries || 0,
       continents: countriesContinentsRow?.continents || 0,
       firstTime: sinceLaunchByClassRow?.firstTime || 0,
-      returning: sinceLaunchByClassRow?.returning || 0,
+      returning: sinceLaunchByClassRow?.returningN || 0,
       downloads: sinceLaunchByClassRow?.downloads || 0,
     },
     today: {
