@@ -482,16 +482,18 @@ export default function LiveGlobe({ papers }: Props) {
       // ~3 seconds while staying calm enough that Israel only swings off
       // for a manageable window before coming back around.
       const controls = g.controls();
-      // Defensive: explicitly enable rotate + pan, but DISABLE OrbitControls'
-      // own zoom handling — we own wheel events ourselves (plain scroll
-      // rotates, Cmd/Ctrl+scroll zooms) so OrbitControls' default wheel-zoom
-      // would conflict with our custom mapping.
+      // We own ALL input — rotate, pan, AND zoom — via custom pointer/wheel
+      // handlers below. OrbitControls' built-in pointer handlers were
+      // racing ours and "stealing" left-click drags as rotation, which
+      // is why pan via mutating target/position appeared not to work
+      // (it was working, then OC was rotating on top of it).
+      // controls.enabled stays true so update() still applies autoRotate
+      // each frame; the per-channel enableRotate/Pan/Zoom flags gate
+      // OrbitControls' pointer/wheel handlers, not its update logic.
       controls.enabled = true;
-      controls.enableRotate = true;
+      controls.enableRotate = false;
       controls.enableZoom = false;
-      controls.enablePan = true;
-      controls.rotateSpeed = 1.0;
-      controls.panSpeed = 1.0;
+      controls.enablePan = false;
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.8;
       controls.minDistance = MIN_DIST;
