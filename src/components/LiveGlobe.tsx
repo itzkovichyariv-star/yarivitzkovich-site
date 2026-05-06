@@ -454,16 +454,19 @@ export default function LiveGlobe({ papers }: Props) {
       // ~3 seconds while staying calm enough that Israel only swings off
       // for a manageable window before coming back around.
       const controls = g.controls();
+      // Defensive: explicitly enable everything in case some prior
+      // config or library default turned it off.
+      controls.enabled = true;
+      controls.enableRotate = true;
+      controls.enableZoom = true;
+      controls.enablePan = true;
+      controls.rotateSpeed = 1.0;
+      controls.zoomSpeed = 1.0;
+      controls.panSpeed = 1.0;
       controls.autoRotate = true;
       controls.autoRotateSpeed = 0.8;
-      controls.enableZoom = true;
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
-      // Enable panning so the globe can be slid around the canvas, not
-      // just rotated. screenSpacePanning makes pan motion follow the
-      // user's drag direction in screen space (intuitive) rather than
-      // along world-aligned axes (which feels backwards).
-      controls.enablePan = true;
       controls.screenSpacePanning = true;
 
       // Pause auto-rotation while the user is interacting, resume 1.5s
@@ -482,16 +485,15 @@ export default function LiveGlobe({ papers }: Props) {
       controls.addEventListener('start', onStart);
       controls.addEventListener('end', onEnd);
 
-      // Single-finger inside the canvas rotates the globe (per-pixel
-      // drag), two-finger pinches dolly. Page scroll happens by touching
-      // outside the canvas — the headline + filter row above and the
-      // HUD + privacy footer below give plenty of finger-room to scroll.
-      // touchAction:'none' on the canvas (set just below) lets
-      // OrbitControls own every gesture inside the canvas.
-      controls.touches = {
-        ONE: (THREE as any).TOUCH.ROTATE,
-        TWO: (THREE as any).TOUCH.DOLLY_PAN,
-      };
+      // Use literal numeric constants instead of THREE.TOUCH.* enum
+      // references so we don't depend on the bundled three.js version
+      // exposing the enum. ONE=0 (ROTATE), TWO=2 (DOLLY_PAN). Same as
+      // OrbitControls defaults but explicit so it's never undefined.
+      controls.touches = { ONE: 0, TWO: 2 };
+      // Same idea for mouse: LEFT=0 (ROTATE), MIDDLE=1 (DOLLY), RIGHT=2 (PAN).
+      controls.mouseButtons = { LEFT: 0, MIDDLE: 1, RIGHT: 2 };
+      controls.enableRotate = true;
+      controls.rotateSpeed = 1.0;
 
       // Open looking at Israel (where our data origin lives) so the user
       // sees arcs immediately even though the gentle auto-rotation will
@@ -501,18 +503,16 @@ export default function LiveGlobe({ papers }: Props) {
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
       // touch-action: none on the canvas — OrbitControls owns all
-      // gestures inside the canvas. Page scroll happens by touching
-      // the area above (headline/filter) or below (HUD/footer) the
-      // canvas, so we don't need pan-y pass-through inside the globe.
-      // Cursor styling tells desktop users the canvas is draggable.
+      // gestures inside the canvas. Cursor: grab via CSS only (no
+      // JS pointer listeners, which were potentially intercepting
+      // events that OrbitControls expected to receive). pointer-events
+      // explicit so nothing inherited can disable them.
       const cnv = containerRef.current?.querySelector('canvas');
       if (cnv) {
         const cnvEl = cnv as HTMLElement;
         cnvEl.style.touchAction = 'none';
         cnvEl.style.cursor = 'grab';
-        cnvEl.addEventListener('pointerdown', () => { cnvEl.style.cursor = 'grabbing'; });
-        cnvEl.addEventListener('pointerup',   () => { cnvEl.style.cursor = 'grab'; });
-        cnvEl.addEventListener('pointerleave', () => { cnvEl.style.cursor = 'grab'; });
+        cnvEl.style.pointerEvents = 'auto';
       }
 
       // Three label tiers:
@@ -678,16 +678,12 @@ export default function LiveGlobe({ papers }: Props) {
     g.height(size.h);
   }, [size]);
 
-  // Honor reduced-motion live: pause the gentle auto-rotation when the
-  // user has "reduce motion" enabled in their OS settings; otherwise let
-  // it drift. The drag-pause logic in the init effect sits on top of
-  // this — user interaction always takes precedence over both.
-  useEffect(() => {
-    const g = globeRef.current;
-    if (!g) return;
-    const c = g.controls();
-    c.autoRotate = !reduced;
-  }, [reduced]);
+  // Reduced-motion users get the same behaviour as everyone else here —
+  // the previous `c.autoRotate = !reduced` was overriding init's
+  // autoRotate=true with false on every render, which (combined with
+  // the drag-pause `start` listener) sometimes left the globe inert.
+  // If we want a real reduced-motion path back, it should be at the
+  // init level only, not as a re-running effect.
 
   // Build the label set: continents + every country (with __active=true for
   // those with real events, __active=false for the rest). Re-runs whenever
