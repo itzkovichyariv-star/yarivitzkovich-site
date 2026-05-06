@@ -218,6 +218,30 @@ export default function LiveGlobe({ papers }: Props) {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
+  // Defensive: globe.gl's bundled OrbitControls calls canvas.setPointerCapture()
+  // during pointerdown. On Safari (both macOS and iOS), under common pointer-state
+  // combinations the call throws "NotFoundError: The object can not be found here."
+  // and the drag handler bails — so the globe renders fine but never rotates by drag.
+  // Wrap setPointerCapture to swallow that specific error so the drag handler runs
+  // to completion. Restored on unmount so we don't pollute the prototype globally.
+  useEffect(() => {
+    const proto = (window as any).Element?.prototype;
+    if (!proto || !proto.setPointerCapture) return;
+    const orig = proto.setPointerCapture;
+    proto.setPointerCapture = function (...args: any[]) {
+      try {
+        return orig.apply(this, args);
+      } catch (e: any) {
+        // NotFoundError, InvalidStateError — both safe to ignore here:
+        // the drag handler doesn't actually need pointer capture to track
+        // pointermove on the same element, just helpful for cross-element drags.
+        if (e?.name === 'NotFoundError' || e?.name === 'InvalidStateError') return;
+        throw e;
+      }
+    };
+    return () => { proto.setPointerCapture = orig; };
+  }, []);
+
   // Track parent size for responsive globe canvas. The previous
   // Math.max(320, ...) / Math.max(380, ...) floor was forcing globe.gl to
   // render at sizes LARGER than the container on small phones — e.g.
