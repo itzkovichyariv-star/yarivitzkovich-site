@@ -58,31 +58,49 @@ export default function BreakdownDrawer({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch events when the drawer opens or the range changes
+  // Fetch events when the drawer opens or the range changes — and re-poll
+  // every 30 seconds while open so the breakdown reflects live activity
+  // without requiring the owner to close + reopen the drawer.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(`/live/details?range=${range}`, { credentials: 'same-origin' })
-      .then((r) => {
-        if (r.status === 401) throw new Error('unauthorized');
-        if (!r.ok) throw new Error(`http_${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setEvents(data.events || []);
-        setCounts(data.counts || { firstTime: 0, returning: 0, downloads: 0, bots: 0 });
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(String(e?.message || 'failed'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
+
+    const load = (showSpinner: boolean) => {
+      if (showSpinner) {
+        setLoading(true);
+        setError(null);
+      }
+      fetch(`/live/details?range=${range}`, { credentials: 'same-origin' })
+        .then((r) => {
+          if (r.status === 401) throw new Error('unauthorized');
+          if (!r.ok) throw new Error(`http_${r.status}`);
+          return r.json();
+        })
+        .then((data) => {
+          if (cancelled) return;
+          setEvents(data.events || []);
+          setCounts(data.counts || { firstTime: 0, returning: 0, downloads: 0, bots: 0 });
+          setError(null);
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          if (showSpinner) setError(String(e?.message || 'failed'));
+        })
+        .finally(() => {
+          if (!cancelled && showSpinner) setLoading(false);
+        });
+    };
+
+    load(true);
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      load(false);
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
   }, [open, range]);
 
   // ESC + click-outside dismissal

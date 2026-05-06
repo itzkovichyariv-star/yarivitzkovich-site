@@ -40,13 +40,9 @@ interface Props {
   activity: Activity;
 }
 
-const panelStyle: CSSProperties = {
-  backdropFilter: 'blur(14px)',
-  WebkitBackdropFilter: 'blur(14px)',
-  background: 'color-mix(in srgb, var(--bg) 55%, transparent)',
-  border: '1px solid var(--divider)',
-  padding: '1rem 1.125rem',
-};
+// Editorial-typography HUD — no boxed panels, just typography, whitespace,
+// and thin horizontal rules. Reads like a magazine sidebar rather than a
+// dashboard grid.
 
 export default function GlobeHUD({ totals, activity }: Props) {
   const since = totals?.sinceLaunch;
@@ -55,8 +51,6 @@ export default function GlobeHUD({ totals, activity }: Props) {
   const topCountriesMax = Math.max(1, ...(totals?.topCountries.map((c) => c.n) || [0]));
   const topContinentsMax = Math.max(1, ...(totals?.topContinents.map((c) => c.n) || [0]));
 
-  // Below this volume the page is in "sparse state" — hide top-X panels,
-  // soften framing so an empty page reads as honest rather than broken.
   const SPARSE_THRESHOLD = 25;
   const isSparse = (since?.total ?? 0) < SPARSE_THRESHOLD;
   const launchDate = totals?.launchTs ? new Date(totals.launchTs * 1000) : null;
@@ -66,155 +60,162 @@ export default function GlobeHUD({ totals, activity }: Props) {
   const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
 
   return (
-    <div className="mt-10 space-y-6">
-      {/* Sparse-state caption — visible only when total event count is small */}
-      {isSparse && launchDateLabel && (
-        <div className="font-mono text-[11px] uppercase tracking-widest text-soft text-center">
-          Tracking started {launchDateLabel} · {since?.total ?? 0} {since?.total === 1 ? 'event' : 'events'} so far
+    <div className="mt-12 space-y-10">
+      {/* ── Headline strip: Since launch is the lede ───────────────────── */}
+      <section>
+        <Kicker>Since launch{launchDateLabel ? ` · ${launchDateLabel}` : ''}</Kicker>
+        <div className="grid grid-cols-12 gap-x-6 gap-y-3 mt-3 items-baseline">
+          <div className="col-span-12 md:col-span-4">
+            <BigSerif>{(since?.total ?? 0).toLocaleString()}</BigSerif>
+            <SubLine>events · {since?.countries ?? 0} countries · {since?.continents ?? 0} continents</SubLine>
+          </div>
+          <div className="col-span-12 md:col-span-8">
+            {(since?.firstTime !== undefined || since?.returning !== undefined || since?.downloads !== undefined) && (
+              <div className="space-y-2 font-mono text-xs uppercase tracking-widest">
+                <ClassRow color="#5BC288" n={since?.firstTime ?? 0} label="first-time visits" />
+                <ClassRow color="#FF9933" n={since?.returning ?? 0} label="returning visits" />
+                <ClassRow color="#C9304E" n={since?.downloads ?? 0} label="downloads" />
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </section>
 
-      {/* Top trio: Since launch · Today · Most recent */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div style={panelStyle}>
-          <Kicker>Since launch</Kicker>
-          <BigNumber n={since?.total ?? 0} />
-          <SubLine>
-            {(since?.countries ?? 0)} countries · {(since?.continents ?? 0)} continents
-          </SubLine>
-          {/* Class breakdown — visible only when totals endpoint provides
-              the new fields. Renders as one mono line with the same colour
-              dots used on the globe arcs (green / orange / wine). */}
-          {(since?.firstTime !== undefined || since?.returning !== undefined || since?.downloads !== undefined) && (
-            <div className="mt-3 font-mono text-[10px] uppercase tracking-widest opacity-75 leading-relaxed">
-              <ClassDot color="#5BC288" /> {since?.firstTime ?? 0} first-time
-              <span className="opacity-50"> · </span>
-              <ClassDot color="#FF9933" /> {since?.returning ?? 0} returning
-              <span className="opacity-50"> · </span>
-              <ClassDot color="#C9304E" /> {since?.downloads ?? 0} downloads
-            </div>
-          )}
-        </div>
+      <Rule />
 
-        <div style={panelStyle}>
+      {/* ── Today + Most recent, side-by-side as headlines ─────────────── */}
+      <section className="grid grid-cols-12 gap-x-6 gap-y-8">
+        <div className="col-span-12 md:col-span-5">
           <Kicker>Today</Kicker>
-          <BigNumber n={(today?.visits ?? 0) + (today?.downloads ?? 0)} />
-          <SubLine>
-            {today?.visits ?? 0} visits · {today?.downloads ?? 0} downloads
-          </SubLine>
+          <BigSerif>{(today?.visits ?? 0) + (today?.downloads ?? 0)}</BigSerif>
+          <SubLine>{today?.visits ?? 0} visits · {today?.downloads ?? 0} downloads</SubLine>
         </div>
-
-        <div style={panelStyle}>
+        <div className="col-span-12 md:col-span-7">
           <Kicker>{recentIsStale ? 'Most recent (since launch)' : 'Most recent'}</Kicker>
           {recent ? (
             <>
-              <div className="font-display text-2xl leading-tight mt-2">
+              <div className="font-display text-2xl md:text-3xl mt-2 leading-tight" style={{ fontWeight: 300 }}>
                 {[recent.city, recent.country_name].filter(Boolean).join(', ') || 'Unknown'}
               </div>
               <SubLine>
                 {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
               </SubLine>
               {recent.paper_title && (
-                <SubLine>
-                  <span className="opacity-80">{truncate(recent.paper_title, 56)}</span>
-                </SubLine>
+                <p className="font-display italic text-sm mt-2 opacity-80">
+                  {truncate(recent.paper_title, 80)}
+                </p>
               )}
             </>
           ) : (
             <SubLine>Awaiting first event…</SubLine>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Activity (current event-window) */}
-      <div style={panelStyle}>
-        <Kicker>Activity (current view)</Kicker>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-          <div className="font-mono text-sm">
-            <span className="opacity-60 mr-2">◉</span>
+      <Rule />
+
+      {/* ── Activity in current view ───────────────────────────────────── */}
+      <section>
+        <Kicker>Activity in current view</Kicker>
+        <div className="grid grid-cols-12 gap-x-6 mt-3 font-mono text-sm">
+          <div className="col-span-6 md:col-span-3">
+            <span className="opacity-60">visits</span>{' '}
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.visits}</span>
-            <span className="opacity-60 ml-2">visits</span>
-            <span className="opacity-50 ml-3 text-xs">
-              ({activity.firstTime} first-time, {activity.returning} returning)
-            </span>
           </div>
-          <div className="font-mono text-sm">
-            <span className="opacity-60 mr-2">★</span>
+          <div className="col-span-6 md:col-span-3">
+            <span className="opacity-60">first-time</span>{' '}
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.firstTime}</span>
+          </div>
+          <div className="col-span-6 md:col-span-3">
+            <span className="opacity-60">returning</span>{' '}
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.returning}</span>
+          </div>
+          <div className="col-span-6 md:col-span-3">
+            <span className="opacity-60">downloads</span>{' '}
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{activity.downloads}</span>
-            <span className="opacity-60 ml-2">downloads</span>
-            {activity.papersTouched > 0 && (
-              <span className="opacity-50 ml-3 text-xs">across {activity.papersTouched} papers</span>
-            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Top continents + Top countries — hidden in sparse state, where a
-          single bar at 100% reads as broken rather than informative */}
       {!isSparse && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div style={panelStyle}>
-          <Kicker>Top continents (24h)</Kicker>
-          <div className="mt-3 space-y-2">
-            {(totals?.topContinents || []).length === 0 && <SubLine>No data yet.</SubLine>}
-            {(totals?.topContinents || []).map((c) => (
-              <BarRow
-                key={c.continent}
-                label={c.continent_name || c.continent}
-                n={c.n}
-                max={topContinentsMax}
-              />
-            ))}
-          </div>
-        </div>
-        <div style={panelStyle}>
-          <Kicker>Top countries (24h)</Kicker>
-          <div className="mt-3 space-y-2">
-            {(totals?.topCountries || []).length === 0 && <SubLine>No data yet.</SubLine>}
-            {(totals?.topCountries || []).map((c) => (
-              <BarRow
-                key={c.country}
-                label={c.country_name || c.country}
-                n={c.n}
-                max={topCountriesMax}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
+        <>
+          <Rule />
+
+          {/* ── Top continents + countries (24h) ──────────────────────── */}
+          <section className="grid grid-cols-12 gap-x-6 gap-y-8">
+            <div className="col-span-12 md:col-span-5">
+              <Kicker>Top continents · last 24h</Kicker>
+              <div className="mt-3 space-y-2">
+                {(totals?.topContinents || []).length === 0 && (
+                  <SubLine>No data yet.</SubLine>
+                )}
+                {(totals?.topContinents || []).map((c) => (
+                  <BarRow
+                    key={c.continent}
+                    label={c.continent_name || c.continent}
+                    n={c.n}
+                    max={topContinentsMax}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="col-span-12 md:col-span-7">
+              <Kicker>Top countries · last 24h</Kicker>
+              <div className="mt-3 space-y-2">
+                {(totals?.topCountries || []).length === 0 && (
+                  <SubLine>No data yet.</SubLine>
+                )}
+                {(totals?.topCountries || []).map((c) => (
+                  <BarRow
+                    key={c.country}
+                    label={c.country_name || c.country}
+                    n={c.n}
+                    max={topCountriesMax}
+                  />
+                ))}
+              </div>
+            </div>
+          </section>
+        </>
       )}
     </div>
   );
 }
 
-function ClassDot({ color }: { color: string }) {
+function Rule() {
+  // Editorial section break — single hairline at very low opacity, generous
+  // vertical rhythm via the parent's space-y-10.
   return (
-    <span
-      className="inline-block align-middle mr-1"
+    <hr
+      className="border-0"
       style={{
-        width: '7px',
-        height: '7px',
-        borderRadius: '50%',
-        background: color,
-        boxShadow: `0 0 4px ${color}`,
+        height: '1px',
+        background:
+          'linear-gradient(90deg, transparent, color-mix(in srgb, var(--text) 18%, transparent) 12%, color-mix(in srgb, var(--text) 18%, transparent) 88%, transparent)',
       }}
-      aria-hidden="true"
     />
   );
 }
 
 function Kicker({ children }: { children: React.ReactNode }) {
   return (
-    <div className="font-mono text-[10px] uppercase tracking-widest opacity-60">
+    <div className="font-mono text-[10px] uppercase tracking-widest opacity-55">
       {children}
     </div>
   );
 }
 
-function BigNumber({ n }: { n: number }) {
+function BigSerif({ children }: { children: React.ReactNode }) {
   return (
-    <div className="font-display text-3xl mt-1.5 leading-tight" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 300 }}>
-      {n.toLocaleString()}
+    <div
+      className="font-display mt-1 leading-none"
+      style={{
+        fontVariantNumeric: 'tabular-nums',
+        fontWeight: 300,
+        fontSize: 'clamp(2.5rem, 6vw, 3.75rem)',
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -227,6 +228,28 @@ function SubLine({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ClassRow({ color, n, label }: { color: string; n: number; label: string }) {
+  return (
+    <div className="grid grid-cols-[16px_3rem_1fr] items-center gap-2">
+      <span
+        aria-hidden="true"
+        style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          background: color,
+          boxShadow: `0 0 5px ${color}`,
+          justifySelf: 'center',
+        }}
+      />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }} className="font-display text-base" data-class-count="">
+        {n}
+      </span>
+      <span className="opacity-65">{label}</span>
+    </div>
+  );
+}
+
 function BarRow({ label, n, max }: { label: string; n: number; max: number }) {
   const pct = Math.max(2, Math.round((n / max) * 100));
   return (
@@ -234,9 +257,9 @@ function BarRow({ label, n, max }: { label: string; n: number; max: number }) {
       <div className="flex items-center gap-2 min-w-0">
         <span className="truncate uppercase tracking-widest opacity-80">{label}</span>
         <span
-          className="flex-1 h-[3px]"
+          className="flex-1 h-[2px]"
           style={{
-            background: `linear-gradient(to right, var(--color-accent, #7A1E2B) ${pct}%, var(--divider, rgba(0,0,0,0.15)) ${pct}%)`,
+            background: `linear-gradient(to right, var(--color-accent, #7A1E2B) ${pct}%, color-mix(in srgb, var(--text) 12%, transparent) ${pct}%)`,
           }}
         />
       </div>
