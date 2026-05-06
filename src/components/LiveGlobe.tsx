@@ -545,71 +545,75 @@ export default function LiveGlobe({ papers }: Props) {
 
         type Mode = 'rotate' | 'pan' | null;
         let mode: Mode = null;
-        let lastX = 0;
-        let lastY = 0;
-        let downX = 0;
-        let downY = 0;
-        let activePointerId: number | null = null;
-        // Track whether a second finger is down — used to flip mobile
-        // single-finger rotate into two-finger pan.
-        const activePointers = new Set<number>();
-        // Long-press timer: if the user holds still for ~400ms before
-        // moving, we switch from rotate to pan mode. Lets one-touch /
-        // left-click do both gestures based on intent.
-        let longPressTimer: number | null = null;
-        const LONG_PRESS_MS = 400;
-        const MOVE_THRESHOLD_PX = 5;
+        let lastCx = 0;
+        let lastCy = 0;
+        // Track LATEST position for every active pointer. Centroid of the
+        // map drives motion — fixes two-finger pan (was previously only
+        // the first finger's motion) and "lift first finger first" jumps.
+        const pointers = new Map<number, { x: number; y: number; type: string }>();
+
+        const centroid = () => {
+          let sx = 0, sy = 0, n = 0;
+          pointers.forEach((p) => { sx += p.x; sy += p.y; n++; });
+          return n ? { x: sx / n, y: sy / n, n } : { x: 0, y: 0, n: 0 };
+        };
 
         const panCamera = (deltaX: number, deltaY: number) => {
-          // Compute the screen-space pan distance in world units. Same
-          // formula OrbitControls uses internally for screenSpacePanning.
+          // Make sure camera matrix reflects the latest transform before
+          // we read column basis.
+          camera.updateMatrixWorld();
           const targetDist = camera.position.distanceTo(controls.target);
           const fovRad = ((camera as any).fov || 50) * (Math.PI / 180);
           const worldPerPx = (2 * targetDist * Math.tan(fovRad / 2)) / (cnvEl.clientHeight || 1);
-          const xCol = new THREE.Vector3();
-          const yCol = new THREE.Vector3();
-          xCol.setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-deltaX * worldPerPx);
-          yCol.setFromMatrixColumn(camera.matrix, 1).multiplyScalar( deltaY * worldPerPx);
+          const xCol = new THREE.Vector3()
+            .setFromMatrixColumn(camera.matrixWorld, 0)
+            .multiplyScalar(-deltaX * worldPerPx);
+          const yCol = new THREE.Vector3()
+            .setFromMatrixColumn(camera.matrixWorld, 1)
+            .multiplyScalar( deltaY * worldPerPx);
           const offset = xCol.add(yCol);
           controls.target.add(offset);
           camera.position.add(offset);
+          // CRITICAL: tell OrbitControls about the new state so its next
+          // update() call doesn't rebuild camera.position from the stale
+          // spherical coords (which would silently undo the pan and was
+          // the actual reason pan looked like nothing happened).
+          controls.update();
         };
 
         const onDown = (e: PointerEvent) => {
-          activePointers.add(e.pointerId);
-          if (activePointerId !== null) return;
-          activePointerId = e.pointerId;
-          lastX = e.clientX;
-          lastY = e.clientY;
-          downX = e.clientX;
-          downY = e.clientY;
-          // Simple gesture mapping per owner spec:
-          //   Desktop (mouse, any button) → click+drag = PAN.
-          //   Mobile single finger        → drag = ROTATE.
-          //   Mobile two fingers          → drag = PAN (handled in onMove).
+          pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+          const c = centroid();
+          lastCx = c.x; lastCy = c.y;
+          // Mode mapping per owner spec:
+          //   mouse        → click+drag = PAN (any button)
+          //   touch, 1     → drag = ROTATE
+          //   touch, 2+    → drag = PAN (also flips mid-gesture in onMove)
           if (e.pointerType === 'mouse') {
             mode = 'pan';
           } else {
-            mode = activePointers.size >= 2 ? 'pan' : 'rotate';
+            mode = pointers.size >= 2 ? 'pan' : 'rotate';
           }
           cnvEl.style.cursor = mode === 'pan' ? 'move' : 'grabbing';
           controls.autoRotate = false;
         };
 
         const onMove = (e: PointerEvent) => {
-          if (activePointerId === null) return;
-          if (e.pointerId !== activePointerId) return;
+          if (!pointers.has(e.pointerId)) return;
+          pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType });
+          const c = centroid();
+          if (!c.n) return;
 
-          // Mobile: if a second finger joins mid-gesture, switch to pan.
-          if (e.pointerType === 'touch' && activePointers.size >= 2 && mode === 'rotate') {
+          // If a touch user grew to 2 fingers mid-gesture, switch to pan.
+          if (e.pointerType === 'touch' && pointers.size >= 2 && mode === 'rotate') {
             mode = 'pan';
             cnvEl.style.cursor = 'move';
           }
 
-          const dx = e.clientX - lastX;
-          const dy = e.clientY - lastY;
-          lastX = e.clientX;
-          lastY = e.clientY;
+          const dx = c.x - lastCx;
+          const dy = c.y - lastCy;
+          lastCx = c.x; lastCy = c.y;
+          if (dx === 0 && dy === 0) return;
 
           if (mode === 'rotate') {
             const h = cnvEl.clientHeight || 1;
@@ -626,15 +630,24 @@ export default function LiveGlobe({ papers }: Props) {
         };
 
         const onUp = (e: PointerEvent) => {
-          activePointers.delete(e.pointerId);
-          if (e.pointerId !== activePointerId) return;
-          activePointerId = null;
-          mode = null;
-          cnvEl.style.cursor = 'grab';
-          if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
-          dragTimerRef.current = window.setTimeout(() => {
-            controls.autoRotate = true;
-          }, 1500);
+          pointers.delete(e.pointerId);
+          if (pointers.size === 0) {
+            mode = null;
+            cnvEl.style.cursor = 'grab';
+            if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
+            dragTimerRef.current = window.setTimeout(() => {
+              controls.autoRotate = true;
+            }, 1500);
+          } else {
+            // Recenter so we don't get a one-frame jump when one finger lifts.
+            const c = centroid();
+            lastCx = c.x; lastCy = c.y;
+            // Touch: if dropping from 2→1 fingers, fall back to rotate.
+            if (e.pointerType === 'touch' && pointers.size === 1 && mode === 'pan') {
+              mode = 'rotate';
+              cnvEl.style.cursor = 'grabbing';
+            }
+          }
         };
 
         // Desktop scroll wheel:
@@ -656,14 +669,17 @@ export default function LiveGlobe({ papers }: Props) {
             offset.setLength(dist);
             camera.position.copy(controls.target).add(offset);
           } else if (e.shiftKey) {
-            // Rotate vertically (polar)
+            // Rotate vertically (polar). Bumped sensitivity from 0.005 →
+            // 0.01 because macOS trackpad scroll fires sub-pixel deltaY
+            // values; 0.005 produced rotations of ~0.001 rad/event,
+            // imperceptible even at 60Hz.
             const eps = 0.01;
             const cur = controls.getPolarAngle();
-            const next = cur + e.deltaY * 0.005;
+            const next = cur + e.deltaY * 0.01;
             controls.setPolarAngle(Math.max(eps, Math.min(Math.PI - eps, next)));
           } else {
-            // Rotate horizontally (azimuth)
-            controls.setAzimuthalAngle(controls.getAzimuthalAngle() + e.deltaY * 0.005);
+            // Rotate horizontally (azimuth) — see sensitivity note above.
+            controls.setAzimuthalAngle(controls.getAzimuthalAngle() + e.deltaY * 0.01);
           }
         };
 
