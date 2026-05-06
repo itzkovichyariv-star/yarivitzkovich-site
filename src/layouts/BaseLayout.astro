@@ -259,7 +259,9 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
       })();
     </script>
 
-    <!-- Cloudflare Web Analytics — privacy-friendly, cookieless pageview stats -->
-    <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "0ca13efdb537426bb1de7c0f56dc4c3c"}'></script>
+    {/* Cloudflare Web Analytics is auto-injected by Cloudflare itself
+        when "Enable RUM with automatic snippet injection" is on for this
+        domain in the Web Analytics dashboard. No manual <script> needed
+        here — keeping one would duplicate the beacon. */}
   </body>
 </html>
