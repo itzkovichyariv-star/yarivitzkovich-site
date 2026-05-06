@@ -158,14 +158,13 @@ const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; ln
 // otherwise 190 names render at once and the page becomes unreadable.
 // Continent labels stay at low opacity always (they help orient at first glance).
 //
-// MIN_DIST raised from 195 → 260 so users can't pinch-zoom the sphere
-// large enough to spill its atmosphere onto the HUD/text below the canvas.
-// 260 keeps the sphere inside ~80% of the canvas at peak zoom regardless
-// of screen size — text and globe stay visually decoupled without manual
-// per-device tuning.
-const ZOOM_NEAR = 260;   // country labels at peak
-const ZOOM_FAR  = 320;   // country labels start to appear here
-const MIN_DIST  = 260;   // closest pinch-zoom — globe stays inside its canvas
+// MIN_DIST=280 so atmosphere stays clear of the canvas top/bottom edges
+// even at peak pinch-zoom. At 280, sphere+atmosphere subtends ~43.6°
+// vertically — leaves a 6° margin inside the camera's 50° vertical FOV,
+// preventing the overflow:hidden wrapper from clipping the atmosphere.
+const ZOOM_NEAR = 280;   // country labels at peak
+const ZOOM_FAR  = 340;   // country labels start to appear here
+const MIN_DIST  = 280;   // closest pinch-zoom — atmosphere stays inside canvas
 const MAX_DIST  = 800;
 
 export default function LiveGlobe({ papers }: Props) {
@@ -436,23 +435,21 @@ export default function LiveGlobe({ papers }: Props) {
       };
       setEarthTint(!!colors?.isDark);
 
-      // Configure controls — gentle auto-rotation makes the labels'
-      // anchoring obvious (you can see them stick to their countries as
-      // the globe drifts) and gives the page subtle motion. Speed is
-      // dialed way down from the original 0.3 rpm so Israel doesn't fly
-      // off-screen and hide arcs — at 0.4 (≈ 1 orbit / 2.5 min) it
-      // takes ~75s to rotate Israel out of view, which is plenty of time
-      // to read the active arcs before they swing back around.
+      // Configure controls — gentle but visibly drifting auto-rotation.
+      // autoRotateSpeed=0.8 → ~4.8°/s → full orbit every 75 seconds.
+      // 0.4 was hard to perceive at a glance; 0.8 reads as motion within
+      // ~3 seconds while staying calm enough that Israel only swings off
+      // for a manageable window before coming back around.
       const controls = g.controls();
       controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.4;
+      controls.autoRotateSpeed = 0.8;
       controls.enableZoom = true;
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
 
-      // Pause auto-rotation while the user is actively interacting with
-      // the globe; resume after 4 seconds of inactivity so they have time
-      // to read what they zoomed/rotated to before motion picks up again.
+      // Pause auto-rotation while the user is interacting, resume 1.5s
+      // after the last gesture. The previous 4s window let any stray
+      // touch keep rotation paused for the whole session on mobile.
       const onStart = () => {
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
         controls.autoRotate = false;
@@ -461,18 +458,20 @@ export default function LiveGlobe({ papers }: Props) {
         if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
         dragTimerRef.current = window.setTimeout(() => {
           controls.autoRotate = true;
-        }, 4000);
+        }, 1500);
       };
       controls.addEventListener('start', onStart);
       controls.addEventListener('end', onEnd);
 
-      // Mobile scroll-fix: by default OrbitControls capture single-finger
-      // touches, which traps page scroll inside the canvas. Require two
-      // fingers for globe interaction; single-finger taps fall through to
-      // normal page scrolling.
+      // Single-finger inside the canvas rotates the globe (per-pixel
+      // drag), two-finger pinches dolly. Page scroll happens by touching
+      // outside the canvas — the headline + filter row above and the
+      // HUD + privacy footer below give plenty of finger-room to scroll.
+      // touchAction:'none' on the canvas (set just below) lets
+      // OrbitControls own every gesture inside the canvas.
       controls.touches = {
-        ONE: (THREE as any).TOUCH.NONE,
-        TWO: (THREE as any).TOUCH.DOLLY_ROTATE,
+        ONE: (THREE as any).TOUCH.ROTATE,
+        TWO: (THREE as any).TOUCH.DOLLY_PAN,
       };
 
       // Open looking at Israel (where our data origin lives) so the user
@@ -482,12 +481,12 @@ export default function LiveGlobe({ papers }: Props) {
       // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
-      // Apply touch-action: pan-y directly to the canvas globe.gl creates,
-      // so iOS Safari doesn't trap single-finger vertical swipes inside the
-      // WebGL surface. Setting it on the parent div alone wasn't enough on
-      // mobile — the canvas overrides its parent's touch behavior.
+      // touch-action: none on the canvas — OrbitControls owns all
+      // gestures inside the canvas. Page scroll happens by touching
+      // the area above (headline/filter) or below (HUD/footer) the
+      // canvas, so we don't need pan-y pass-through inside the globe.
       const cnv = containerRef.current?.querySelector('canvas');
-      if (cnv) (cnv as HTMLElement).style.touchAction = 'pan-y';
+      if (cnv) (cnv as HTMLElement).style.touchAction = 'none';
 
       // Three label tiers:
       //   continent  → always visible at low opacity (spatial anchor)
@@ -1045,29 +1044,26 @@ export default function LiveGlobe({ papers }: Props) {
           below already shows the three colours alongside the actual counts,
           so there's no need for two legends on the same page.) */}
 
-      {/* Globe canvas — sized off vmin (smaller of viewport width/height)
-          so the canvas is roughly square on every device without per-
-          breakpoint tuning. Combined with MIN_DIST=260 on the camera, the
-          sphere always sits inside ~80% of the canvas; the atmosphere can
-          never bleed onto the HUD/text below regardless of pinch-zoom or
-          orientation. touch-action: pan-y lets single-finger vertical
-          swipes scroll the page through the globe area on mobile. */}
-      <div
-        ref={containerRef}
-        className="w-full overflow-hidden mb-10 md:mb-8"
-        style={{
-          // 95vmin: ~95% of the smaller viewport dimension. On a 390×844
-          //         portrait phone vmin = 390, so canvas ≈ 370px high —
-          //         hugs the sphere with no empty WebGL bands above/below.
-          // 60vh:   prevents super-tall canvas on portrait tablets where
-          //         vmin would otherwise dominate.
-          // 580px:  hard cap on desktops so the canvas doesn't dominate
-          //         the editorial layout.
-          height: 'min(95vmin, 60vh, 580px)',
-          touchAction: 'pan-y',
-        }}
-        aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}
-      />
+      {/* Globe canvas wrapper — centered max-768px box echoes the
+          editorial column width so the sphere sits visually inside the
+          page rhythm instead of sprawling end-to-end. Inside, the canvas
+          uses clamp(360px, 80vmin, 580px) so it's always close to square
+          and never letterboxes (the previous 60vh formula made desktop
+          canvas 540×1072, with atmosphere clipped at top/bottom by the
+          overflow-hidden wrapper). touch-action:none means OrbitControls
+          owns every gesture inside the canvas — page scroll happens by
+          touching above (headline/filter) or below (HUD) the globe. */}
+      <div className="mx-auto" style={{ maxWidth: 'min(768px, 100%)' }}>
+        <div
+          ref={containerRef}
+          className="w-full overflow-hidden mb-10 md:mb-8"
+          style={{
+            height: 'clamp(360px, 80vmin, 580px)',
+            touchAction: 'none',
+          }}
+          aria-label={`Globe showing ${events.length} events from ${totals?.sinceLaunch?.countries ?? 0} countries.`}
+        />
+      </div>
 
       {/* HUD */}
       <GlobeHUD totals={totals} activity={activity} />
