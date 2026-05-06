@@ -258,5 +258,8 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
         } catch (e) { /* fail silently — never break the page */ }
       })();
     </script>
+
+    <!-- Cloudflare Web Analytics — privacy-friendly, cookieless pageview stats -->
+    <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "0ca13efdb537426bb1de7c0f56dc4c3c"}'></script>
   </body>
 </html>

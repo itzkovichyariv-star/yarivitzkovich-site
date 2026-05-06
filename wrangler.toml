@@ -8,3 +8,4 @@ database_id = "252c466c-1964-4c86-879e-a19fed515827"
 
 [vars]
 LAUNCH_DATE = "2026-05-05"
+CF_WEB_ANALYTICS_TAG = "0ca13efdb537426bb1de7c0f56dc4c3c"
