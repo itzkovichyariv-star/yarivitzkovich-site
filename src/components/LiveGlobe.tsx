@@ -590,20 +590,25 @@ export default function LiveGlobe({ papers }: Props) {
       if (e.country_name) active.add(String(e.country_name).toUpperCase());
     }
 
-    // De-dupe by name so we don't render the same country twice when both
-    // ISO-2 and name aliases map to it.
+    // ONLY push country labels for countries that actually have activity —
+    // not the full Natural Earth country set. Rendering 190 country labels
+    // simultaneously when zoomed in caused a wall-of-text the user
+    // described as 'the globe display is messed up'. The country *outlines*
+    // are still drawn (polygonsData) — we just suppress text labels for
+    // inactive countries.
     const seen = new Set<string>();
     const countryLabels: Array<any> = [];
     centroids.forEach((entry, key) => {
       if (seen.has(entry.name.toUpperCase())) return;
-      seen.add(entry.name.toUpperCase());
       const isActive = active.has(entry.name.toUpperCase()) || active.has(key);
+      if (!isActive) return; // <-- skip inactive countries entirely
+      seen.add(entry.name.toUpperCase());
       countryLabels.push({
         kind: 'country' as const,
         text: entry.name.toUpperCase(),
         lat: entry.lat,
         lng: entry.lng,
-        __active: isActive,
+        __active: true,
       });
     });
 

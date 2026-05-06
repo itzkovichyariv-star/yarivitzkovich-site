@@ -26,31 +26,23 @@ export const onRequestGet = async ({ env }) => {
     // Total events ever (excluding bots)
     env.DB.prepare(`SELECT COUNT(*) AS n FROM events WHERE is_bot = 0`).first(),
 
-    // Class breakdown since launch — counted per VISITOR rather than per
-    // event-kind, so a download from Hong Kong (someone's only event)
-    // counts in BOTH 'firstTime' AND 'downloads'. A returning visitor who
-    // also downloaded counts in BOTH 'returning' AND 'downloads'.
+    // Class breakdown since launch.
+    // Counts events by visitor_class field (set client-side via localStorage
+    // for visits) plus a separate downloads count.
     //
-    // Mechanism: ROW_NUMBER() partitioned by ip_hash, ordered by ts. The
-    // first row for each ip_hash is that visitor's first appearance
-    // ('firstTime'); subsequent rows are returns ('returning').
-    // Downloads are a separate subset count.
-    //
-    // Math after this query: firstTime + returning = total non-bot events.
-    // downloads is an OVERLAPPING subset of those (same event row).
+    // Note: a follow-up will introduce a stable person_hash field so that
+    // downloads can ALSO count toward first-time / returning based on
+    // whether the same IP had prior events. Today's ip_hash includes the
+    // event kind for dedup purposes, so it can't be used as a cross-kind
+    // person identifier — that's why the previous ROW_NUMBER attempt
+    // counted every event as first-time.
     env.DB.prepare(
-      `WITH ranked AS (
-         SELECT
-           kind,
-           ROW_NUMBER() OVER (PARTITION BY ip_hash ORDER BY ts ASC, id ASC) AS rn
-         FROM events
-         WHERE is_bot = 0
-       )
-       SELECT
+      `SELECT
          SUM(CASE WHEN kind = 'download' THEN 1 ELSE 0 END) AS downloads,
-         SUM(CASE WHEN rn = 1 THEN 1 ELSE 0 END) AS firstTime,
-         SUM(CASE WHEN rn > 1 THEN 1 ELSE 0 END) AS returningN
-       FROM ranked`
+         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'first_time' THEN 1 ELSE 0 END) AS firstTime,
+         SUM(CASE WHEN kind = 'visit' AND visitor_class = 'returning' THEN 1 ELSE 0 END) AS returningN
+       FROM events
+       WHERE is_bot = 0`
     ).first(),
 
     // Distinct countries + continents seen since launch

@@ -58,12 +58,7 @@ export default function GlobeHUD({ totals, activity }: Props) {
   return (
     <div className="mt-6 space-y-3 text-[11px] uppercase tracking-widest font-mono leading-relaxed">
 
-      {/* LINE 1 — masthead totals, single horizontal flow.
-          firstTime + returning = total events (every event is one or the
-          other based on whether it's that visitor's first appearance).
-          downloads is an OVERLAPPING subset — a download by a first-time
-          visitor counts as BOTH first-time AND a download. The "of which"
-          phrasing makes the overlap explicit. */}
+      {/* LINE 1 — masthead totals, single horizontal flow */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="opacity-55">Since {launchDateLabel || '—'}</span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }} className="opacity-90">
@@ -75,8 +70,6 @@ export default function GlobeHUD({ totals, activity }: Props) {
         <Sep />
         <Pair color="#22DD66" n={since?.firstTime ?? 0} label="first" />
         <Pair color="#FFA200" n={since?.returning ?? 0} label="ret" />
-        <span className="opacity-30">·</span>
-        <span className="opacity-55">of which</span>
         <Pair color="#C9304E" n={since?.downloads ?? 0} label="dl" />
         <Sep />
         <span className="opacity-65">{since?.countries ?? 0} countries · {since?.continents ?? 0} cont</span>
