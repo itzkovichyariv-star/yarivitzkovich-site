@@ -530,79 +530,116 @@ export default function LiveGlobe({ papers }: Props) {
         cnvEl.style.cursor = 'grab';
         cnvEl.style.pointerEvents = 'auto';
 
-        // Custom drag-to-rotate, bypassing globe.gl's OrbitControls pointer
-        // handling. OrbitControls uses setPointerCapture, which throws on
-        // Safari under common pointer states and aborts the drag flow even
-        // when wrapped to swallow the throw — the underlying state isn't
-        // properly tracked. Driving the camera ourselves via
-        // controls.rotateLeft / rotateUp is reliable everywhere because
-        // it doesn't depend on pointer capture at all.
-        let dragging = false;
+        // Custom drag handlers, bypassing globe.gl's OrbitControls pointer
+        // flow (which calls setPointerCapture and aborts on Safari).
+        // Two interactions:
+        //   - left-click / single-finger drag → ROTATE the globe (orbit
+        //     the camera around the globe centre via azimuth/polar)
+        //   - right-click / two-finger drag   → PAN the globe (translate
+        //     the camera + target sideways and up/down on screen)
+        // Both use OrbitControls' public API only (setAzimuthalAngle,
+        // setPolarAngle, controls.target / camera.position mutation),
+        // never setPointerCapture.
+        const camera = g.camera();
+
+        type Mode = 'rotate' | 'pan' | null;
+        let mode: Mode = null;
         let lastX = 0;
         let lastY = 0;
         let activePointerId: number | null = null;
+        // Track whether a second finger is down — used to flip mobile
+        // single-finger rotate into two-finger pan. Map of pointerId → true.
+        const activePointers = new Set<number>();
+
+        const panCamera = (deltaX: number, deltaY: number) => {
+          // Compute the screen-space pan distance in world units. Same
+          // formula OrbitControls uses internally for screenSpacePanning.
+          const targetDist = camera.position.distanceTo(controls.target);
+          const fovRad = ((camera as any).fov || 50) * (Math.PI / 180);
+          const worldPerPx = (2 * targetDist * Math.tan(fovRad / 2)) / (cnvEl.clientHeight || 1);
+          const xCol = new THREE.Vector3();
+          const yCol = new THREE.Vector3();
+          xCol.setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-deltaX * worldPerPx);
+          yCol.setFromMatrixColumn(camera.matrix, 1).multiplyScalar( deltaY * worldPerPx);
+          const offset = xCol.add(yCol);
+          controls.target.add(offset);
+          camera.position.add(offset);
+        };
 
         const onDown = (e: PointerEvent) => {
-          if (activePointerId !== null) return; // ignore secondary fingers
-          dragging = true;
+          activePointers.add(e.pointerId);
+          if (activePointerId !== null) return; // already tracking a primary
           activePointerId = e.pointerId;
           lastX = e.clientX;
           lastY = e.clientY;
+          // button === 2 is right-click on desktop → pan. Touch events
+          // don't have a meaningful button (always 0 / -1), so on mobile
+          // we default to rotate and switch to pan only when a 2nd finger
+          // joins (handled in onMove below).
+          mode = e.button === 2 ? 'pan' : 'rotate';
           cnvEl.style.cursor = 'grabbing';
-          // Pause auto-rotate while user is actively dragging.
           controls.autoRotate = false;
         };
+
         const onMove = (e: PointerEvent) => {
-          if (!dragging || e.pointerId !== activePointerId) return;
+          if (activePointerId === null) return;
+          if (e.pointerId !== activePointerId) {
+            // Track movement of the secondary finger to enable pan mode.
+            return;
+          }
+          // If a second finger is down, switch the gesture to pan even if
+          // it started as rotate.
+          if (e.pointerType === 'touch' && activePointers.size >= 2 && mode === 'rotate') {
+            mode = 'pan';
+          }
           const dx = e.clientX - lastX;
           const dy = e.clientY - lastY;
           lastX = e.clientX;
           lastY = e.clientY;
-          // Convert pixel delta to spherical-angle delta and apply to
-          // OrbitControls' public azimuthal/polar setters (rotateLeft /
-          // rotateUp aren't part of the public API across three.js
-          // versions, hence the earlier silent up-down failure).
-          const h = cnvEl.clientHeight || 1;
-          const azDelta = (2 * Math.PI * dx) / h;
-          const polDelta = (2 * Math.PI * dy) / h;
-          const eps = 0.01; // keep polar angle off the exact pole
-          const newAz = controls.getAzimuthalAngle() - azDelta;
-          const newPol = Math.max(eps, Math.min(Math.PI - eps,
-            controls.getPolarAngle() - polDelta
-          ));
-          controls.setAzimuthalAngle(newAz);
-          controls.setPolarAngle(newPol);
+
+          if (mode === 'rotate') {
+            const h = cnvEl.clientHeight || 1;
+            const azDelta = (2 * Math.PI * dx) / h;
+            const polDelta = (2 * Math.PI * dy) / h;
+            const eps = 0.01;
+            controls.setAzimuthalAngle(controls.getAzimuthalAngle() - azDelta);
+            controls.setPolarAngle(Math.max(eps, Math.min(Math.PI - eps,
+              controls.getPolarAngle() - polDelta
+            )));
+          } else if (mode === 'pan') {
+            panCamera(dx, dy);
+          }
         };
+
         const onUp = (e: PointerEvent) => {
+          activePointers.delete(e.pointerId);
           if (e.pointerId !== activePointerId) return;
-          dragging = false;
           activePointerId = null;
+          mode = null;
           cnvEl.style.cursor = 'grab';
-          // Resume auto-rotate after a short pause so the user has time
-          // to read what they rotated to.
           if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
           dragTimerRef.current = window.setTimeout(() => {
             controls.autoRotate = true;
           }, 1500);
         };
 
+        // Suppress the desktop right-click context menu so right-drag
+        // panning isn't interrupted.
+        const onContextMenu = (e: Event) => e.preventDefault();
+
         cnvEl.addEventListener('pointerdown', onDown);
-        // Listen on window for move/up so the drag continues even if the
-        // pointer leaves the canvas (no setPointerCapture needed).
+        cnvEl.addEventListener('contextmenu', onContextMenu);
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         window.addEventListener('pointercancel', onUp);
 
-        // Cleanup these handlers on unmount, alongside globe.gl's own
-        // cleanup further down.
         const cleanupCustomDrag = () => {
           cnvEl.removeEventListener('pointerdown', onDown);
+          cnvEl.removeEventListener('contextmenu', onContextMenu);
           window.removeEventListener('pointermove', onMove);
           window.removeEventListener('pointerup', onUp);
           window.removeEventListener('pointercancel', onUp);
         };
-        // Stash on the canvas element so we can call it from the
-        // outer cleanup function below.
         (cnvEl as any).__cleanupCustomDrag = cleanupCustomDrag;
       }
 
