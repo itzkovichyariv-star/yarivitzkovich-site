@@ -375,18 +375,16 @@ export default function LiveGlobe({ papers }: Props) {
         // stacking on top of each other (where only the topmost colour
         // would read). Each arc carries an __altitude in its data.
         .arcAltitude((d: any) => d.__altitude ?? 0.4)
-        // arcStroke = 0 forces native gl.LINES (thin) which renders on
-        // every engine. arcStroke > 0 triggers three.js Line2 (thick),
-        // which silently fails on iOS WebKit GPUs.
-        .arcStroke((d: any) => (isWebKit ? 0 : d?.__stroke ?? 0.7))
-        // On WebKit, also draw arcs as SOLID lines (full dash, no gap,
-        // no animation). Three-globe's default dashed/animated arcs
-        // disappear entirely on some iOS Safari versions even with
-        // stroke=0; making the arc geometry a single solid segment
-        // bypasses whatever shader path is failing.
-        .arcDashLength(isWebKit ? 1 : 0.6)
-        .arcDashGap(isWebKit ? 0 : 0.5)
-        .arcDashAnimateTime(isWebKit ? 0 : 1500)
+        // Uniform arc rendering across all browsers: a small non-zero
+        // stroke so Lines2 produces a visible thickness, plus solid
+        // (dashLength=1, dashGap=0) and no animation. This combination
+        // has the broadest WebGL implementation support — earlier
+        // configs that combined thick strokes with dashed/animated
+        // patterns silently failed on Safari (both macOS and iOS).
+        .arcStroke(0.5)
+        .arcDashLength(1)
+        .arcDashGap(0)
+        .arcDashAnimateTime(0)
         .arcsTransitionDuration(0)
         // Pin styling for visit dots
         .pointAltitude(0.012)
@@ -460,6 +458,12 @@ export default function LiveGlobe({ papers }: Props) {
       controls.enableZoom = true;
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
+      // Enable panning so the globe can be slid around the canvas, not
+      // just rotated. screenSpacePanning makes pan motion follow the
+      // user's drag direction in screen space (intuitive) rather than
+      // along world-aligned axes (which feels backwards).
+      controls.enablePan = true;
+      controls.screenSpacePanning = true;
 
       // Pause auto-rotation while the user is interacting, resume 1.5s
       // after the last gesture. The previous 4s window let any stray
