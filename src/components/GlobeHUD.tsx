@@ -229,7 +229,10 @@ export default function GlobeHUD({ totals, activity }: Props) {
                 · {recent.continent_name || '—'} · {timeAgoShort(totals!.serverNow - recent.ts)}
               </span>
             </div>
-            {recent.paper_title && (
+            {/* Paper citation only renders under DOWNLOAD events. A visit
+                — even one synthesized from a PDF deep-link — is just an
+                entry; the paper context belongs to the download. */}
+            {recent.kind === 'download' && recent.paper_title && (
               <a
                 href={recent.paper_slug ? `/publications/${recent.paper_slug}` : undefined}
                 className="block font-display italic text-[12px] opacity-75 leading-snug underline decoration-transparent hover:decoration-current transition"

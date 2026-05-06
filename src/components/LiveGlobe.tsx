@@ -1168,7 +1168,7 @@ function PinCard({
           {resolvedTitle || event.paper_slug.replace(/-/g, ' ')}
         </a>
       )}
-      {!isDownload && event.page_path && (
+      {!isDownload && event.page_path && !event.page_path.startsWith('/pdfs/') && (
         <div className="font-mono text-xs opacity-70">{event.page_path}</div>
       )}
     </div>
