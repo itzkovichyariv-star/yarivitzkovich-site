@@ -521,17 +521,80 @@ export default function LiveGlobe({ papers }: Props) {
       // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
-      // touch-action: none on the canvas — OrbitControls owns all
-      // gestures inside the canvas. Cursor: grab via CSS only (no
-      // JS pointer listeners, which were potentially intercepting
-      // events that OrbitControls expected to receive). pointer-events
-      // explicit so nothing inherited can disable them.
+      // touch-action: none on the canvas — we own all gestures inside.
+      // Cursor: grab via CSS so the canvas reads as draggable.
       const cnv = containerRef.current?.querySelector('canvas');
       if (cnv) {
         const cnvEl = cnv as HTMLElement;
         cnvEl.style.touchAction = 'none';
         cnvEl.style.cursor = 'grab';
         cnvEl.style.pointerEvents = 'auto';
+
+        // Custom drag-to-rotate, bypassing globe.gl's OrbitControls pointer
+        // handling. OrbitControls uses setPointerCapture, which throws on
+        // Safari under common pointer states and aborts the drag flow even
+        // when wrapped to swallow the throw — the underlying state isn't
+        // properly tracked. Driving the camera ourselves via
+        // controls.rotateLeft / rotateUp is reliable everywhere because
+        // it doesn't depend on pointer capture at all.
+        let dragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        let activePointerId: number | null = null;
+
+        const onDown = (e: PointerEvent) => {
+          if (activePointerId !== null) return; // ignore secondary fingers
+          dragging = true;
+          activePointerId = e.pointerId;
+          lastX = e.clientX;
+          lastY = e.clientY;
+          cnvEl.style.cursor = 'grabbing';
+          // Pause auto-rotate while user is actively dragging.
+          controls.autoRotate = false;
+        };
+        const onMove = (e: PointerEvent) => {
+          if (!dragging || e.pointerId !== activePointerId) return;
+          const dx = e.clientX - lastX;
+          const dy = e.clientY - lastY;
+          lastX = e.clientX;
+          lastY = e.clientY;
+          // Convert pixel delta to a rotation angle. The factor matches
+          // OrbitControls' default: 2π × delta / canvasHeight.
+          const h = cnvEl.clientHeight || 1;
+          controls.rotateLeft((2 * Math.PI * dx) / h);
+          controls.rotateUp((2 * Math.PI * dy) / h);
+        };
+        const onUp = (e: PointerEvent) => {
+          if (e.pointerId !== activePointerId) return;
+          dragging = false;
+          activePointerId = null;
+          cnvEl.style.cursor = 'grab';
+          // Resume auto-rotate after a short pause so the user has time
+          // to read what they rotated to.
+          if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
+          dragTimerRef.current = window.setTimeout(() => {
+            controls.autoRotate = true;
+          }, 1500);
+        };
+
+        cnvEl.addEventListener('pointerdown', onDown);
+        // Listen on window for move/up so the drag continues even if the
+        // pointer leaves the canvas (no setPointerCapture needed).
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
+
+        // Cleanup these handlers on unmount, alongside globe.gl's own
+        // cleanup further down.
+        const cleanupCustomDrag = () => {
+          cnvEl.removeEventListener('pointerdown', onDown);
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+        };
+        // Stash on the canvas element so we can call it from the
+        // outer cleanup function below.
+        (cnvEl as any).__cleanupCustomDrag = cleanupCustomDrag;
       }
 
       // Three label tiers:
