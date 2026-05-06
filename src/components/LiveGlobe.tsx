@@ -560,6 +560,26 @@ export default function LiveGlobe({ papers }: Props) {
           return n ? { x: sx / n, y: sy / n, n } : { x: 0, y: 0, n: 0 };
         };
 
+        // Rotation by direct spherical math, bypassing
+        // controls.setAzimuthalAngle / setPolarAngle — those method names
+        // are NOT on the OrbitControls instance bundled inside globe.gl
+        // 2.45.3 (TypeError: setAzimuthalAngle is not a function), only
+        // in newer standalone three.js builds. THREE.Spherical is core
+        // three.js and is always available.
+        const _sphericalTmp = new THREE.Spherical();
+        const _offsetTmp = new THREE.Vector3();
+        const rotateBy = (thetaDelta: number, phiDelta: number) => {
+          _offsetTmp.copy(camera.position).sub(controls.target);
+          _sphericalTmp.setFromVector3(_offsetTmp);
+          _sphericalTmp.theta -= thetaDelta;
+          _sphericalTmp.phi = Math.max(0.01, Math.min(Math.PI - 0.01,
+            _sphericalTmp.phi - phiDelta
+          ));
+          _offsetTmp.setFromSpherical(_sphericalTmp);
+          camera.position.copy(controls.target).add(_offsetTmp);
+          camera.lookAt(controls.target);
+        };
+
         const panCamera = (deltaX: number, deltaY: number) => {
           // Make sure camera matrix reflects the latest transform before
           // we read column basis.
@@ -621,11 +641,7 @@ export default function LiveGlobe({ papers }: Props) {
             const h = cnvEl.clientHeight || 1;
             const azDelta = (2 * Math.PI * dx) / h;
             const polDelta = (2 * Math.PI * dy) / h;
-            const eps = 0.01;
-            controls.setAzimuthalAngle(controls.getAzimuthalAngle() - azDelta);
-            controls.setPolarAngle(Math.max(eps, Math.min(Math.PI - eps,
-              controls.getPolarAngle() - polDelta
-            )));
+            rotateBy(azDelta, polDelta);
           } else if (mode === 'pan') {
             panCamera(dx, dy);
           }
@@ -671,17 +687,14 @@ export default function LiveGlobe({ papers }: Props) {
             offset.setLength(dist);
             camera.position.copy(controls.target).add(offset);
           } else if (e.shiftKey) {
-            // Rotate vertically (polar). Bumped sensitivity from 0.005 →
-            // 0.01 because macOS trackpad scroll fires sub-pixel deltaY
-            // values; 0.005 produced rotations of ~0.001 rad/event,
-            // imperceptible even at 60Hz.
-            const eps = 0.01;
-            const cur = controls.getPolarAngle();
-            const next = cur + e.deltaY * 0.01;
-            controls.setPolarAngle(Math.max(eps, Math.min(Math.PI - eps, next)));
+            // Rotate vertically (polar). 0.01 instead of 0.005 because
+            // macOS trackpad scroll fires sub-pixel deltaY values.
+            // Negative phiDelta in rotateBy => phi += d, matching the
+            // previous setPolarAngle(cur + d) direction.
+            rotateBy(0, -e.deltaY * 0.01);
           } else {
-            // Rotate horizontally (azimuth) — see sensitivity note above.
-            controls.setAzimuthalAngle(controls.getAzimuthalAngle() + e.deltaY * 0.01);
+            // Rotate horizontally (azimuth). Same sign convention.
+            rotateBy(-e.deltaY * 0.01, 0);
           }
         };
 
@@ -1096,9 +1109,9 @@ export default function LiveGlobe({ papers }: Props) {
 
       let cancelled = false;
       const timers: number[] = [];
-      const STAGGER_MS = 2200;     // gap between event entrances
-      const CARD_AUTO_MS = 5000;   // how long an auto-card stays before fading
-      const LOOP_GAP_MS = 2500;    // breath between loops
+      const STAGGER_MS = 1200;     // gap between event entrances (was 2200)
+      const CARD_AUTO_MS = 3500;   // how long an auto-card stays before fading (was 5000)
+      const LOOP_GAP_MS = 1500;    // breath between loops (was 2500)
 
       const fireOneEvent = (e: EventRow) => {
         const cls = e.visitor_class as keyof typeof palette;
