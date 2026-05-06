@@ -10,3 +10,8 @@ migrations_dir = "db/migrations"
 [vars]
 LAUNCH_DATE = "2026-05-05"
 CF_WEB_ANALYTICS_TAG = "0ca13efdb537426bb1de7c0f56dc4c3c"
+# Comma-separated list of cities the owner regularly browses from. Any
+# event geo-tagged to one of these cities is silently dropped before it
+# reaches D1 — works regardless of which device/OS the owner is using.
+# Edit this list (and re-deploy) to add cities the owner travels to.
+OWNER_CITIES = "Kfar Saba,Jerusalem,Tel Aviv,Petah Tiqva,Ariel,Hadera,Netanya"

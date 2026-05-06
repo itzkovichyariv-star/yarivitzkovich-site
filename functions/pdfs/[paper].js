@@ -48,6 +48,7 @@ export const onRequestGet = async (ctx) => {
             // and the HUD's first-time count reflects this person.
             await recordEvent({
               db: env.DB,
+              env,
               request,
               kind: 'visit',
               visitor_class: 'first_time',
@@ -60,6 +61,7 @@ export const onRequestGet = async (ctx) => {
           // Always record the download itself.
           await recordEvent({
             db: env.DB,
+            env,
             request,
             kind: 'download',
             visitor_class: 'downloader',

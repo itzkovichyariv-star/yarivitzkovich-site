@@ -48,6 +48,7 @@ export const onRequestPost = async ({ request, env }) => {
 
   const result = await recordEvent({
     db: env.DB,
+    env,
     request,
     kind: 'visit',
     visitor_class,
