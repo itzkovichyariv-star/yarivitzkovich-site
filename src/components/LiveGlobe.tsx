@@ -546,10 +546,18 @@ export default function LiveGlobe({ papers }: Props) {
         let mode: Mode = null;
         let lastX = 0;
         let lastY = 0;
+        let downX = 0;
+        let downY = 0;
         let activePointerId: number | null = null;
         // Track whether a second finger is down — used to flip mobile
-        // single-finger rotate into two-finger pan. Map of pointerId → true.
+        // single-finger rotate into two-finger pan.
         const activePointers = new Set<number>();
+        // Long-press timer: if the user holds still for ~400ms before
+        // moving, we switch from rotate to pan mode. Lets one-touch /
+        // left-click do both gestures based on intent.
+        let longPressTimer: number | null = null;
+        const LONG_PRESS_MS = 400;
+        const MOVE_THRESHOLD_PX = 5;
 
         const panCamera = (deltaX: number, deltaY: number) => {
           // Compute the screen-space pan distance in world units. Same
@@ -568,30 +576,55 @@ export default function LiveGlobe({ papers }: Props) {
 
         const onDown = (e: PointerEvent) => {
           activePointers.add(e.pointerId);
-          if (activePointerId !== null) return; // already tracking a primary
+          if (activePointerId !== null) return;
           activePointerId = e.pointerId;
           lastX = e.clientX;
           lastY = e.clientY;
-          // button === 2 is right-click on desktop → pan. Touch events
-          // don't have a meaningful button (always 0 / -1), so on mobile
-          // we default to rotate and switch to pan only when a 2nd finger
-          // joins (handled in onMove below).
+          downX = e.clientX;
+          downY = e.clientY;
+          // Right-click → pan immediately (desktop power-user shortcut).
+          // Otherwise default to rotate; the long-press timer below flips
+          // to pan if the user holds still for ~400ms before moving.
+          // Two-finger touch is also pan (handled below).
           mode = e.button === 2 ? 'pan' : 'rotate';
           cnvEl.style.cursor = 'grabbing';
           controls.autoRotate = false;
+          // Start the long-press timer only for left-click / single-finger.
+          if (longPressTimer !== null) window.clearTimeout(longPressTimer);
+          if (e.button !== 2) {
+            longPressTimer = window.setTimeout(() => {
+              // User has held still past the threshold → switch to pan.
+              if (mode === 'rotate') {
+                mode = 'pan';
+                cnvEl.style.cursor = 'move';
+              }
+              longPressTimer = null;
+            }, LONG_PRESS_MS);
+          }
         };
 
         const onMove = (e: PointerEvent) => {
           if (activePointerId === null) return;
-          if (e.pointerId !== activePointerId) {
-            // Track movement of the secondary finger to enable pan mode.
-            return;
-          }
-          // If a second finger is down, switch the gesture to pan even if
-          // it started as rotate.
+          if (e.pointerId !== activePointerId) return;
+
+          // Two-finger drag on touch → pan (overrides rotate if a second
+          // finger has joined).
           if (e.pointerType === 'touch' && activePointers.size >= 2 && mode === 'rotate') {
             mode = 'pan';
+            cnvEl.style.cursor = 'move';
           }
+
+          // If the user moved before the long-press timer fired, they
+          // intend to swipe — commit to rotate mode and cancel the timer.
+          if (longPressTimer !== null) {
+            const dragDx = e.clientX - downX;
+            const dragDy = e.clientY - downY;
+            if (Math.hypot(dragDx, dragDy) > MOVE_THRESHOLD_PX) {
+              window.clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          }
+
           const dx = e.clientX - lastX;
           const dy = e.clientY - lastY;
           lastX = e.clientX;
@@ -614,6 +647,10 @@ export default function LiveGlobe({ papers }: Props) {
         const onUp = (e: PointerEvent) => {
           activePointers.delete(e.pointerId);
           if (e.pointerId !== activePointerId) return;
+          if (longPressTimer !== null) {
+            window.clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
           activePointerId = null;
           mode = null;
           cnvEl.style.cursor = 'grab';
