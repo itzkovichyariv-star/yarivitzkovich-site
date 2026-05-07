@@ -507,14 +507,11 @@ export default function LiveGlobe({ papers }: Props) {
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
       controls.screenSpacePanning = true;
-      // Disable damping. globe.gl turns it on by default which adds an
-      // inertial smoothing to spherical changes — fine for normal rotate
-      // gestures, but it preserves residual momentum across pointerup,
-      // so the camera continues to drift after the user releases a pan.
-      // Without damping, releasing the press snaps the gesture to a
-      // hard stop. (We also kill autoRotate after the first pan below
-      // for the same "globe stays where I left it" reason.)
-      controls.enableDamping = false;
+      // Leave damping at globe.gl's default (true). The pan implementation
+      // below uses camera.setViewOffset to shift the rendered viewport
+      // without touching the camera's world-space position or target —
+      // so there's no inertial momentum to fight on release.
+      controls.enableDamping = true;
 
       // (Pause-on-drag logic removed — was running alongside OrbitControls'
       // own internal start/end handling and may have been suppressing the
@@ -583,6 +580,21 @@ export default function LiveGlobe({ papers }: Props) {
         cnvEl.addEventListener('contextmenu', onContextMenu);
 
         // --- long-press → pan state ---
+        //
+        // Implementation note: pan is done via camera.setViewOffset rather
+        // than moving the camera/target in world space. setViewOffset shifts
+        // ONLY the rendered viewport — the world-space camera and target
+        // stay put at the origin where the globe lives, so:
+        //   • autoRotate continues to spin the globe in place at the new
+        //     panned screen position
+        //   • quick-drag rotation keeps working
+        //   • zoom (wheel / pinch) keeps working
+        //   • arcs, points, and HTML labels render at correct screen
+        //     positions because three.js / globe.gl all read the same
+        //     projection matrix that setViewOffset modifies
+        // This was the missing piece in earlier attempts that moved the
+        // target — autoRotate would orbit an empty point in world space
+        // and the globe would drift circularly off-screen.
         const LONG_PRESS_MS = 350;
         const MOVE_THRESHOLD_PX = 6;
         let longPressTimer: number | null = null;
@@ -591,46 +603,50 @@ export default function LiveGlobe({ papers }: Props) {
         let dragStartY = 0;
         let lastPointerX = 0;
         let lastPointerY = 0;
-        // Snapshot of OrbitControls flags taken when long-press fires, so we
-        // can restore them exactly on release. Saving rather than hard-coding
-        // means if the init values ever change (e.g. autoRotate toggled by
-        // theme or reduced-motion logic) we don't trample them.
-        let savedAutoRotate = false;
-        let savedEnableRotate = true;
-        let savedEnablePan = true;
+        // Accumulated viewport offset in CANVAS pixels. Persists after
+        // pointerup so the pan stays where the user put it.
+        let viewOffsetX = 0;
+        let viewOffsetY = 0;
         const activePointers = new Set<number>();
+
+        const applyViewOffset = () => {
+          const camera: any = g.camera();
+          const w = cnvEl.clientWidth || 1;
+          const h = cnvEl.clientHeight || 1;
+          if (viewOffsetX === 0 && viewOffsetY === 0) {
+            if (typeof camera.clearViewOffset === 'function') camera.clearViewOffset();
+          } else {
+            // Negative offset shifts the rendered scene in the SAME direction
+            // as the user's drag (drag right → globe appears to move right).
+            camera.setViewOffset(w, h, -viewOffsetX, -viewOffsetY, w, h);
+          }
+        };
+
+        // Re-apply the view offset whenever the canvas resizes so the pan
+        // stays anchored to the same proportional position. The wrapping
+        // useEffect already drives g.width/g.height on size changes; this
+        // listener just snaps the projection back into shape afterwards.
+        const ro = new ResizeObserver(() => applyViewOffset());
+        ro.observe(cnvEl);
 
         const enterPanMode = () => {
           longPressActive = true;
-          // Pause every OrbitControls behaviour that could fight our manual
-          // target translation:
-          //   • autoRotate: nudges spherical.theta every frame → camera
-          //     orbits while user drags → looks like the globe is shaking.
-          //   • enableRotate: drag was already disabled, but be explicit.
-          //   • enablePan: prevent OrbitControls' own pan from engaging if
-          //     state ever flips to PAN mid-drag (we own pan now).
-          savedAutoRotate = !!controls.autoRotate;
-          savedEnableRotate = !!controls.enableRotate;
-          savedEnablePan = !!controls.enablePan;
-          controls.autoRotate = false;
+          // Stop OrbitControls' built-in rotate while we own the gesture.
+          // We DON'T touch autoRotate or enablePan — autoRotate can keep
+          // running through pan because setViewOffset doesn't fight with
+          // world-space camera updates, and enablePan stays as configured
+          // (right-click / two-finger pan still works).
           controls.enableRotate = false;
-          controls.enablePan = false;
           cnvEl.style.cursor = 'grabbing';
         };
 
         const exitPanMode = () => {
           if (!longPressActive) return;
           longPressActive = false;
-          // DON'T restore autoRotate. Once the user has panned the view to
-          // a new position, automatic rotation around the panned target
-          // would orbit the camera around an empty point in space — the
-          // globe (at world origin) drifts in a circular path on screen
-          // and eventually disappears behind the camera. Leaving
-          // autoRotate off lets the user's pan stay where they put it.
-          // They can still rotate manually with quick-drag.
-          controls.enableRotate = savedEnableRotate;
-          controls.enablePan = savedEnablePan;
+          controls.enableRotate = true;
           cnvEl.style.cursor = 'grab';
+          // Pan offset is intentionally LEFT in place — the globe stays
+          // where the user dragged it.
         };
 
         const cancelLongPress = () => {
@@ -643,14 +659,10 @@ export default function LiveGlobe({ papers }: Props) {
 
         const onPointerDown = (e: PointerEvent) => {
           activePointers.add(e.pointerId);
-          // Multi-touch (pinch / two-finger pan) — OrbitControls handles it.
-          // Don't arm the long-press; cancel any in-flight one.
           if (activePointers.size > 1) {
             cancelLongPress();
             return;
           }
-          // Mouse: only the primary button arms long-press. Right-click
-          // still triggers OrbitControls' built-in pan as before.
           if (e.pointerType === 'mouse' && e.button !== 0) return;
 
           dragStartX = e.clientX;
@@ -664,9 +676,6 @@ export default function LiveGlobe({ papers }: Props) {
         };
 
         const onPointerMove = (e: PointerEvent) => {
-          // If the timer is still pending and the user has moved past the
-          // threshold, they meant to rotate — cancel the long-press and let
-          // OrbitControls handle the gesture as a normal drag-rotate.
           if (longPressTimer !== null && !longPressActive) {
             const tdx = e.clientX - dragStartX;
             const tdy = e.clientY - dragStartY;
@@ -679,46 +688,12 @@ export default function LiveGlobe({ papers }: Props) {
           if (longPressActive) {
             const dx = e.clientX - lastPointerX;
             const dy = e.clientY - lastPointerY;
-            const camera: any = g.camera();
-            // Convert pixel deltas to world-space pan amount based on the
-            // camera's frustum at the current distance — same math as
-            // OrbitControls' internal panLeft/panUp helpers.
-            const distance =
-              (controls as any).getDistance ? (controls as any).getDistance() : 400;
-            const fovDeg = camera?.fov ?? 50;
-            const vfov = (fovDeg * Math.PI) / 180;
-            const canvasH = cnvEl.clientHeight || 1;
-            // PAN_SENSITIVITY > 1 makes the globe move further than the
-            // finger — natural 1:1 felt too subtle at globe.gl's default
-            // camera distance, so we amplify to make the gesture obviously
-            // responsive. 2.5× lands on "globe follows hand and a bit
-            // more" which reads as direct manipulation.
-            const PAN_SENSITIVITY = 2.5;
-            const worldPerPixel =
-              ((2 * distance * Math.tan(vfov / 2)) / canvasH) * PAN_SENSITIVITY;
-
-            // Camera local axes from its world matrix — column 0 is
-            // "right", column 1 is "up". These are unit vectors.
-            const m = camera.matrix.elements;
-            const rx = m[0], ry = m[1], rz = m[2];
-            const ux = m[4], uy = m[5], uz = m[6];
-
-            // Drag-right (positive dx) should pull the scene right under
-            // the cursor, which means the camera target shifts LEFT — hence
-            // the sign flip on the right-axis component.
-            const px = -dx * worldPerPixel;
-            const py =  dy * worldPerPixel;
-
-            const ox = rx * px + ux * py;
-            const oy = ry * px + uy * py;
-            const oz = rz * px + uz * py;
-
-            controls.target.x += ox;
-            controls.target.y += oy;
-            controls.target.z += oz;
-            camera.position.x += ox;
-            camera.position.y += oy;
-            camera.position.z += oz;
+            // 1:1 pixel mapping — drag the globe by exactly the distance
+            // your finger moves. setViewOffset operates in canvas pixels
+            // so no FOV / distance math is needed.
+            viewOffsetX += dx;
+            viewOffsetY += dy;
+            applyViewOffset();
           }
 
           lastPointerX = e.clientX;
@@ -743,6 +718,7 @@ export default function LiveGlobe({ papers }: Props) {
           cnvEl.removeEventListener('pointerup', onPointerEnd);
           cnvEl.removeEventListener('pointercancel', onPointerEnd);
           cnvEl.removeEventListener('pointerleave', onPointerEnd);
+          ro.disconnect();
           if (longPressTimer !== null) window.clearTimeout(longPressTimer);
         };
       }
