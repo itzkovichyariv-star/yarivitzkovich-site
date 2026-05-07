@@ -225,8 +225,26 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
               color: 'var(--text)',
             }}
           >
-            <div className="font-mono text-[10px] uppercase tracking-widest text-soft mb-2">
-              Where from · today
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-soft">
+                Where from · today
+              </div>
+              {todayPinned && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    // Stop propagation so the tap-outside doc listener doesn't
+                    // also fire and re-trigger something on the underlying button.
+                    e.stopPropagation();
+                    setTodayPinned(false);
+                  }}
+                  className="opacity-60 hover:opacity-100 transition-opacity text-base leading-none px-2 -my-1 -mr-1"
+                  aria-label="Close"
+                  title="Close"
+                >
+                  ✕
+                </button>
+              )}
             </div>
             <ul className="space-y-1.5 max-h-64 overflow-y-auto">
               {todayBreakdown.map((row, i) => (
