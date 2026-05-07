@@ -195,6 +195,11 @@ export default function LiveGlobe({ papers }: Props) {
   // Owner status checked once on mount via /api/me. The "Details" drawer
   // button only renders for owners; non-owners never see it.
   const [isOwner, setIsOwner] = useState(false);
+  // Flips true once the country-borders GeoJSON has loaded. Used as a
+  // dependency by the country-labels useEffect so labels re-render once
+  // the centroid lookup is populated — the borders fetch is now off the
+  // critical path so arcs can appear before borders.
+  const [centroidsReady, setCentroidsReady] = useState(false);
 
   // Owner check — runs once on mount. Reveals the Details drawer button
   // when the visitor has a valid signed cookie from /api/auth-owner.
@@ -428,30 +433,33 @@ export default function LiveGlobe({ papers }: Props) {
 
       // Load Natural Earth country outlines + populate the centroid lookup
       // used by the events-driven label layer (one label per country with
-      // actual activity).
-      try {
-        const r = await fetch(COUNTRIES_URL);
-        if (r.ok) {
-          const geo = await r.json();
-          if (alive && geo?.features) {
-            g.polygonsData(geo.features);
-            const map = countryCentroidsRef.current;
-            for (const f of geo.features) {
-              const props = f.properties || {};
-              const name = props.NAME || props.name || props.ADMIN || props.NAME_LONG;
-              if (!name) continue;
-              const c = polygonCentroid(f.geometry);
-              if (!c) continue;
-              const entry = { lat: c.lat, lng: c.lng, name: String(name) };
-              const iso2 = props.ISO_A2 || props.iso_a2;
-              if (iso2 && iso2 !== '-99') map.set(String(iso2).toUpperCase(), entry);
-              map.set(String(name).toUpperCase(), entry);
-            }
+      // actual activity). DELIBERATELY NOT awaited here — the borders and
+      // active-country labels are visual chrome; arcs and points must not
+      // wait on this fetch. Used to live in the critical path which made
+      // first arc appear ~10s after page load on slow networks.
+      fetch(COUNTRIES_URL)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((geo) => {
+          if (!alive || !geo?.features) return;
+          g.polygonsData(geo.features);
+          const map = countryCentroidsRef.current;
+          for (const f of geo.features) {
+            const props = f.properties || {};
+            const name = props.NAME || props.name || props.ADMIN || props.NAME_LONG;
+            if (!name) continue;
+            const c = polygonCentroid(f.geometry);
+            if (!c) continue;
+            const entry = { lat: c.lat, lng: c.lng, name: String(name) };
+            const iso2 = props.ISO_A2 || props.iso_a2;
+            if (iso2 && iso2 !== '-99') map.set(String(iso2).toUpperCase(), entry);
+            map.set(String(name).toUpperCase(), entry);
           }
-        }
-      } catch {
-        // Network blocked — globe still works, just without borders/labels.
-      }
+          // Trigger the labels useEffect to re-run now that we have centroids.
+          setCentroidsReady(true);
+        })
+        .catch(() => {
+          // Network blocked — globe still works, just without borders/labels.
+        });
 
       // (No more THREE.Points cloud — the realistic earth texture above
       //  carries continent shapes directly. Country borders + zoom-driven
@@ -524,21 +532,149 @@ export default function LiveGlobe({ papers }: Props) {
       // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
-      // Canvas styling: cursor + pointer-events explicit. Removed
-      // touch-action:none so the browser delivers gestures to OrbitControls
-      // the way the library expects. globe.gl handles drag/pan/wheel
-      // natively now — see the controls.* enable flags above.
+      // Canvas styling + long-press → pan layer.
+      //
+      // Gesture model (matches user expectation, mouse + touch the same):
+      //   • tap-and-drag (or click-and-drag on desktop) → rotate the globe
+      //     in place (OrbitControls handles this natively).
+      //   • press-and-hold-then-drag → pan the view: the sphere shifts
+      //     left/right/up/down inside the canvas. Triggered by a 350ms
+      //     hold without significant pointer movement; once active, we
+      //     temporarily disable rotation and apply pan deltas directly to
+      //     controls.target + camera.position.
+      //   • two-finger / right-mouse → still pan via OrbitControls' native
+      //     handling (kept as power-user shortcut).
+      //   • wheel / pinch → zoom (unchanged).
       const cnv = containerRef.current?.querySelector('canvas');
       if (cnv) {
         const cnvEl = cnv as HTMLElement;
         cnvEl.style.cursor = 'grab';
         cnvEl.style.pointerEvents = 'auto';
-        // Prevent right-click context menu so right-drag pan isn't
-        // interrupted by the browser's native menu.
+
         const onContextMenu = (e: Event) => e.preventDefault();
         cnvEl.addEventListener('contextmenu', onContextMenu);
+
+        // --- long-press → pan state ---
+        const LONG_PRESS_MS = 350;
+        const MOVE_THRESHOLD_PX = 6;
+        let longPressTimer: number | null = null;
+        let longPressActive = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let lastPointerX = 0;
+        let lastPointerY = 0;
+        const activePointers = new Set<number>();
+
+        const cancelLongPress = () => {
+          if (longPressTimer !== null) {
+            window.clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          if (longPressActive) {
+            longPressActive = false;
+            controls.enableRotate = true;
+            cnvEl.style.cursor = 'grab';
+          }
+        };
+
+        const onPointerDown = (e: PointerEvent) => {
+          activePointers.add(e.pointerId);
+          // Multi-touch (pinch / two-finger pan) — OrbitControls handles it.
+          // Don't arm the long-press; cancel any in-flight one.
+          if (activePointers.size > 1) {
+            cancelLongPress();
+            return;
+          }
+          // Mouse: only the primary button arms long-press. Right-click
+          // still triggers OrbitControls' built-in pan as before.
+          if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          lastPointerX = e.clientX;
+          lastPointerY = e.clientY;
+          longPressTimer = window.setTimeout(() => {
+            longPressTimer = null;
+            longPressActive = true;
+            controls.enableRotate = false;
+            cnvEl.style.cursor = 'grabbing';
+          }, LONG_PRESS_MS);
+        };
+
+        const onPointerMove = (e: PointerEvent) => {
+          // If the timer is still pending and the user has moved past the
+          // threshold, they meant to rotate — cancel the long-press and let
+          // OrbitControls handle the gesture as a normal drag-rotate.
+          if (longPressTimer !== null && !longPressActive) {
+            const tdx = e.clientX - dragStartX;
+            const tdy = e.clientY - dragStartY;
+            if (Math.hypot(tdx, tdy) > MOVE_THRESHOLD_PX) {
+              window.clearTimeout(longPressTimer);
+              longPressTimer = null;
+            }
+          }
+
+          if (longPressActive) {
+            const dx = e.clientX - lastPointerX;
+            const dy = e.clientY - lastPointerY;
+            const camera: any = g.camera();
+            // Convert pixel deltas to world-space pan amount based on the
+            // camera's frustum at the current distance — same math as
+            // OrbitControls' internal panLeft/panUp helpers.
+            const distance =
+              (controls as any).getDistance ? (controls as any).getDistance() : 400;
+            const fovDeg = camera?.fov ?? 50;
+            const vfov = (fovDeg * Math.PI) / 180;
+            const canvasH = cnvEl.clientHeight || 1;
+            const worldPerPixel = (2 * distance * Math.tan(vfov / 2)) / canvasH;
+
+            // Camera local axes from its world matrix — column 0 is
+            // "right", column 1 is "up". These are unit vectors.
+            const m = camera.matrix.elements;
+            const rx = m[0], ry = m[1], rz = m[2];
+            const ux = m[4], uy = m[5], uz = m[6];
+
+            // Drag-right (positive dx) should pull the scene right under
+            // the cursor, which means the camera target shifts LEFT — hence
+            // the sign flip on the right-axis component.
+            const px = -dx * worldPerPixel;
+            const py =  dy * worldPerPixel;
+
+            const ox = rx * px + ux * py;
+            const oy = ry * px + uy * py;
+            const oz = rz * px + uz * py;
+
+            controls.target.x += ox;
+            controls.target.y += oy;
+            controls.target.z += oz;
+            camera.position.x += ox;
+            camera.position.y += oy;
+            camera.position.z += oz;
+          }
+
+          lastPointerX = e.clientX;
+          lastPointerY = e.clientY;
+        };
+
+        const onPointerEnd = (e: PointerEvent) => {
+          activePointers.delete(e.pointerId);
+          cancelLongPress();
+        };
+
+        cnvEl.addEventListener('pointerdown', onPointerDown);
+        cnvEl.addEventListener('pointermove', onPointerMove);
+        cnvEl.addEventListener('pointerup', onPointerEnd);
+        cnvEl.addEventListener('pointercancel', onPointerEnd);
+        cnvEl.addEventListener('pointerleave', onPointerEnd);
+
         (cnvEl as any).__cleanupCustomDrag = () => {
           cnvEl.removeEventListener('contextmenu', onContextMenu);
+          cnvEl.removeEventListener('pointerdown', onPointerDown);
+          cnvEl.removeEventListener('pointermove', onPointerMove);
+          cnvEl.removeEventListener('pointerup', onPointerEnd);
+          cnvEl.removeEventListener('pointercancel', onPointerEnd);
+          cnvEl.removeEventListener('pointerleave', onPointerEnd);
+          if (longPressTimer !== null) window.clearTimeout(longPressTimer);
         };
       }
 
@@ -699,6 +835,9 @@ export default function LiveGlobe({ papers }: Props) {
       if (themeObserverRef.current) themeObserverRef.current.disconnect();
       if (dragTimerRef.current) window.clearTimeout(dragTimerRef.current);
       if (breathFrameRef.current) cancelAnimationFrame(breathFrameRef.current);
+      const cnv = containerRef.current?.querySelector('canvas');
+      const cleanup = (cnv as any)?.__cleanupCustomDrag;
+      if (typeof cleanup === 'function') cleanup();
       // globe.gl exposes _destructor on newer versions
       const g: any = globeRef.current;
       if (g && typeof g._destructor === 'function') g._destructor();
@@ -785,7 +924,7 @@ export default function LiveGlobe({ papers }: Props) {
         el.style.opacity = String(countryOp * 0.5);
       });
     });
-  }, [events]);
+  }, [events, centroidsReady]);
 
   // Push events into the globe as points (visits) + arcs (downloads) + rings (entrance pulses).
   useEffect(() => {
@@ -931,7 +1070,7 @@ export default function LiveGlobe({ papers }: Props) {
 
       let cancelled = false;
       const timers: number[] = [];
-      const STAGGER_MS = 600;      // gap between event entrances
+      const STAGGER_MS = 2000;     // gap between event entrances — 2s pacing per UX feedback
       const CARD_AUTO_MS = 2500;   // how long an auto-card stays before fading
       const LOOP_GAP_MS = 800;     // breath between loops
 
