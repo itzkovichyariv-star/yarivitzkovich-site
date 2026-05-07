@@ -654,7 +654,14 @@ export default function LiveGlobe({ papers }: Props) {
             const fovDeg = camera?.fov ?? 50;
             const vfov = (fovDeg * Math.PI) / 180;
             const canvasH = cnvEl.clientHeight || 1;
-            const worldPerPixel = (2 * distance * Math.tan(vfov / 2)) / canvasH;
+            // PAN_SENSITIVITY > 1 makes the globe move further than the
+            // finger — natural 1:1 felt too subtle at globe.gl's default
+            // camera distance, so we amplify to make the gesture obviously
+            // responsive. 2.5× lands on "globe follows hand and a bit
+            // more" which reads as direct manipulation.
+            const PAN_SENSITIVITY = 2.5;
+            const worldPerPixel =
+              ((2 * distance * Math.tan(vfov / 2)) / canvasH) * PAN_SENSITIVITY;
 
             // Camera local axes from its world matrix — column 0 is
             // "right", column 1 is "up". These are unit vectors.
