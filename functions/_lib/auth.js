@@ -10,9 +10,13 @@
 //     resulting opaque token.
 
 const COOKIE_NAME = 'yi_owner_token';
-const COOKIE_MAX_AGE_SEC = 365 * 86400; // 1 year — Safari clears
-                                        // shorter-lived cookies more
-                                        // aggressively, so we go long.
+// 400 days is the maximum cookie lifetime browsers will honour (Chrome,
+// Edge, Firefox, Safari all clamp at this). Combined with the auto-renew
+// in /api/me — which issues a fresh 400-day cookie on every page load —
+// this is effectively "never expires" for any owner who visits at least
+// once a year. There is no browser-level way to set a truly infinite
+// cookie; this is the longest the platform allows.
+const COOKIE_MAX_AGE_SEC = 400 * 86400;
 
 async function importHmacKey(secret) {
   const enc = new TextEncoder().encode(secret);
