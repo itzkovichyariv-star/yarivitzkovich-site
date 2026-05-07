@@ -760,8 +760,23 @@ export default function LiveGlobe({ papers }: Props) {
             ? 'gl-label-country-active'
             : `gl-label-${d.kind}`;
           el.className = `gl-label ${kindClass}`;
-          el.textContent = d.text;
+          // For active country labels (a country with real visitor
+          // events) prefix the text with a brand-accent dot so it
+          // reads at a glance as "this country has activity" — same
+          // dot used in the HUD legend.
+          if (d.__active) {
+            const dot = document.createElement('span');
+            dot.className = 'gl-label-active-dot';
+            dot.setAttribute('aria-hidden', 'true');
+            el.appendChild(dot);
+            const txt = document.createElement('span');
+            txt.textContent = d.text;
+            el.appendChild(txt);
+          } else {
+            el.textContent = d.text;
+          }
           el.dataset.kind = d.kind;
+          el.dataset.active = d.__active ? '1' : '0';
           // Stash lat/lng on the DOM node so the per-frame visibility
           // pass below can compute back-face culling without re-walking
           // the htmlElementsData array.
