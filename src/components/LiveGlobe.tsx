@@ -200,6 +200,13 @@ export default function LiveGlobe({ papers }: Props) {
   // the centroid lookup is populated — the borders fetch is now off the
   // critical path so arcs can appear before borders.
   const [centroidsReady, setCentroidsReady] = useState(false);
+  // Flips true the moment the globe.gl instance is fully initialized.
+  // Without it, useEffects that touch globeRef.current early-return
+  // when the globe isn't ready yet — and don't re-run when it becomes
+  // ready, so arcs ended up waiting on the next 15s events poll. Adding
+  // this to those effects' deps makes arcs render the instant globe
+  // init completes.
+  const [globeReady, setGlobeReady] = useState(false);
 
   // Owner check — runs once on mount. Reveals the Details drawer button
   // when the visitor has a valid signed cookie from /api/auth-owner.
@@ -851,6 +858,11 @@ export default function LiveGlobe({ papers }: Props) {
       });
 
       globeRef.current = g;
+      // Signal that any useEffect waiting on the globe can now run.
+      // Without this, the events effect bails on first render (globe
+      // not ready), then doesn't re-run until events change — leaving
+      // arcs invisible until the next 15s events poll.
+      setGlobeReady(true);
 
       // Watch for theme changes and recolor everything theme-aware
       const obs = new MutationObserver(() => {
@@ -897,7 +909,7 @@ export default function LiveGlobe({ papers }: Props) {
     if (!g) return;
     g.width(size.w);
     g.height(size.h);
-  }, [size]);
+  }, [size, globeReady]);
 
   // Reduced-motion users get the same behaviour as everyone else here —
   // the previous `c.autoRotate = !reduced` was overriding init's
@@ -969,7 +981,7 @@ export default function LiveGlobe({ papers }: Props) {
         el.style.opacity = String(countryOp * 0.5);
       });
     });
-  }, [events, centroidsReady]);
+  }, [events, centroidsReady, globeReady]);
 
   // Push events into the globe as points (visits) + arcs (downloads) + rings (entrance pulses).
   useEffect(() => {
@@ -1194,7 +1206,7 @@ export default function LiveGlobe({ papers }: Props) {
         g.ringsData([]);
       };
     }
-  }, [events, reduced]);
+  }, [events, reduced, globeReady]);
 
   // Auto-dismiss the card after its window expires, unless the user has
   // already pinned it (autoUntil cleared by clicking the card).
