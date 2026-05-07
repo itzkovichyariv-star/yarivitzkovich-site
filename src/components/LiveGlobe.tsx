@@ -163,8 +163,13 @@ const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; ln
 // even at peak pinch-zoom. At 280, sphere+atmosphere subtends ~43.6°
 // vertically — leaves a 6° margin inside the camera's 50° vertical FOV,
 // preventing the overflow:hidden wrapper from clipping the atmosphere.
-const ZOOM_NEAR = 280;   // country labels at peak
-const ZOOM_FAR  = 340;   // country labels start to appear here
+// Inactive country labels (every country in the GeoJSON) fade in over a
+// wider band so a few are visible even at the default altitude=2.6
+// camera (≈ distance 360). Combined with the collision-detection pass
+// in updateLabelOpacities, this gives the user country names without
+// the wall-of-text problem the original tight band was trying to avoid.
+const ZOOM_NEAR = 280;   // country labels at peak (zoomed in)
+const ZOOM_FAR  = 600;   // country labels start to appear here (zoomed out)
 const MIN_DIST  = 280;   // closest pinch-zoom — atmosphere stays inside canvas
 const MAX_DIST  = 800;
 
@@ -822,6 +827,52 @@ export default function LiveGlobe({ papers }: Props) {
           el.style.opacity = String(countryOp * 0.5);
           setVisibility(el);
         });
+
+        // Collision-detection pass. With every country labelled the
+        // screen would otherwise pile up overlapping text, especially in
+        // dense regions like SE Asia or Europe. Sort all currently-
+        // visible labels by priority (active country > continent >
+        // inactive country) and greedily place each one — if its bounding
+        // box overlaps a higher-priority label that's already placed,
+        // we hide it. Active-country labels can't be hidden this way
+        // (they always represent real visitor data); they get placed
+        // first and force lower-priority ones around them.
+        type LabelEntry = { el: HTMLElement; rect: DOMRect; priority: number; canBeHidden: boolean };
+        const candidates: LabelEntry[] = [];
+        root.querySelectorAll<HTMLElement>('.gl-label').forEach((el) => {
+          if (el.style.visibility === 'hidden') return;
+          const op = parseFloat(el.style.opacity || '1');
+          if (op <= 0.01) return;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return;
+          let priority = 1;
+          let canBeHidden = true;
+          if (el.classList.contains('gl-label-country-active')) {
+            priority = 3;
+            canBeHidden = false;
+          } else if (el.classList.contains('gl-label-continent')) {
+            priority = 2;
+          }
+          candidates.push({ el, rect, priority, canBeHidden });
+        });
+        candidates.sort((a, b) => b.priority - a.priority);
+        const placed: DOMRect[] = [];
+        const PADDING = 4; // px breathing room between labels
+        for (const c of candidates) {
+          const r = c.rect;
+          const overlaps = placed.some(
+            (p) =>
+              r.right + PADDING > p.left &&
+              r.left - PADDING < p.right &&
+              r.bottom + PADDING > p.top &&
+              r.top - PADDING < p.bottom
+          );
+          if (overlaps && c.canBeHidden) {
+            c.el.style.opacity = '0';
+          } else {
+            placed.push(r);
+          }
+        }
       };
       updateLabelOpacities();
       controls.addEventListener('change', updateLabelOpacities);
@@ -945,25 +996,23 @@ export default function LiveGlobe({ papers }: Props) {
       if (e.country_name) active.add(String(e.country_name).toUpperCase());
     }
 
-    // ONLY push country labels for countries that actually have activity —
-    // not the full Natural Earth country set. Rendering 190 country labels
-    // simultaneously when zoomed in caused a wall-of-text the user
-    // described as 'the globe display is messed up'. The country *outlines*
-    // are still drawn (polygonsData) — we just suppress text labels for
-    // inactive countries.
+    // Push a label for EVERY country in the GeoJSON — both active (with
+    // events, brighter) and inactive (dimmer, fades with zoom). The
+    // collision-detection pass in updateLabelOpacities decides which
+    // ones get to actually display, so we don't end up with the
+    // wall-of-text the original code was trying to avoid.
     const seen = new Set<string>();
     const countryLabels: Array<any> = [];
     centroids.forEach((entry, key) => {
       if (seen.has(entry.name.toUpperCase())) return;
-      const isActive = active.has(entry.name.toUpperCase()) || active.has(key);
-      if (!isActive) return; // <-- skip inactive countries entirely
       seen.add(entry.name.toUpperCase());
+      const isActive = active.has(entry.name.toUpperCase()) || active.has(key);
       countryLabels.push({
         kind: 'country' as const,
         text: entry.name.toUpperCase(),
         lat: entry.lat,
         lng: entry.lng,
-        __active: true,
+        __active: isActive,
       });
     });
 
