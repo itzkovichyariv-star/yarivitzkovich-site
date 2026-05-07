@@ -563,18 +563,48 @@ export default function LiveGlobe({ papers }: Props) {
         let dragStartY = 0;
         let lastPointerX = 0;
         let lastPointerY = 0;
+        // Snapshot of OrbitControls flags taken when long-press fires, so we
+        // can restore them exactly on release. Saving rather than hard-coding
+        // means if the init values ever change (e.g. autoRotate toggled by
+        // theme or reduced-motion logic) we don't trample them.
+        let savedAutoRotate = false;
+        let savedEnableRotate = true;
+        let savedEnablePan = true;
         const activePointers = new Set<number>();
+
+        const enterPanMode = () => {
+          longPressActive = true;
+          // Pause every OrbitControls behaviour that could fight our manual
+          // target translation:
+          //   • autoRotate: nudges spherical.theta every frame → camera
+          //     orbits while user drags → looks like the globe is shaking.
+          //   • enableRotate: drag was already disabled, but be explicit.
+          //   • enablePan: prevent OrbitControls' own pan from engaging if
+          //     state ever flips to PAN mid-drag (we own pan now).
+          savedAutoRotate = !!controls.autoRotate;
+          savedEnableRotate = !!controls.enableRotate;
+          savedEnablePan = !!controls.enablePan;
+          controls.autoRotate = false;
+          controls.enableRotate = false;
+          controls.enablePan = false;
+          cnvEl.style.cursor = 'grabbing';
+        };
+
+        const exitPanMode = () => {
+          if (!longPressActive) return;
+          longPressActive = false;
+          controls.autoRotate = savedAutoRotate;
+          controls.enableRotate = savedEnableRotate;
+          controls.enablePan = savedEnablePan;
+          cnvEl.style.cursor = 'grab';
+        };
 
         const cancelLongPress = () => {
           if (longPressTimer !== null) {
             window.clearTimeout(longPressTimer);
             longPressTimer = null;
           }
-          if (longPressActive) {
-            longPressActive = false;
-            controls.enableRotate = true;
-            cnvEl.style.cursor = 'grab';
-          }
+          exitPanMode();
         };
 
         const onPointerDown = (e: PointerEvent) => {
@@ -595,9 +625,7 @@ export default function LiveGlobe({ papers }: Props) {
           lastPointerY = e.clientY;
           longPressTimer = window.setTimeout(() => {
             longPressTimer = null;
-            longPressActive = true;
-            controls.enableRotate = false;
-            cnvEl.style.cursor = 'grabbing';
+            enterPanMode();
           }, LONG_PRESS_MS);
         };
 
