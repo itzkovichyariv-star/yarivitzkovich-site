@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ARC_COLORS } from '../lib/globePalette';
 
 interface Totals {
@@ -37,9 +37,25 @@ interface Activity {
   papersTouched: number;
 }
 
+// Minimal shape used for the Today tooltip — only the fields we need to
+// render a "where from" list. Matches a subset of the EventRow type used
+// elsewhere in the live page.
+interface HudEvent {
+  ts: number;
+  kind: 'visit' | 'download';
+  visitor_class: string;
+  city: string | null;
+  country_name: string | null;
+  continent_name: string | null;
+}
+
 interface Props {
   totals: Totals | null;
   activity: Activity;
+  // The full filtered events list. The Today section uses this to
+  // build a hover tooltip that shows the where-from breakdown. Optional
+  // so callers that don't need the tooltip can omit it without breaking.
+  events?: HudEvent[];
 }
 
 // SECTION-BASED HUD — replaces the old single-line cramped ribbon. Each
@@ -53,7 +69,8 @@ interface Props {
 //   5. LATEST             — most-recent event with location + class
 // All numbers tabular, all labels mono small-caps for editorial rhythm.
 
-export default function GlobeHUD({ totals, activity }: Props) {
+export default function GlobeHUD({ totals, activity, events }: Props) {
+  const [todayHover, setTodayHover] = useState(false);
   const since = totals?.sinceLaunch;
   const today = totals?.today;
   const recent = totals?.mostRecent;
@@ -66,6 +83,31 @@ export default function GlobeHUD({ totals, activity }: Props) {
     ? launchDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const todaySum = (today?.visits ?? 0) + (today?.downloads ?? 0);
+  // Today = last 24h, matching how /live/totals counts on the server.
+  // Group by city/country so the hover tooltip shows a clean
+  // "City · Country — N events" list instead of repeating individual
+  // hits (a returning reader who visited 3 times today is one row, not
+  // three).
+  const todayBreakdown = useMemo(() => {
+    if (!events || !totals) return [];
+    const since = totals.serverNow - 24 * 3600;
+    type Row = { city: string | null; country: string | null; continent: string | null; n: number; downloads: number };
+    const grouped = new Map<string, Row>();
+    for (const e of events) {
+      if (e.ts < since) continue;
+      const city = e.city || null;
+      const country = e.country_name || null;
+      const key = `${country || ''}|${city || ''}`;
+      let row = grouped.get(key);
+      if (!row) {
+        row = { city, country, continent: e.continent_name || null, n: 0, downloads: 0 };
+        grouped.set(key, row);
+      }
+      row.n++;
+      if (e.kind === 'download') row.downloads++;
+    }
+    return Array.from(grouped.values()).sort((a, b) => b.n - a.n);
+  }, [events, totals]);
   const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
   const recentClass = recent
     ? recent.kind === 'download'
@@ -114,15 +156,77 @@ export default function GlobeHUD({ totals, activity }: Props) {
       <Rule />
 
       {/* 2. Today ────────────────────────────────────────── */}
-      <section>
+      <section
+        className="relative"
+        onMouseEnter={() => setTodayHover(true)}
+        onMouseLeave={() => setTodayHover(false)}
+      >
         <SectionLabel>Today</SectionLabel>
-        <div className="font-mono text-xs uppercase tracking-widest" style={{ fontVariantNumeric: 'tabular-nums' }}>
-          <span className="opacity-90">{todaySum} events</span>
+        <div
+          className="font-mono text-xs uppercase tracking-widest"
+          style={{ fontVariantNumeric: 'tabular-nums', cursor: todayBreakdown.length ? 'help' : 'default' }}
+          aria-describedby={todayBreakdown.length ? 'today-breakdown' : undefined}
+        >
+          <span className={todayBreakdown.length ? 'opacity-90 underline decoration-dotted decoration-current/40 underline-offset-4' : 'opacity-90'}>
+            {todaySum} events
+          </span>
           <span className="opacity-30 mx-2">·</span>
           <span className="opacity-65">{today?.visits ?? 0} visits</span>
           <span className="opacity-30 mx-2">·</span>
           <span className="opacity-65">{today?.downloads ?? 0} downloads</span>
         </div>
+
+        {/* Hover panel with the where-from breakdown. Only renders when the
+            section is hovered AND there's at least one event in the last
+            24h. Click target stays small; the panel sits above the row so
+            it never pushes other HUD sections around. */}
+        {todayHover && todayBreakdown.length > 0 && (
+          <div
+            id="today-breakdown"
+            role="tooltip"
+            className="absolute z-30 left-0 mt-2 w-full sm:max-w-sm p-4"
+            style={{
+              top: '100%',
+              backdropFilter: 'blur(20px) saturate(160%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+              background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+              color: 'var(--text)',
+            }}
+          >
+            <div className="font-mono text-[10px] uppercase tracking-widest text-soft mb-2">
+              Where from · last 24h
+            </div>
+            <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+              {todayBreakdown.map((row, i) => (
+                <li
+                  key={`${row.country ?? '—'}|${row.city ?? i}`}
+                  className="flex items-baseline gap-2"
+                >
+                  <span className="font-display text-sm flex-1 truncate">
+                    {[row.city, row.country].filter(Boolean).join(', ') || 'Unknown location'}
+                  </span>
+                  {row.continent && (
+                    <span className="font-mono text-[10px] uppercase tracking-widest opacity-50 whitespace-nowrap">
+                      {row.continent}
+                    </span>
+                  )}
+                  <span
+                    className="font-mono text-[10px] uppercase tracking-widest whitespace-nowrap"
+                    style={{ fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    <span className="opacity-90">{row.n}</span>
+                    <span className="opacity-55"> {row.n === 1 ? 'event' : 'events'}</span>
+                    {row.downloads > 0 && (
+                      <span className="opacity-55"> · {row.downloads} dl</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </section>
 
       <Rule />

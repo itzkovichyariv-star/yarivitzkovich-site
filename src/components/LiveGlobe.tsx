@@ -665,6 +665,15 @@ export default function LiveGlobe({ papers }: Props) {
         };
 
         const onPointerDown = (e: PointerEvent) => {
+          // The first touch/click on the globe permanently stops the
+          // background auto-rotation. Without this, autoRotate keeps
+          // adding to spherical.theta after the user releases a gesture
+          // and the globe drifts on its own — most visible on Safari /
+          // Edge where the per-frame nudge reads as continuous motion
+          // rather than smooth animation. Once a user has interacted,
+          // they're driving; auto-spin stops until the next page reload.
+          if (controls.autoRotate) controls.autoRotate = false;
+
           activePointers.add(e.pointerId);
           if (activePointers.size > 1) {
             cancelLongPress();
@@ -1322,7 +1331,7 @@ export default function LiveGlobe({ papers }: Props) {
       </div>
 
       {/* HUD */}
-      <GlobeHUD totals={totals} activity={activity} />
+      <GlobeHUD totals={totals} activity={activity} events={events} />
 
       {/* Click-pin card */}
       {selected && (
