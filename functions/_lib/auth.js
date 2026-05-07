@@ -96,13 +96,13 @@ export function setOwnerCookieHeader(token) {
     `Max-Age=${COOKIE_MAX_AGE_SEC}`,
     'Secure',
     'HttpOnly',
-    'SameSite=Strict',
+    'SameSite=Lax',
   ];
   return parts.join('; ');
 }
 
 export function clearOwnerCookieHeader() {
-  return `${COOKIE_NAME}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict`;
+  return `${COOKIE_NAME}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`;
 }
 
 /** Convenience: returns true if the request carries a valid owner token. */
