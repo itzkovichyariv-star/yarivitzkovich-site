@@ -55,6 +55,13 @@ const papers = allPubs
       text-shadow:
         0 0 6px rgba(0, 0, 0, 0.85),
         0 0 12px rgba(0, 0, 0, 0.5);
+      /* Start invisible. The JS opacity-updater (updateLabelOpacities)
+         sets the actual visible opacity per class on the next frame.
+         Without this default, newly-mounted labels briefly render at
+         opacity 1 (browser default) before the JS dials them down,
+         flashing "white" on every rotation pass — most visible during
+         autoRotate when labels appear and disappear over the horizon. */
+      opacity: 0;
       transition: opacity 220ms ease-out;
       will-change: opacity;
     }
