@@ -103,18 +103,19 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
     ? launchDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const todaySum = (today?.visits ?? 0) + (today?.downloads ?? 0);
-  // Today = last 24h, matching how /live/totals counts on the server.
-  // Group by city/country so the hover tooltip shows a clean
-  // "City · Country — N events" list instead of repeating individual
-  // hits (a returning reader who visited 3 times today is one row, not
-  // three).
+  // The "TODAY" counts on the server are taken from UTC midnight (not
+  // a rolling 24h window — that's a different cutoff used by other
+  // sections). Match exactly so the breakdown sums to the badge total
+  // and 0-download "today" never shows a download row.
   const todayBreakdown = useMemo(() => {
     if (!events || !totals) return [];
-    const since = totals.serverNow - 24 * 3600;
+    const startOfTodayUtc = Math.floor(
+      new Date(totals.serverNow * 1000).setUTCHours(0, 0, 0, 0) / 1000
+    );
     type Row = { city: string | null; country: string | null; continent: string | null; n: number; downloads: number };
     const grouped = new Map<string, Row>();
     for (const e of events) {
-      if (e.ts < since) continue;
+      if (e.ts < startOfTodayUtc) continue;
       const city = e.city || null;
       const country = e.country_name || null;
       const key = `${country || ''}|${city || ''}`;
@@ -225,7 +226,7 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
             }}
           >
             <div className="font-mono text-[10px] uppercase tracking-widest text-soft mb-2">
-              Where from · last 24h
+              Where from · today
             </div>
             <ul className="space-y-1.5 max-h-64 overflow-y-auto">
               {todayBreakdown.map((row, i) => (
