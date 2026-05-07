@@ -507,6 +507,14 @@ export default function LiveGlobe({ papers }: Props) {
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
       controls.screenSpacePanning = true;
+      // Disable damping. globe.gl turns it on by default which adds an
+      // inertial smoothing to spherical changes — fine for normal rotate
+      // gestures, but it preserves residual momentum across pointerup,
+      // so the camera continues to drift after the user releases a pan.
+      // Without damping, releasing the press snaps the gesture to a
+      // hard stop. (We also kill autoRotate after the first pan below
+      // for the same "globe stays where I left it" reason.)
+      controls.enableDamping = false;
 
       // (Pause-on-drag logic removed — was running alongside OrbitControls'
       // own internal start/end handling and may have been suppressing the
@@ -613,7 +621,13 @@ export default function LiveGlobe({ papers }: Props) {
         const exitPanMode = () => {
           if (!longPressActive) return;
           longPressActive = false;
-          controls.autoRotate = savedAutoRotate;
+          // DON'T restore autoRotate. Once the user has panned the view to
+          // a new position, automatic rotation around the panned target
+          // would orbit the camera around an empty point in space — the
+          // globe (at world origin) drifts in a circular path on screen
+          // and eventually disappears behind the camera. Leaving
+          // autoRotate off lets the user's pan stay where they put it.
+          // They can still rotate manually with quick-drag.
           controls.enableRotate = savedEnableRotate;
           controls.enablePan = savedEnablePan;
           cnvEl.style.cursor = 'grab';
