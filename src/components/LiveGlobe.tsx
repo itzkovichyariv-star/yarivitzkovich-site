@@ -430,7 +430,10 @@ export default function LiveGlobe({ papers }: Props) {
         .arcStroke(0.5)
         .arcDashLength(0.6)
         .arcDashGap(0.5)
-        .arcDashAnimateTime(1500)
+        // Dash period 2800ms — was 1500, but the user reported the
+        // faster pace felt stressful. ~2.8s reads as a calm pulse
+        // rather than a strobe while still visibly animating.
+        .arcDashAnimateTime(2800)
         .arcsTransitionDuration(0)
         // Pin styling for visit dots
         .pointAltitude(0.012)
