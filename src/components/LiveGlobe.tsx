@@ -532,6 +532,26 @@ export default function LiveGlobe({ papers }: Props) {
       // stay invisible.
       g.pointOfView({ lat: 30, lng: 35, altitude: 2.6 }, 0);
 
+      // ─────────────────────────────────────────────────────────────────
+      // CRITICAL: globe.gl is designed to never let the user pan the
+      // view. Internally it attaches a 'change' listener to OrbitControls
+      // that fires `controls.target.setScalar(0)` after every camera
+      // movement, snapping target back to the world origin. That undoes
+      // our long-press pan as soon as the next render frame arrives —
+      // pan moves the globe for one frame, then it pops back.
+      //
+      // Override target.setScalar(0) on this specific Vector3 so the
+      // library's "keep orbit centered" reset becomes a no-op. Other
+      // setScalar values still work, so this doesn't break anything that
+      // legitimately wants to set target to a non-zero scalar (no callers
+      // in our code do that anyway).
+      // ─────────────────────────────────────────────────────────────────
+      const origSetScalar = controls.target.setScalar.bind(controls.target);
+      (controls.target as any).setScalar = function (v: number) {
+        if (v === 0) return controls.target;
+        return origSetScalar(v);
+      };
+
       // Canvas styling + long-press → pan layer.
       //
       // Gesture model (matches user expectation, mouse + touch the same):
