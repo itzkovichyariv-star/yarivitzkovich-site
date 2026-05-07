@@ -1004,11 +1004,54 @@ export default function LiveGlobe({ papers }: Props) {
     if (!centroids.size) return;
 
     // Set of countries with actual events (by ISO-2 code AND uppercase name —
-    // we accept either as a key into the centroid map)
+    // we accept either as a key into the centroid map). For events that
+    // have a valid lat/lng but missing/mismatched country metadata
+    // (Cloudflare's geo lookup occasionally returns null country, or a
+    // code/name spelling that doesn't match the Natural Earth GeoJSON),
+    // we ALSO fall back to "closest centroid" lookup so the country
+    // still gets the gold active-label treatment instead of being
+    // silently skipped.
     const active = new Set<string>();
+    const haveLooseMatch = (s: string | null | undefined) => {
+      if (!s) return false;
+      const u = String(s).toUpperCase();
+      return centroids.has(u);
+    };
     for (const e of events) {
-      if (e.country) active.add(String(e.country).toUpperCase());
-      if (e.country_name) active.add(String(e.country_name).toUpperCase());
+      let matched = false;
+      if (e.country) {
+        active.add(String(e.country).toUpperCase());
+        if (haveLooseMatch(e.country)) matched = true;
+      }
+      if (e.country_name) {
+        active.add(String(e.country_name).toUpperCase());
+        if (haveLooseMatch(e.country_name)) matched = true;
+      }
+      // Already linked to a known centroid via country code or name —
+      // no need to fall back. (Keeps the simple-and-correct case fast.)
+      if (matched) continue;
+      const lat = Number(e.lat);
+      const lng = Number(e.lng);
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      // Find the centroid whose lat/lng is closest. Use a degree-squared
+      // metric (good enough at this scale) and only accept matches
+      // within ~12° great-circle to avoid attributing an event in the
+      // middle of the ocean to whatever happens to be the nearest
+      // landmass on the opposite shore.
+      let closestKey: string | null = null;
+      let closestDist = Infinity;
+      centroids.forEach((entry, key) => {
+        const dLat = entry.lat - lat;
+        const dLng = entry.lng - lng;
+        const dist = dLat * dLat + dLng * dLng;
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestKey = key;
+        }
+      });
+      if (closestKey && closestDist < 12 * 12) {
+        active.add(String(closestKey).toUpperCase());
+      }
     }
 
     // Push a label for EVERY country in the GeoJSON — both active (with
