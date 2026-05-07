@@ -669,15 +669,11 @@ export default function LiveGlobe({ papers }: Props) {
         };
 
         const onPointerDown = (e: PointerEvent) => {
-          // The first touch/click on the globe permanently stops the
-          // background auto-rotation. Without this, autoRotate keeps
-          // adding to spherical.theta after the user releases a gesture
-          // and the globe drifts on its own — most visible on Safari /
-          // Edge where the per-frame nudge reads as continuous motion
-          // rather than smooth animation. Once a user has interacted,
-          // they're driving; auto-spin stops until the next page reload.
-          if (controls.autoRotate) controls.autoRotate = false;
-
+          // autoRotate intentionally stays ON across user gestures. With
+          // enableDamping=false above there's no inertial momentum to
+          // confuse with auto-spin, so the globe just resumes its slow
+          // constant rotation as soon as the user lets go of a pan or
+          // quick-drag — including at the new panned screen position.
           activePointers.add(e.pointerId);
           if (activePointers.size > 1) {
             cancelLongPress();
