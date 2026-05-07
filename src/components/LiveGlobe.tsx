@@ -514,11 +514,15 @@ export default function LiveGlobe({ papers }: Props) {
       controls.minDistance = MIN_DIST;
       controls.maxDistance = MAX_DIST;
       controls.screenSpacePanning = true;
-      // Leave damping at globe.gl's default (true). The pan implementation
-      // below uses camera.setViewOffset to shift the rendered viewport
-      // without touching the camera's world-space position or target —
-      // so there's no inertial momentum to fight on release.
-      controls.enableDamping = true;
+      // Damping OFF. Reasoning: with damping on, every spherical change
+      // (rotate gestures, autoRotate ticks) is smoothed over multiple
+      // frames. That means residual sphericalDelta from autoRotate
+      // before the first touch keeps decaying for ~1s after the user
+      // disables autoRotate by touching the globe — visible as a
+      // brief drift even though autoRotate is already false. Hard
+      // stop on every gesture is more predictable, and the only
+      // loss is a small bit of glide on rotate releases.
+      controls.enableDamping = false;
 
       // (Pause-on-drag logic removed — was running alongside OrbitControls'
       // own internal start/end handling and may have been suppressing the

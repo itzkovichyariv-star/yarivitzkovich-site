@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ARC_COLORS } from '../lib/globePalette';
 
 interface Totals {
@@ -70,7 +70,27 @@ interface Props {
 // All numbers tabular, all labels mono small-caps for editorial rhythm.
 
 export default function GlobeHUD({ totals, activity, events }: Props) {
+  // The Today section panel is opened by HOVER on desktop and by TAP
+  // on touch devices. Two booleans so each input mechanism owns its
+  // own state and can't get stuck (a hover-out shouldn't close a
+  // tap-pinned panel and vice versa).
   const [todayHover, setTodayHover] = useState(false);
+  const [todayPinned, setTodayPinned] = useState(false);
+  const todaySectionRef = useRef<HTMLElement>(null);
+
+  // Tap-outside dismissal for the pinned (touch) panel. Listens once
+  // while the panel is open and removes itself when closed.
+  useEffect(() => {
+    if (!todayPinned) return;
+    const onDocPointer = (e: PointerEvent) => {
+      const node = todaySectionRef.current;
+      if (node && !node.contains(e.target as Node)) setTodayPinned(false);
+    };
+    // Use capture so we receive the event before any inner handler can
+    // stopPropagation. Pointerdown fires for both mouse and touch.
+    document.addEventListener('pointerdown', onDocPointer, true);
+    return () => document.removeEventListener('pointerdown', onDocPointer, true);
+  }, [todayPinned]);
   const since = totals?.sinceLaunch;
   const today = totals?.today;
   const recent = totals?.mostRecent;
@@ -157,15 +177,25 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
 
       {/* 2. Today ────────────────────────────────────────── */}
       <section
+        ref={todaySectionRef}
         className="relative"
         onMouseEnter={() => setTodayHover(true)}
         onMouseLeave={() => setTodayHover(false)}
       >
         <SectionLabel>Today</SectionLabel>
-        <div
-          className="font-mono text-xs uppercase tracking-widest"
-          style={{ fontVariantNumeric: 'tabular-nums', cursor: todayBreakdown.length ? 'help' : 'default' }}
+        {/* Tap target — toggles `pinned` for touch devices. Mouse users
+            don't need to click; the section's hover state already opens
+            the panel. We use a button so it's keyboard-accessible too. */}
+        <button
+          type="button"
+          onClick={() => {
+            if (todayBreakdown.length === 0) return;
+            setTodayPinned((v) => !v);
+          }}
+          className="font-mono text-xs uppercase tracking-widest text-left appearance-none bg-transparent border-0 p-0 m-0"
+          style={{ fontVariantNumeric: 'tabular-nums', cursor: todayBreakdown.length ? 'help' : 'default', color: 'inherit' }}
           aria-describedby={todayBreakdown.length ? 'today-breakdown' : undefined}
+          aria-expanded={todayBreakdown.length ? (todayHover || todayPinned) : undefined}
         >
           <span className={todayBreakdown.length ? 'opacity-90 underline decoration-dotted decoration-current/40 underline-offset-4' : 'opacity-90'}>
             {todaySum} events
@@ -174,13 +204,12 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
           <span className="opacity-65">{today?.visits ?? 0} visits</span>
           <span className="opacity-30 mx-2">·</span>
           <span className="opacity-65">{today?.downloads ?? 0} downloads</span>
-        </div>
+        </button>
 
-        {/* Hover panel with the where-from breakdown. Only renders when the
-            section is hovered AND there's at least one event in the last
-            24h. Click target stays small; the panel sits above the row so
-            it never pushes other HUD sections around. */}
-        {todayHover && todayBreakdown.length > 0 && (
+        {/* Where-from panel. Renders when EITHER the section is hovered
+            (desktop) OR the user has tapped to pin it (touch). Tapping
+            outside closes the pinned panel via the document listener. */}
+        {(todayHover || todayPinned) && todayBreakdown.length > 0 && (
           <div
             id="today-breakdown"
             role="tooltip"
