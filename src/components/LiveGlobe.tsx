@@ -163,13 +163,14 @@ const CONTINENT_LABELS: Array<{ kind: 'continent'; text: string; lat: number; ln
 // even at peak pinch-zoom. At 280, sphere+atmosphere subtends ~43.6°
 // vertically — leaves a 6° margin inside the camera's 50° vertical FOV,
 // preventing the overflow:hidden wrapper from clipping the atmosphere.
-// Inactive country labels (every country in the GeoJSON) fade in over a
-// wider band so a few are visible even at the default altitude=2.6
-// camera (≈ distance 360). Combined with the collision-detection pass
-// in updateLabelOpacities, this gives the user country names without
-// the wall-of-text problem the original tight band was trying to avoid.
+// Inactive country labels are invisible at the default altitude=2.6
+// camera (≈ distance 360) and only fade in once the user pinch-zooms
+// close. Showing all ~190 inactive country names at default zoom on a
+// mobile viewport read as a wall of text — active-country labels (the
+// ones that actually have visitor data, in gold) remain visible at all
+// zoom levels via the active-country code path.
 const ZOOM_NEAR = 280;   // country labels at peak (zoomed in)
-const ZOOM_FAR  = 600;   // country labels start to appear here (zoomed out)
+const ZOOM_FAR  = 340;   // country labels start to appear here (zoomed out)
 const MIN_DIST  = 280;   // closest pinch-zoom — atmosphere stays inside canvas
 const MAX_DIST  = 800;
 
@@ -468,6 +469,23 @@ export default function LiveGlobe({ papers }: Props) {
             const iso2 = props.ISO_A2 || props.iso_a2;
             if (iso2 && iso2 !== '-99') map.set(String(iso2).toUpperCase(), entry);
             map.set(String(name).toUpperCase(), entry);
+          }
+          // Supplementary territories that don't appear in the Natural
+          // Earth country polygons but DO get returned by Cloudflare's
+          // edge geo-lookup. Hong Kong and Macau are folded into China
+          // there; without these entries an HK reader's event would
+          // fall back to "closest centroid" and mis-highlight Taiwan
+          // (the user reported this exact case). Each entry is keyed
+          // by both the ISO-2 code and the uppercase name so either
+          // form returned by the API matches.
+          const SUPPLEMENTAL = [
+            { iso2: 'HK', name: 'Hong Kong', lat: 22.3193, lng: 114.1694 },
+            { iso2: 'MO', name: 'Macau',     lat: 22.1987, lng: 113.5439 },
+          ];
+          for (const s of SUPPLEMENTAL) {
+            const e = { lat: s.lat, lng: s.lng, name: s.name };
+            map.set(s.iso2, e);
+            map.set(s.name.toUpperCase(), e);
           }
           // Trigger the labels useEffect to re-run now that we have centroids.
           setCentroidsReady(true);
