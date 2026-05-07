@@ -852,42 +852,54 @@ export default function LiveGlobe({ papers }: Props) {
         // we hide it. Active-country labels can't be hidden this way
         // (they always represent real visitor data); they get placed
         // first and force lower-priority ones around them.
-        type LabelEntry = { el: HTMLElement; rect: DOMRect; priority: number; canBeHidden: boolean };
-        const candidates: LabelEntry[] = [];
-        root.querySelectorAll<HTMLElement>('.gl-label').forEach((el) => {
-          if (el.style.visibility === 'hidden') return;
-          const op = parseFloat(el.style.opacity || '1');
-          if (op <= 0.01) return;
-          const rect = el.getBoundingClientRect();
-          if (rect.width === 0 || rect.height === 0) return;
-          let priority = 1;
-          let canBeHidden = true;
-          if (el.classList.contains('gl-label-country-active')) {
-            priority = 3;
-            canBeHidden = false;
-          } else if (el.classList.contains('gl-label-continent')) {
-            priority = 2;
+        // Defer the collision pass to the next animation frame. globe.gl
+        // updates each label's CSS transform during its render loop —
+        // running the bounding-rect check inline with the 'change' event
+        // could read stale positions and miss overlaps. requestAnimationFrame
+        // fires after the next paint, so getBoundingClientRect() returns
+        // the actual on-screen rectangle.
+        requestAnimationFrame(() => {
+          type LabelEntry = { el: HTMLElement; rect: DOMRect; priority: number; canBeHidden: boolean };
+          const candidates: LabelEntry[] = [];
+          root.querySelectorAll<HTMLElement>('.gl-label').forEach((el) => {
+            if (el.style.visibility === 'hidden') return;
+            const op = parseFloat(el.style.opacity || '1');
+            if (op <= 0.01) return;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+            let priority = 1;
+            let canBeHidden = true;
+            if (el.classList.contains('gl-label-country-active')) {
+              priority = 3;
+              canBeHidden = false;
+            } else if (el.classList.contains('gl-label-continent')) {
+              priority = 2;
+            }
+            candidates.push({ el, rect, priority, canBeHidden });
+          });
+          candidates.sort((a, b) => b.priority - a.priority);
+          const placed: DOMRect[] = [];
+          // PADDING is the buffer in px between any two displayed labels.
+          // 4px was just enough that side-by-side names like
+          // "NETHERLANDS" + "GERMANY" could squeeze through; 10px gives
+          // each label a clearer halo of empty space.
+          const PADDING = 10;
+          for (const c of candidates) {
+            const r = c.rect;
+            const overlaps = placed.some(
+              (p) =>
+                r.right + PADDING > p.left &&
+                r.left - PADDING < p.right &&
+                r.bottom + PADDING > p.top &&
+                r.top - PADDING < p.bottom
+            );
+            if (overlaps && c.canBeHidden) {
+              c.el.style.opacity = '0';
+            } else {
+              placed.push(r);
+            }
           }
-          candidates.push({ el, rect, priority, canBeHidden });
         });
-        candidates.sort((a, b) => b.priority - a.priority);
-        const placed: DOMRect[] = [];
-        const PADDING = 4; // px breathing room between labels
-        for (const c of candidates) {
-          const r = c.rect;
-          const overlaps = placed.some(
-            (p) =>
-              r.right + PADDING > p.left &&
-              r.left - PADDING < p.right &&
-              r.bottom + PADDING > p.top &&
-              r.top - PADDING < p.bottom
-          );
-          if (overlaps && c.canBeHidden) {
-            c.el.style.opacity = '0';
-          } else {
-            placed.push(r);
-          }
-        }
       };
       updateLabelOpacities();
       controls.addEventListener('change', updateLabelOpacities);
@@ -1027,6 +1039,15 @@ export default function LiveGlobe({ papers }: Props) {
         active.add(String(e.country_name).toUpperCase());
         if (haveLooseMatch(e.country_name)) matched = true;
       }
+      // If the event came back from the API with ANY country metadata,
+      // trust it. Don't lat/lng-fall-back even when neither value
+      // matches a Natural Earth centroid (e.g. "HK" for Hong Kong, "MO"
+      // for Macau, Vatican City, Palestine subdivisions) — those are
+      // legitimate locations that simply aren't in our country
+      // polygons. Falling back would mistakenly highlight a neighbour
+      // (a Hong Kong reader was lighting up TAIWAN because Taiwan is
+      // the geographically closest centroid).
+      if (e.country || e.country_name) continue;
       // Already linked to a known centroid via country code or name —
       // no need to fall back. (Keeps the simple-and-correct case fast.)
       if (matched) continue;
