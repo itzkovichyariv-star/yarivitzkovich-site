@@ -129,6 +129,64 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
     }
     return Array.from(grouped.values()).sort((a, b) => b.n - a.n);
   }, [events, totals]);
+
+  // Breakdowns by class (first_time / returning / downloads) for the
+  // SINCE LAUNCH section. Filtered from the events array — note that
+  // events comes back filtered by the page's range selector (default
+  // 7d), so the breakdown sums are at MOST what's in that window. The
+  // SINCE LAUNCH headline numbers are server-aggregated all-time
+  // counts; the panel header makes the scope clear.
+  const classBreakdowns = useMemo(() => {
+    const groupBy = (predicate: (e: HudEvent) => boolean) => {
+      type Row = { city: string | null; country: string | null; continent: string | null; n: number };
+      const grouped = new Map<string, Row>();
+      if (!events) return [] as Row[];
+      for (const e of events) {
+        if (!predicate(e)) continue;
+        const city = e.city || null;
+        const country = e.country_name || null;
+        const key = `${country || ''}|${city || ''}`;
+        let row = grouped.get(key);
+        if (!row) {
+          row = { city, country, continent: e.continent_name || null, n: 0 };
+          grouped.set(key, row);
+        }
+        row.n++;
+      }
+      return Array.from(grouped.values()).sort((a, b) => b.n - a.n);
+    };
+    return {
+      firstTime: groupBy((e) => e.kind === 'visit' && e.visitor_class === 'first_time'),
+      returning: groupBy((e) => e.kind === 'visit' && e.visitor_class === 'returning'),
+      downloads: groupBy((e) => e.kind === 'download'),
+    };
+  }, [events]);
+
+  // Which class breakdown is currently "open" — hover state (mouse) or
+  // pinned state (touch). One key at a time; opening a different one
+  // replaces the current.
+  type ClassKey = 'firstTime' | 'returning' | 'downloads';
+  const [launchHover, setLaunchHover] = useState<ClassKey | null>(null);
+  const [launchPinned, setLaunchPinned] = useState<ClassKey | null>(null);
+  const launchSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!launchPinned) return;
+    const onDocPointer = (e: PointerEvent) => {
+      const node = launchSectionRef.current;
+      if (node && !node.contains(e.target as Node)) setLaunchPinned(null);
+    };
+    document.addEventListener('pointerdown', onDocPointer, true);
+    return () => document.removeEventListener('pointerdown', onDocPointer, true);
+  }, [launchPinned]);
+
+  const launchActive = launchPinned || launchHover;
+  const launchLabels: Record<ClassKey, string> = {
+    firstTime: 'First-time visits',
+    returning: 'Returning visits',
+    downloads: 'Downloads',
+  };
+
   const recentIsStale = recent && totals ? totals.serverNow - recent.ts > 24 * 3600 : false;
   const recentClass = recent
     ? recent.kind === 'download'
@@ -163,10 +221,107 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
               events {launchDateLabel && <>· since {launchDateLabel}</>}
             </span>
           </div>
-          <div className="flex items-center gap-x-4 gap-y-1 flex-wrap font-mono text-[11px] uppercase tracking-widest">
-            <Pair color={ARC_COLORS.first_time} n={since?.firstTime ?? 0} label="first-time" />
-            <Pair color={ARC_COLORS.returning}  n={since?.returning  ?? 0} label="returning" />
-            <Pair color={ARC_COLORS.download}   n={since?.downloads  ?? 0} label="downloads" />
+          <div ref={launchSectionRef} className="relative">
+            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap font-mono text-[11px] uppercase tracking-widest">
+              <Pair
+                color={ARC_COLORS.first_time}
+                n={since?.firstTime ?? 0}
+                label="first-time"
+                interactive={classBreakdowns.firstTime.length > 0}
+                onHover={(over) => setLaunchHover(over ? 'firstTime' : null)}
+                onClick={() =>
+                  setLaunchPinned((p) => (p === 'firstTime' ? null : 'firstTime'))
+                }
+                isActive={launchActive === 'firstTime'}
+              />
+              <Pair
+                color={ARC_COLORS.returning}
+                n={since?.returning ?? 0}
+                label="returning"
+                interactive={classBreakdowns.returning.length > 0}
+                onHover={(over) => setLaunchHover(over ? 'returning' : null)}
+                onClick={() =>
+                  setLaunchPinned((p) => (p === 'returning' ? null : 'returning'))
+                }
+                isActive={launchActive === 'returning'}
+              />
+              <Pair
+                color={ARC_COLORS.download}
+                n={since?.downloads ?? 0}
+                label="downloads"
+                interactive={classBreakdowns.downloads.length > 0}
+                onHover={(over) => setLaunchHover(over ? 'downloads' : null)}
+                onClick={() =>
+                  setLaunchPinned((p) => (p === 'downloads' ? null : 'downloads'))
+                }
+                isActive={launchActive === 'downloads'}
+              />
+            </div>
+
+            {/* Class-breakdown panel — same look as the Today tooltip.
+                Shows the where-from list filtered by the active class.
+                Note about scope: events come from the page's selected
+                range (default 7d), so the panel reflects that window
+                rather than ALL-TIME — header label clarifies. */}
+            {launchActive && classBreakdowns[launchActive].length > 0 && (
+              <div
+                role="tooltip"
+                className="absolute z-30 left-0 mt-2 w-full sm:max-w-sm p-4"
+                style={{
+                  top: '100%',
+                  backdropFilter: 'blur(20px) saturate(160%)',
+                  WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+                  background: 'color-mix(in srgb, var(--surface) 88%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+                  color: 'var(--text)',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-soft">
+                    {launchLabels[launchActive]} · in current range
+                  </div>
+                  {launchPinned && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLaunchPinned(null);
+                      }}
+                      className="opacity-60 hover:opacity-100 transition-opacity text-base leading-none px-2 -my-1 -mr-1"
+                      aria-label="Close"
+                      title="Close"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {classBreakdowns[launchActive].map((row, i) => (
+                    <li
+                      key={`${row.country ?? '—'}|${row.city ?? i}`}
+                      className="flex items-baseline gap-2"
+                    >
+                      <span className="font-display text-sm flex-1 truncate">
+                        {[row.city, row.country].filter(Boolean).join(', ') || 'Unknown location'}
+                      </span>
+                      {row.continent && (
+                        <span className="font-mono text-[10px] uppercase tracking-widest opacity-50 whitespace-nowrap">
+                          {row.continent}
+                        </span>
+                      )}
+                      <span
+                        className="font-mono text-[10px] uppercase tracking-widest whitespace-nowrap"
+                        style={{ fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        <span className="opacity-90">{row.n}</span>
+                        <span className="opacity-55"> {row.n === 1 ? 'event' : 'events'}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
           <div className="font-mono text-[11px] uppercase tracking-widest text-soft">
             Reached {since?.countries ?? 0} countries · {since?.continents ?? 0} continents
@@ -432,9 +587,25 @@ function Rule() {
   );
 }
 
-function Pair({ color, n, label }: { color: string; n: number; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
+function Pair({
+  color,
+  n,
+  label,
+  interactive,
+  onHover,
+  onClick,
+  isActive,
+}: {
+  color: string;
+  n: number;
+  label: string;
+  interactive?: boolean;
+  onHover?: (over: boolean) => void;
+  onClick?: () => void;
+  isActive?: boolean;
+}) {
+  const inner = (
+    <>
       <span
         aria-hidden="true"
         style={{
@@ -447,8 +618,28 @@ function Pair({ color, n, label }: { color: string; n: number; label: string }) 
         }}
       />
       <span style={{ fontVariantNumeric: 'tabular-nums' }} className="opacity-90">{n}</span>
-      <span className="opacity-65">{label}</span>
-    </span>
+      <span className={interactive ? 'opacity-65 underline decoration-dotted decoration-current/40 underline-offset-4' : 'opacity-65'}>
+        {label}
+      </span>
+    </>
+  );
+
+  if (!interactive) {
+    return <span className="inline-flex items-center gap-1.5">{inner}</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
+      className="inline-flex items-center gap-1.5 appearance-none bg-transparent border-0 p-0 m-0 font-mono uppercase tracking-widest"
+      style={{ cursor: 'help', color: 'inherit', font: 'inherit' }}
+      aria-expanded={!!isActive}
+      aria-label={`${n} ${label} — show breakdown`}
+    >
+      {inner}
+    </button>
   );
 }
 
