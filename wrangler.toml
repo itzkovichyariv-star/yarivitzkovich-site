@@ -15,3 +15,9 @@ CF_WEB_ANALYTICS_TAG = "0ca13efdb537426bb1de7c0f56dc4c3c"
 # reaches D1 — works regardless of which device/OS the owner is using.
 # Edit this list (and re-deploy) to add cities the owner travels to.
 OWNER_CITIES = "Kfar Saba,Jerusalem,Tel Aviv,Petah Tiqva,Ariel,Hadera,Netanya"
+# Comma-separated public IPs that are auto-recognised as owner without
+# any cookie. Add a network with: `npm run claim-this-network` from a
+# device on that wifi (script reads your current IP, appends it here,
+# commits + redeploys). Mobile data IPs aren't reliable for this since
+# carriers rotate them — those devices use the cookie path instead.
+OWNER_IPS = ""
