@@ -105,8 +105,27 @@ export function clearOwnerCookieHeader() {
   return `${COOKIE_NAME}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`;
 }
 
-/** Convenience: returns true if the request carries a valid owner token. */
+/** Returns true if the request comes from an IP in the OWNER_IPS allowlist.
+ *  OWNER_IPS is a comma-separated list set in wrangler.toml [vars]. The
+ *  Cloudflare edge populates `cf-connecting-ip` with the visitor's real IP
+ *  (no spoofing risk since this header is set by Cloudflare itself).
+ */
+function isOwnerByIP(request, env) {
+  if (!env.OWNER_IPS) return false;
+  const ip = request.headers.get('cf-connecting-ip');
+  if (!ip) return false;
+  for (const entry of String(env.OWNER_IPS).split(',')) {
+    if (entry.trim() === ip) return true;
+  }
+  return false;
+}
+
+/** True if the request carries a valid owner cookie OR comes from an
+ *  allowlisted IP. The IP path is zero-effort — visiting from home/office
+ *  needs no auth — while the cookie covers travel and new devices.
+ */
 export async function isOwner(request, env) {
+  if (isOwnerByIP(request, env)) return true;
   if (!env.OWNER_SECRET) return false;
   const token = getCookie(request);
   if (!token) return false;
