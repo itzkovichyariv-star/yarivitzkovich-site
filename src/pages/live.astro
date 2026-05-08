@@ -133,6 +133,17 @@ const papers = allPubs
       from { opacity: 0; }
       to   { opacity: 1; }
     }
+
+    /* While the breakdown drawer is open, hide the globe's HTML
+       country labels AND the WebGL canvas. Both render outside the
+       drawer's stacking context (globe.gl mounts them via a
+       CSS2DRenderer at a level a plain z-index can't cover), so they
+       bleed through the translucent panel. Pointer-events on the
+       drawer keep working because the hidden elements are below it. */
+    body.breakdown-open .gl-label,
+    body.breakdown-open .scene-container > canvas {
+      visibility: hidden !important;
+    }
     @keyframes breakdownPanelIn {
       from {
         opacity: 0;

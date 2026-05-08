@@ -133,6 +133,17 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
     return { fresh, ret, dl };
   }, [events]);
 
+  // While the drawer is open, attach a body class. The CSS in
+  // live.astro uses that class to hide the globe's HTML labels and
+  // canvas — they bleed through the drawer's translucent overlay
+  // because globe.gl mounts them in a stacking context that isn't
+  // covered by a plain z-index on this component.
+  useEffect(() => {
+    if (!open) return;
+    document.body.classList.add('breakdown-open');
+    return () => document.body.classList.remove('breakdown-open');
+  }, [open]);
+
   if (!open) return null;
 
   return (
