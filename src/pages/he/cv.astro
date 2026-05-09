@@ -1,0 +1,56 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const viewerUrl = 'https://arielacil-my.sharepoint.com/:w:/g/personal/yarivi_ariel_ac_il/IQCUibWJNImRTqbuoDZO-ZQ_AVpdf-w3k9_uk6KRBXQcjI4?e=82obWh';
+---
+<BaseLayout
+  title="קורות חיים — יריב יצקוביץ'"
+  description="קורות חיים של יריב יצקוביץ' — מסמך חי המאוחסן ב-OneDrive."
+  lang="he"
+>
+  <section class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-12">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">קורות חיים</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(3rem, 9vw, 7rem); font-weight: 300"
+    >
+      קורות&nbsp;חיים.
+    </h1>
+    <p class="max-w-2xl text-lg text-muted font-display" style="font-weight: 300">
+      המסמך נפתח בלשונית חדשה כעותק חי לצפייה בלבד &mdash; עריכות שמתבצעות ב-OneDrive מתעדכנות אוטומטית.
+    </p>
+  </section>
+
+  <section class="max-w-4xl mx-auto px-6 md:px-10 pb-32">
+    <a
+      href={viewerUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="group block rounded-md p-10 md:p-14 transition-opacity hover:opacity-80"
+      style="border: 1px solid var(--divider); background-color: var(--surface, #f5f3ee);"
+    >
+      <div class="flex items-center gap-6">
+        <div class="shrink-0">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--text)">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-display text-3xl md:text-4xl mb-2" style="font-weight: 300; color: var(--text)">
+            פתיחת קורות חיים
+          </div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft">
+            נפתח בלשונית חדשה · לצפייה בלבד
+          </div>
+        </div>
+        <div class="shrink-0">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--text)">
+            <path d="M7 17 17 7"/>
+            <path d="M8 7h9v9"/>
+          </svg>
+        </div>
+      </div>
+    </a>
+  </section>
+</BaseLayout>
