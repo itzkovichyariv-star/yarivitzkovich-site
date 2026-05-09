@@ -130,45 +130,56 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
     return Array.from(grouped.values()).sort((a, b) => b.n - a.n);
   }, [events, totals]);
 
-  // Breakdowns by class (first_time / returning / downloads) for the
-  // SINCE LAUNCH section. Filtered from the events array — note that
-  // events comes back filtered by the page's range selector (default
-  // 7d), so the breakdown sums are at MOST what's in that window. The
-  // SINCE LAUNCH headline numbers are server-aggregated all-time
-  // counts; the panel header makes the scope clear.
-  const classBreakdowns = useMemo(() => {
-    const groupBy = (predicate: (e: HudEvent) => boolean) => {
-      type Row = { city: string | null; country: string | null; continent: string | null; n: number };
-      const grouped = new Map<string, Row>();
-      if (!events) return [] as Row[];
-      for (const e of events) {
-        if (!predicate(e)) continue;
-        const city = e.city || null;
-        const country = e.country_name || null;
-        const key = `${country || ''}|${city || ''}`;
-        let row = grouped.get(key);
-        if (!row) {
-          row = { city, country, continent: e.continent_name || null, n: 0 };
-          grouped.set(key, row);
-        }
-        row.n++;
-      }
-      return Array.from(grouped.values()).sort((a, b) => b.n - a.n);
-    };
-    return {
-      firstTime: groupBy((e) => e.kind === 'visit' && e.visitor_class === 'first_time'),
-      returning: groupBy((e) => e.kind === 'visit' && e.visitor_class === 'returning'),
-      downloads: groupBy((e) => e.kind === 'download'),
-    };
-  }, [events]);
-
-  // Which class breakdown is currently "open" — hover state (mouse) or
-  // pinned state (touch). One key at a time; opening a different one
-  // replaces the current.
+  // SINCE LAUNCH breakdowns are now fetched from /live/breakdown — an
+  // all-time aggregated query against the events table — instead of
+  // being computed client-side from the (range-filtered, default 7d)
+  // events array. Without this, a "6 downloads since launch" headline
+  // could pair with a tooltip listing only 1 city, because older
+  // downloads weren't in the page's events array.
   type ClassKey = 'firstTime' | 'returning' | 'downloads';
+  type BreakdownRow = { city: string | null; country: string | null; continent: string | null; n: number };
   const [launchHover, setLaunchHover] = useState<ClassKey | null>(null);
   const [launchPinned, setLaunchPinned] = useState<ClassKey | null>(null);
+  const [classBreakdownData, setClassBreakdownData] = useState<Record<ClassKey, BreakdownRow[] | null>>({
+    firstTime: null,
+    returning: null,
+    downloads: null,
+  });
   const launchSectionRef = useRef<HTMLDivElement>(null);
+
+  // Map our UI key → the API's class param. The API speaks
+  // "first_time" / "returning" / "download" (singular).
+  const apiClassFor: Record<ClassKey, string> = {
+    firstTime: 'first_time',
+    returning: 'returning',
+    downloads: 'download',
+  };
+
+  // Fetch a class's breakdown the first time it's needed. Caches the
+  // result so reopening the same tooltip is instant.
+  const ensureBreakdownLoaded = (key: ClassKey) => {
+    if (classBreakdownData[key] !== null) return;
+    fetch(`/live/breakdown?class=${apiClassFor[key]}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const rows: BreakdownRow[] = (data.rows || []).map((r: any) => ({
+          city: r.city || null,
+          country: r.country_name || r.country || null,
+          continent: r.continent_name || r.continent || null,
+          n: Number(r.n || 0),
+        }));
+        setClassBreakdownData((prev) => ({ ...prev, [key]: rows }));
+      })
+      .catch(() => {});
+  };
+
+  // Helper used in the JSX to read the (possibly still-loading) rows.
+  const classBreakdowns = {
+    firstTime: classBreakdownData.firstTime ?? [],
+    returning: classBreakdownData.returning ?? [],
+    downloads: classBreakdownData.downloads ?? [],
+  };
 
   useEffect(() => {
     if (!launchPinned) return;
@@ -227,43 +238,55 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
                 color={ARC_COLORS.first_time}
                 n={since?.firstTime ?? 0}
                 label="first-time"
-                interactive={classBreakdowns.firstTime.length > 0}
-                onHover={(over) => setLaunchHover(over ? 'firstTime' : null)}
-                onClick={() =>
-                  setLaunchPinned((p) => (p === 'firstTime' ? null : 'firstTime'))
-                }
+                interactive={(since?.firstTime ?? 0) > 0}
+                onHover={(over) => {
+                  if (over) ensureBreakdownLoaded('firstTime');
+                  setLaunchHover(over ? 'firstTime' : null);
+                }}
+                onClick={() => {
+                  ensureBreakdownLoaded('firstTime');
+                  setLaunchPinned((p) => (p === 'firstTime' ? null : 'firstTime'));
+                }}
                 isActive={launchActive === 'firstTime'}
               />
               <Pair
                 color={ARC_COLORS.returning}
                 n={since?.returning ?? 0}
                 label="returning"
-                interactive={classBreakdowns.returning.length > 0}
-                onHover={(over) => setLaunchHover(over ? 'returning' : null)}
-                onClick={() =>
-                  setLaunchPinned((p) => (p === 'returning' ? null : 'returning'))
-                }
+                interactive={(since?.returning ?? 0) > 0}
+                onHover={(over) => {
+                  if (over) ensureBreakdownLoaded('returning');
+                  setLaunchHover(over ? 'returning' : null);
+                }}
+                onClick={() => {
+                  ensureBreakdownLoaded('returning');
+                  setLaunchPinned((p) => (p === 'returning' ? null : 'returning'));
+                }}
                 isActive={launchActive === 'returning'}
               />
               <Pair
                 color={ARC_COLORS.download}
                 n={since?.downloads ?? 0}
                 label="downloads"
-                interactive={classBreakdowns.downloads.length > 0}
-                onHover={(over) => setLaunchHover(over ? 'downloads' : null)}
-                onClick={() =>
-                  setLaunchPinned((p) => (p === 'downloads' ? null : 'downloads'))
-                }
+                interactive={(since?.downloads ?? 0) > 0}
+                onHover={(over) => {
+                  if (over) ensureBreakdownLoaded('downloads');
+                  setLaunchHover(over ? 'downloads' : null);
+                }}
+                onClick={() => {
+                  ensureBreakdownLoaded('downloads');
+                  setLaunchPinned((p) => (p === 'downloads' ? null : 'downloads'));
+                }}
                 isActive={launchActive === 'downloads'}
               />
             </div>
 
-            {/* Class-breakdown panel — same look as the Today tooltip.
-                Shows the where-from list filtered by the active class.
-                Note about scope: events come from the page's selected
-                range (default 7d), so the panel reflects that window
-                rather than ALL-TIME — header label clarifies. */}
-            {launchActive && classBreakdowns[launchActive].length > 0 && (
+            {/* Class-breakdown panel — opens on hover/tap. Data is
+                fetched from /live/breakdown for the active class so
+                the row counts add up to the SINCE LAUNCH headline.
+                Renders even while data is still loading; "Loading…"
+                placeholder fills the gap on first open. */}
+            {launchActive && (
               <div
                 role="tooltip"
                 className="absolute z-30 left-0 mt-2 w-full sm:max-w-sm p-4"
@@ -279,7 +302,7 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-mono text-[10px] uppercase tracking-widest text-soft">
-                    {launchLabels[launchActive]} · in current range
+                    {launchLabels[launchActive]} · all time
                   </div>
                   {launchPinned && (
                     <button
@@ -296,30 +319,40 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
                     </button>
                   )}
                 </div>
-                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {classBreakdowns[launchActive].map((row, i) => (
-                    <li
-                      key={`${row.country ?? '—'}|${row.city ?? i}`}
-                      className="flex items-baseline gap-2"
-                    >
-                      <span className="font-display text-sm flex-1 truncate">
-                        {[row.city, row.country].filter(Boolean).join(', ') || 'Unknown location'}
-                      </span>
-                      {row.continent && (
-                        <span className="font-mono text-[10px] uppercase tracking-widest opacity-50 whitespace-nowrap">
-                          {row.continent}
-                        </span>
-                      )}
-                      <span
-                        className="font-mono text-[10px] uppercase tracking-widest whitespace-nowrap"
-                        style={{ fontVariantNumeric: 'tabular-nums' }}
+                {classBreakdownData[launchActive] === null ? (
+                  <div className="font-mono text-xs uppercase tracking-widest text-soft py-2">
+                    Loading…
+                  </div>
+                ) : classBreakdowns[launchActive].length === 0 ? (
+                  <div className="font-mono text-xs uppercase tracking-widest text-soft py-2">
+                    No activity yet
+                  </div>
+                ) : (
+                  <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {classBreakdowns[launchActive].map((row, i) => (
+                      <li
+                        key={`${row.country ?? '—'}|${row.city ?? i}`}
+                        className="flex items-baseline gap-2"
                       >
-                        <span className="opacity-90">{row.n}</span>
-                        <span className="opacity-55"> {row.n === 1 ? 'event' : 'events'}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                        <span className="font-display text-sm flex-1 truncate">
+                          {[row.city, row.country].filter(Boolean).join(', ') || 'Unknown location'}
+                        </span>
+                        {row.continent && (
+                          <span className="font-mono text-[10px] uppercase tracking-widest opacity-50 whitespace-nowrap">
+                            {row.continent}
+                          </span>
+                        )}
+                        <span
+                          className="font-mono text-[10px] uppercase tracking-widest whitespace-nowrap"
+                          style={{ fontVariantNumeric: 'tabular-nums' }}
+                        >
+                          <span className="opacity-90">{row.n}</span>
+                          <span className="opacity-55"> {row.n === 1 ? 'event' : 'events'}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </div>
