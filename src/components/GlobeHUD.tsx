@@ -502,12 +502,12 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
 
       <Rule />
 
-      {/* 4. Top downloaded papers (last 24h) ─────────────── */}
+      {/* 4. Top downloaded papers (since launch) ─────────── */}
       <section>
-        <SectionLabel>Most-downloaded papers · last 24h</SectionLabel>
+        <SectionLabel>Most-downloaded papers · since launch</SectionLabel>
         {topPapers.length > 0 ? (
           <ul className="space-y-2 mt-1">
-            {topPapers.slice(0, 5).map((p) => (
+            {topPapers.slice(0, 3).map((p) => (
               <li key={p.paper_slug} className="flex items-baseline gap-3">
                 <a
                   href={`/publications/${p.paper_slug}`}
@@ -536,7 +536,7 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
           </ul>
         ) : (
           <div className="font-mono text-xs uppercase tracking-widest text-soft">
-            No downloads in the last 24h
+            No downloads yet
           </div>
         )}
       </section>
