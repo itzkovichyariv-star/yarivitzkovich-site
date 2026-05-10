@@ -83,6 +83,8 @@ export const onRequestGet = async ({ env }) => {
     // Top papers by download count since launch. MAX(paper_title) picks any
     // non-null title for the slug — early download events were recorded
     // without a title, so we coalesce up to the most-recent labeled one.
+    // The CV used to live at /pdfs/yariv-cv-full.pdf and accumulated a lot
+    // of downloads; it's not a paper, so exclude it from this panel.
     env.DB.prepare(
       `SELECT paper_slug,
               MAX(paper_title) AS paper_title,
@@ -90,6 +92,7 @@ export const onRequestGet = async ({ env }) => {
        FROM events
        WHERE is_bot = 0
          AND kind = 'download' AND paper_slug IS NOT NULL
+         AND paper_slug != 'yariv-cv-full'
        GROUP BY paper_slug
        ORDER BY n DESC
        LIMIT 3`
