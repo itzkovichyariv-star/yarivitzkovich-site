@@ -235,6 +235,11 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
           <div ref={launchSectionRef} className="relative">
             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap font-mono text-[11px] uppercase tracking-widest">
               <Pair
+                color="#9DB3BE"
+                n={(since?.firstTime ?? 0) + (since?.returning ?? 0)}
+                label="visits"
+              />
+              <Pair
                 color={ARC_COLORS.first_time}
                 n={since?.firstTime ?? 0}
                 label="first-time"
@@ -506,30 +511,45 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
       <section>
         <SectionLabel>Most-downloaded papers · since launch</SectionLabel>
         {topPapers.length > 0 ? (
-          <ul className="space-y-2 mt-1">
+          <ul
+            className="mt-1"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) auto auto auto',
+              columnGap: '0.75rem',
+              rowGap: '0.5rem',
+              alignItems: 'baseline',
+            }}
+          >
             {topPapers.slice(0, 3).map((p) => (
-              <li key={p.paper_slug} className="flex items-baseline gap-3">
+              <li key={p.paper_slug} style={{ display: 'contents' }}>
                 <a
                   href={`/publications/${p.paper_slug}`}
-                  className="font-display italic text-sm leading-snug flex-1 underline decoration-transparent hover:decoration-current transition"
+                  className="font-display italic text-sm leading-snug underline decoration-transparent hover:decoration-current transition"
                   style={{ color: 'inherit' }}
                 >
                   {p.paper_title || p.paper_slug.replace(/-/g, ' ')}
                 </a>
-                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest whitespace-nowrap">
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: ARC_COLORS.download,
-                      boxShadow: `0 0 4px ${ARC_COLORS.download}`,
-                      display: 'inline-block',
-                    }}
-                  />
-                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{p.n}</span>
-                  <span className="opacity-65">{p.n === 1 ? 'download' : 'downloads'}</span>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: ARC_COLORS.download,
+                    boxShadow: `0 0 4px ${ARC_COLORS.download}`,
+                    display: 'inline-block',
+                    alignSelf: 'center',
+                  }}
+                />
+                <span
+                  className="font-mono text-[11px] uppercase tracking-widest"
+                  style={{ fontVariantNumeric: 'tabular-nums', textAlign: 'right', minWidth: '2.5ch' }}
+                >
+                  {p.n}
+                </span>
+                <span className="font-mono text-[11px] uppercase tracking-widest opacity-65 whitespace-nowrap">
+                  {p.n === 1 ? 'download' : 'downloads'}
                 </span>
               </li>
             ))}
