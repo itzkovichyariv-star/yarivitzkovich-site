@@ -539,7 +539,8 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
                     background: ARC_COLORS.download,
                     boxShadow: `0 0 4px ${ARC_COLORS.download}`,
                     display: 'inline-block',
-                    alignSelf: 'center',
+                    alignSelf: 'first baseline',
+                    transform: 'translateY(-0.1em)',
                   }}
                 />
                 <span
