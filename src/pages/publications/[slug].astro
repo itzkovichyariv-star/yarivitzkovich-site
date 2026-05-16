@@ -67,6 +67,17 @@ const citations = [
   { label: 'BibTeX', text: bibtex },
 ];
 
+const pageUrl = new URL(`/publications/${pub.slug}`, Astro.site).href;
+const pdfAbsoluteUrl = pub.pdf?.available && pub.pdf.path
+  ? new URL(pub.pdf.path, Astro.site).href
+  : null;
+const [firstPage, lastPage] = (pub.pages ?? '').split(/[-–—]/).map((s) => s.trim());
+const ME_ORCID = '0000-0002-3296-6518';
+const authorsWithOrcid = pub.authors.map((a) => ({
+  ...a,
+  orcid: a.isMe ? (a.orcid ?? ME_ORCID) : a.orcid,
+}));
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'ScholarlyArticle',
@@ -91,6 +102,51 @@ const jsonLd = {
 };
 ---
 <BaseLayout title={`${pub.title} — Yariv Itzkovich`} description={pub.tldr ?? pub.abstract} paperSlug={pub.slug} paperTitle={pub.title}>
+  <Fragment slot="head">
+    {/* Highwire Press citation tags — required for Google Scholar indexing. */}
+    <meta name="citation_title" content={pub.title} />
+    {authorsWithOrcid.map((a) => (
+      <>
+        <meta name="citation_author" content={a.name} />
+        {a.orcid && <meta name="citation_author_orcid" content={a.orcid} />}
+      </>
+    ))}
+    <meta name="citation_publication_date" content={String(pub.year)} />
+    <meta name="citation_year" content={String(pub.year)} />
+    {pub.venue && <meta name="citation_journal_title" content={pub.venue} />}
+    {pub.venueShort && <meta name="citation_journal_abbrev" content={pub.venueShort} />}
+    {pub.volume && <meta name="citation_volume" content={pub.volume} />}
+    {pub.issue && <meta name="citation_issue" content={pub.issue} />}
+    {firstPage && <meta name="citation_firstpage" content={firstPage} />}
+    {lastPage && <meta name="citation_lastpage" content={lastPage} />}
+    {pub.doi && <meta name="citation_doi" content={pub.doi} />}
+    {pub.publisher && <meta name="citation_publisher" content={pub.publisher} />}
+    {pub.isbn && <meta name="citation_isbn" content={pub.isbn} />}
+    {pdfAbsoluteUrl && isPublished && <meta name="citation_pdf_url" content={pdfAbsoluteUrl} />}
+    {pub.abstract && <meta name="citation_abstract" content={pub.abstract} />}
+    <meta name="citation_abstract_html_url" content={pageUrl} />
+    <meta name="citation_language" content="en" />
+    {pub.topics && pub.topics.length > 0 && (
+      <meta name="citation_keywords" content={pub.topics.map(topicLabel).join('; ')} />
+    )}
+
+    {/* Dublin Core — used by OAI-PMH repositories, BASE, CORE, and many institutional indexers. */}
+    <meta name="DC.title" content={pub.title} />
+    {pub.authors.map((a) => (
+      <meta name="DC.creator" content={a.name} />
+    ))}
+    <meta name="DC.date" content={String(pub.year)} />
+    <meta name="DC.type" content={pub.type === 'article' ? 'Text.Article' : pub.type === 'book' || pub.type === 'edited-book' ? 'Text.Book' : 'Text'} />
+    <meta name="DC.language" content="en" />
+    {pub.venue && <meta name="DC.source" content={pub.venue} />}
+    {pub.publisher && <meta name="DC.publisher" content={pub.publisher} />}
+    {pub.doi && <meta name="DC.identifier" content={`info:doi/${pub.doi}`} />}
+    <meta name="DC.identifier" content={pageUrl} />
+    {pub.abstract && <meta name="DC.description" content={pub.abstract} />}
+    {pub.topics && pub.topics.length > 0 && (
+      <meta name="DC.subject" content={pub.topics.map(topicLabel).join('; ')} />
+    )}
+  </Fragment>
   <article class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-24" {...(!isPublished ? {'data-pagefind-ignore': ''} : {})}>
     <a href="/publications" class="font-mono text-xs uppercase tracking-widest text-soft hover:opacity-60 inline-flex items-center gap-2">
       <span>←</span> All publications

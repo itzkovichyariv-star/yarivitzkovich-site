@@ -18,7 +18,7 @@ interface Props {
 
 const {
   title,
-  description = 'Yariv Itzkovich — research on how mistreatment spills over in organizations, bystander intervention, and AI-based mitigation.',
+  description = 'Yariv Itzkovich — researcher of workplace mistreatment (incivility, bullying, abusive supervision), bystander intervention, and AI-based mitigation in organizations.',
   lang = 'en',
   langHref,
   suppressPersonSchema = false,
@@ -39,6 +39,7 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
     <meta name="description" content={description} />
     <meta name="author" content="Yariv Itzkovich" />
     <meta name="generator" content={Astro.generator} />
+    <meta name="keywords" content="workplace mistreatment, workplace incivility, workplace bullying, bystanders, bystander intervention, organizational deviant behavior, abusive supervision, human-AI interaction, organizational psychology, Yariv Itzkovich" />
 
     <!-- Canonical URL -->
     <link rel="canonical" href={canonicalUrl} />
@@ -187,6 +188,8 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
         ],
       })} />
     )}
+
+    <slot name="head" />
 
     {Astro.url.pathname === '/' && (
       <script type="application/ld+json" is:inline set:html={JSON.stringify({
