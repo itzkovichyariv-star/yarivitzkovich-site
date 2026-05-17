@@ -216,12 +216,20 @@ export default function LiveGlobe({ papers }: Props) {
 
   // Owner check — runs once on mount. Reveals the Details drawer button
   // when the visitor has a valid signed cookie from /api/auth-owner.
+  // Also handles the /live#details deep-link from /manage: if the URL
+  // hash is #details and the visitor is the owner, auto-open the drawer.
   useEffect(() => {
     let cancelled = false;
     fetch('/api/me', { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!cancelled && data && data.owner) setIsOwner(true);
+        if (cancelled || !data || !data.owner) return;
+        setIsOwner(true);
+        if (typeof window !== 'undefined' && window.location.hash === '#details') {
+          setDrawerOpen(true);
+          // Clean the hash so a refresh doesn't keep re-opening the drawer.
+          history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -1440,16 +1448,27 @@ export default function LiveGlobe({ papers }: Props) {
           </select>
           {loading && <span className="opacity-50">Loading…</span>}
           {isOwner && (
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="ml-auto sm:ml-auto inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2 -mr-2"
-              style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
-              title="Owner: open the detailed activity breakdown"
-            >
-              <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
-              Details ↗
-            </button>
+            <div className="ml-auto inline-flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2"
+                style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
+                title="Owner: open the detailed activity breakdown in place"
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+                Details ↗
+              </button>
+              <a
+                href="/manage"
+                className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2 -mr-2"
+                style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
+                title="Owner: full management dashboard (subscribers, contacts, notifications, QC, bots, content)"
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+                Manage ↗
+              </a>
+            </div>
           )}
         </div>
       </div>
