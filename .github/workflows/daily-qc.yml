@@ -1,0 +1,50 @@
+name: Daily QC
+
+# Runs every day at 04:00 UTC (07:00 Israel Standard Time, 06:00 Israel
+# Daylight Time). Hits the secret-protected POST /api/qc-run endpoint
+# which performs consistency checks on the events table, auto-fixes the
+# safe issues (paper_title backfill), and logs results to qa_log.
+#
+# Manual trigger: Actions tab → Daily QC → Run workflow.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/qc-run on yarivitzkovich.org
+        env:
+          QC_SECRET: ${{ secrets.QC_SECRET }}
+        run: |
+          if [ -z "${QC_SECRET}" ]; then
+            echo "::error::QC_SECRET secret is not set in this repository."
+            echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
+            exit 1
+          fi
+
+          response=$(curl --silent --show-error --fail-with-body \
+            --max-time 60 \
+            -X POST https://yarivitzkovich.org/api/qc-run \
+            -H "x-qc-token: ${QC_SECRET}" \
+            -H "content-type: application/json")
+
+          echo "Response:"
+          echo "${response}" | python3 -m json.tool
+
+          # Surface findings prominently in the Actions log so the user
+          # sees them at a glance.
+          findings_count=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('findings', [])))")
+          fixes_count=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('fixes', [])))")
+
+          if [ "${findings_count}" != "0" ]; then
+            echo "::warning::QC found ${findings_count} anomaly/anomalies — see response above."
+          fi
+          if [ "${fixes_count}" != "0" ]; then
+            echo "::notice::QC applied ${fixes_count} automatic fix(es)."
+          fi
+
+          echo "::notice::Daily QC completed."
