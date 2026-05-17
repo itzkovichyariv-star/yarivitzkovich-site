@@ -1,0 +1,122 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Subscribe — Yariv Itzkovich"
+  description="Subscribe to a short email when a new paper goes up. About one email every few months. Or follow via RSS."
+>
+  <section class="max-w-3xl mx-auto px-6 md:px-10 pt-32 pb-24">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Subscribe</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(3rem, 8vw, 6rem); font-weight: 300"
+    >
+      Get the next paper.
+    </h1>
+    <p class="text-lg leading-relaxed text-muted mb-10 max-w-2xl">
+      A short email when a new paper goes up — title, one-line summary, and a link.
+      No newsletter, no marketing, no tracking pixels. About one email every few months.
+    </p>
+
+    <form id="subscribe-form" class="max-w-md">
+      <label for="subscribe-email" class="block font-mono text-xs uppercase tracking-widest text-soft mb-3">
+        Email address
+      </label>
+      <div class="flex gap-2">
+        <input
+          id="subscribe-email"
+          name="email"
+          type="email"
+          required
+          autocomplete="email"
+          placeholder="you@example.com"
+          class="flex-1 px-4 py-3 rounded-full border bg-transparent text-base outline-none focus:opacity-90 transition-opacity"
+          style="border-color: var(--divider); color: var(--text)"
+        />
+        <button
+          type="submit"
+          class="px-5 py-3 rounded-full font-mono text-xs uppercase tracking-widest"
+          style="background-color: var(--color-accent); color: var(--color-bg)"
+        >
+          Subscribe
+        </button>
+      </div>
+      <p
+        id="subscribe-message"
+        class="mt-4 text-sm leading-relaxed"
+        style="display: none"
+        aria-live="polite"
+      ></p>
+    </form>
+
+    <div class="mt-16 pt-10 border-t" style="border-color: var(--divider)">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Prefer RSS?</div>
+      <p class="text-muted leading-relaxed max-w-2xl">
+        The same announcements are published as an RSS feed at
+        <a href="/publications.xml" class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">/publications.xml</a>.
+        Paste that URL into Feedly, Inoreader, NetNewsWire, or any reader of your choice. No account on this site required.
+      </p>
+    </div>
+
+    <div class="mt-12 text-sm text-soft leading-relaxed max-w-2xl">
+      <p>By subscribing, you'll receive a confirmation email to verify your address (double opt-in).
+      Every notification email includes a one-click unsubscribe link.</p>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('subscribe-form');
+      var msg = document.getElementById('subscribe-message');
+      if (!form || !msg) return;
+
+      function show(text, isError) {
+        msg.textContent = text;
+        msg.style.display = 'block';
+        msg.style.color = isError ? '#b3411c' : 'var(--text)';
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var emailInput = document.getElementById('subscribe-email');
+        var email = (emailInput && emailInput.value || '').trim();
+        if (!email) {
+          show('Please enter an email address.', true);
+          return;
+        }
+
+        show('Sending…', false);
+        fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: email }),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+          .then(function (res) {
+            if (res.status !== 200 || !res.body.ok) {
+              if (res.body && res.body.error === 'invalid_email') {
+                show("That doesn't look like a valid email address.", true);
+              } else {
+                show("Something went wrong. Please try again in a moment.", true);
+              }
+              return;
+            }
+            if (res.body.status === 'already_subscribed') {
+              show("You're already subscribed — thanks!", false);
+              return;
+            }
+            // pending_confirmation
+            if (res.body.email_send === 'failed') {
+              show("You're on the list, but our confirmation email didn't go out. Please try again later or email Yariv directly.", true);
+            } else {
+              show("Check your inbox — we just sent you a confirmation link.", false);
+              if (emailInput) emailInput.value = '';
+            }
+          })
+          .catch(function () {
+            show("Couldn't reach the server. Please try again.", true);
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

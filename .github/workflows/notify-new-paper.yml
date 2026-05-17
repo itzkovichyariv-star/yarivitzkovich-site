@@ -1,0 +1,59 @@
+name: Notify subscribers of new paper
+
+# Fires on pushes to main that add a new file to
+# src/content/publications/ (not _drafts/). For each newly-added
+# publication, POSTs to /api/notify-new-paper which emails every
+# active subscriber.
+#
+# Endpoint protection: same QC_SECRET as the daily QC job, so the
+# owner doesn't have to manage a second secret.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/content/publications/*.mdx'
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Paper slug to notify about (without .mdx)'
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect newly-added publications
+        id: detect
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            slug="${{ github.event.inputs.slug }}"
+            echo "Manual trigger for slug: ${slug}"
+            echo "slugs=${slug}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Compare HEAD against the previous commit. We only fire for
+          # ADDED files, never modified — so editing an existing paper
+          # doesn't spam subscribers.
+          added=$(git diff --name-only --diff-filter=A HEAD~1 HEAD -- 'src/content/publications/*.mdx' || true)
+          if [ -z "${added}" ]; then
+            echo "No new publication files in this push."
+            echo "slugs=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          slugs=$(echo "${added}" | sed 's|src/content/publications/||;s|\.mdx$||' | tr '\n' ',' | sed 's/,$//')
+          echo "Detected new slugs: ${slugs}"
+          echo "slugs=${slugs}" >> "$GITHUB_OUTPUT"
+
+      - name: Notify subscribers
+        if: steps.detect.outputs.slugs != ''
+        env:
+          QC_SECRET: ${{ secrets.QC_SECRET }}
+          SLUGS: ${{ steps.detect.outputs.slugs }}
+        run: node scripts/notify-subscribers.mjs
