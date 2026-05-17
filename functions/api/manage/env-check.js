@@ -1,4 +1,4 @@
-// GET /api/admin/env-check
+// GET /api/manage/env-check
 // Owner-only diagnostic. Reports whether the email-related env vars
 // are configured WITHOUT revealing their values. Use to verify that
 // OWNER_EMAIL, RESEND_API_KEY, and RESEND_FROM are all set on the

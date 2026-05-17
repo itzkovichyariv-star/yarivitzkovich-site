@@ -1,23 +1,23 @@
 ---
 // Admin landing page — owner-only links to the manage-things-on-the-
 // site sub-pages. The actual auth check happens client-side on each
-// page (each one calls a /api/admin/* endpoint that returns 401 if
+// page (each one calls a /api/manage/* endpoint that returns 401 if
 // the visitor isn't the owner, and the page redirects them away).
 import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const cards = [
   {
-    href: '/admin/subscribers',
+    href: '/manage/subscribers',
     title: 'Subscribers',
     desc: 'See everyone signed up for new-paper emails. Unsubscribe or delete rows as needed.',
   },
   {
-    href: '/admin/notifications',
+    href: '/manage/notifications',
     title: 'Notifications',
     desc: 'History of new-paper emails sent: which papers, when, to how many subscribers.',
   },
   {
-    href: '/admin/qc',
+    href: '/manage/qc',
     title: 'Quality checks',
     desc: 'Daily consistency-check runs on the events table. Findings and auto-fixes.',
   },

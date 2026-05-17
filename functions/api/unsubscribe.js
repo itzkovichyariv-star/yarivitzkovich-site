@@ -44,8 +44,8 @@ export const onRequestGet = async ({ request, env }) => {
     subject: `Unsubscribe: ${row.email}`,
     html: `<p>Subscriber unsubscribed:</p>
 <p><strong>${escapeHtml(row.email)}</strong></p>
-<p><a href="https://yarivitzkovich.org/admin/subscribers">View all subscribers</a></p>`,
-    text: `Subscriber unsubscribed: ${row.email}\n\nManage: https://yarivitzkovich.org/admin/subscribers`,
+<p><a href="https://yarivitzkovich.org/manage/subscribers">View all subscribers</a></p>`,
+    text: `Subscriber unsubscribed: ${row.email}\n\nManage: https://yarivitzkovich.org/manage/subscribers`,
   });
 
   return htmlResponse(200, page(`You've been unsubscribed.`, row.email));

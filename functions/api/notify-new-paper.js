@@ -90,8 +90,8 @@ export const onRequestPost = async ({ request, env }) => {
   <li><strong>Subscribers reached:</strong> ${sent}</li>
   ${errors > 0 ? `<li style="color:#b3411c"><strong>Failed deliveries:</strong> ${errors}</li>` : ''}
 </ul>
-<p><a href="https://yarivitzkovich.org/admin/notifications">View all campaigns</a></p>`,
-    text: `Campaign sent\nPaper: ${title}\nSent: ${sent}\nErrors: ${errors}\n\nManage: https://yarivitzkovich.org/admin/notifications`,
+<p><a href="https://yarivitzkovich.org/manage/notifications">View all campaigns</a></p>`,
+    text: `Campaign sent\nPaper: ${title}\nSent: ${sent}\nErrors: ${errors}\n\nManage: https://yarivitzkovich.org/manage/notifications`,
   });
 
   return json({ ok: true, subscribers: subs.length, sent, errors });

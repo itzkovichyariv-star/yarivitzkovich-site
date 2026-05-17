@@ -159,8 +159,8 @@ export const onRequestPost = async ({ request, env }) => {
       html: `<p>Daily quality check found anomalies:</p>
 <ul>${findingsList}</ul>
 ${fixesBlock}
-<p><a href="https://yarivitzkovich.org/admin/qc">View full QC log</a></p>`,
-      text: `QC findings (${findings.length}):\n${findings.map((f) => `- ${f}`).join('\n')}\n\nFull log: https://yarivitzkovich.org/admin/qc`,
+<p><a href="https://yarivitzkovich.org/manage/qc">View full QC log</a></p>`,
+      text: `QC findings (${findings.length}):\n${findings.map((f) => `- ${f}`).join('\n')}\n\nFull log: https://yarivitzkovich.org/manage/qc`,
     });
   }
 

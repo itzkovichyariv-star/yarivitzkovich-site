@@ -1,8 +1,8 @@
-// GET  /api/admin/subscribers       — list all subscribers (owner-only)
-// POST /api/admin/subscribers       — manage a subscriber (owner-only)
+// GET  /api/manage/subscribers       — list all subscribers (owner-only)
+// POST /api/manage/subscribers       — manage a subscriber (owner-only)
 //   body: { id: number, action: 'unsubscribe' | 'delete' }
 //
-// Used by the /admin/subscribers page to render the registration list
+// Used by the /manage/subscribers page to render the registration list
 // and let the owner unsubscribe or hard-delete a row when needed.
 
 import { isOwner } from '../../_lib/auth.js';

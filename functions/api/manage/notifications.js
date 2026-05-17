@@ -1,4 +1,4 @@
-// GET /api/admin/notifications — past notification campaigns (owner-only)
+// GET /api/manage/notifications — past notification campaigns (owner-only)
 //
 // Returns the contents of notification_log so the owner can see which
 // papers have been emailed about, when, and how many subscribers

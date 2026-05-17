@@ -61,8 +61,8 @@ async function consumeToken({ env, token }) {
     subject: `New subscriber: ${row.email}`,
     html: `<p>A new subscriber just confirmed:</p>
 <p><strong>${escapeHtml(row.email)}</strong></p>
-<p><a href="https://yarivitzkovich.org/admin/subscribers">View all subscribers</a></p>`,
-    text: `New subscriber confirmed: ${row.email}\n\nManage: https://yarivitzkovich.org/admin/subscribers`,
+<p><a href="https://yarivitzkovich.org/manage/subscribers">View all subscribers</a></p>`,
+    text: `New subscriber confirmed: ${row.email}\n\nManage: https://yarivitzkovich.org/manage/subscribers`,
   });
 
   return { ok: true, status: 'confirmed', email: row.email };

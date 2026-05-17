@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /manage/
 Disallow: /api/
 Disallow: /subscribe-confirm
 
