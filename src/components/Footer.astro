@@ -56,14 +56,14 @@ const copy = {
           {copy.heading}
         </h2>
         <p class="mt-6 max-w-md opacity-80">{copy.lede}</p>
-        {/* Two real channels for reaching out. Bigger and more breathable
-            now that the C.V. button has moved to the homepage's bio
-            sidebar — visitors who want to talk to me see exactly two
-            equally-weighted options. */}
-        <div class="mt-10 flex flex-wrap gap-3 sm:gap-5">
+        {/* Two real channels for reaching out — kept side-by-side on
+            every viewport via flex-nowrap so they read as a single
+            two-up affordance instead of stacking on phones. Padding
+            tightens on small screens so both still fit comfortably. */}
+        <div class="mt-10 flex flex-nowrap gap-3 sm:gap-5">
           <a
             href={`mailto:${site.email}`}
-            class="inline-flex items-center gap-3 px-6 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity"
+            class="inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity flex-1 sm:flex-none"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -75,7 +75,7 @@ const copy = {
             href="https://wa.me/972523975027"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-3 px-6 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity"
+            class="inline-flex items-center justify-center gap-2 sm:gap-3 px-4 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity flex-1 sm:flex-none"
             aria-label="Send a WhatsApp message"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

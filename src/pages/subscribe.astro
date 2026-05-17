@@ -107,13 +107,79 @@ import { site } from '../data/site';
       </p>
       <p class="text-muted leading-relaxed max-w-2xl mb-4">
         <strong>Example:</strong> open <a href="https://feedly.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">feedly.com</a> (or Inoreader, or any reader),
-        click <em>"+ Add content"</em>, paste:
+        click <em>"+ Add content"</em>, paste the URL below, then click <em>Follow</em>.
       </p>
-      <pre class="font-mono text-xs p-3 rounded-md mb-4 overflow-x-auto" style="background-color: rgba(26,22,18,0.06); color: var(--text)">https://yarivitzkovich.org/publications.xml</pre>
-      <p class="text-muted leading-relaxed max-w-2xl">
-        Click <em>Follow</em> — every new paper shows up in your reader from then on.
+      <button
+        type="button"
+        id="rss-copy-btn"
+        class="flex items-center justify-between gap-3 w-full max-w-xl font-mono text-xs p-3 rounded-md border hover:opacity-80 transition-opacity mb-4 cursor-pointer text-left"
+        style="background-color: rgba(26,22,18,0.06); color: var(--text); border-color: var(--divider)"
+        title="Click to copy the RSS feed URL to your clipboard"
+        data-rss-url="https://yarivitzkovich.org/publications.xml"
+      >
+        <code id="rss-url-text" style="overflow-x: auto; flex: 1; min-width: 0">https://yarivitzkovich.org/publications.xml</code>
+        <span id="rss-copy-label" class="font-mono text-[10px] uppercase tracking-widest text-soft whitespace-nowrap shrink-0 inline-flex items-center gap-1.5">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </span>
+      </button>
+      <p class="text-xs text-soft max-w-2xl">
+        New to RSS? Pick a free reader (<a href="https://feedly.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">Feedly</a>, <a href="https://www.inoreader.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">Inoreader</a>, <a href="https://netnewswire.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">NetNewsWire</a> for Mac/iOS) and paste the URL above when it asks what site to follow.
       </p>
     </div>
+
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById('rss-copy-btn');
+        var label = document.getElementById('rss-copy-label');
+        if (!btn || !label) return;
+        var url = btn.getAttribute('data-rss-url') || '';
+        var originalHtml = label.innerHTML;
+        var resetTimer = null;
+
+        function showCopied() {
+          label.innerHTML =
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<polyline points="20 6 9 17 4 12"></polyline></svg>Copied';
+          label.style.color = 'var(--color-accent)';
+          if (resetTimer) clearTimeout(resetTimer);
+          resetTimer = setTimeout(function () {
+            label.innerHTML = originalHtml;
+            label.style.color = '';
+          }, 1800);
+        }
+
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(showCopied, function () {
+              // Fallback for environments without clipboard permission
+              fallbackCopy();
+            });
+          } else {
+            fallbackCopy();
+          }
+        });
+
+        function fallbackCopy() {
+          // Old-school select-and-execCommand fallback for legacy browsers
+          // or insecure contexts (shouldn't happen on yarivitzkovich.org
+          // since it's served over HTTPS, but kept for resilience).
+          var ta = document.createElement('textarea');
+          ta.value = url;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'absolute';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); showCopied(); } catch (_) {}
+          document.body.removeChild(ta);
+        }
+      })();
+    </script>
 
     <div class="mt-12 text-sm text-soft leading-relaxed max-w-2xl">
       <p>By subscribing, you'll receive a confirmation email to verify your address (double opt-in).
