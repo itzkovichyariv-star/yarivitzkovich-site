@@ -61,20 +61,21 @@ export const onRequestPost = async ({ request, env }) => {
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // CHECK 3 — synthesized visits (page_path starts /pdfs/) must pair with
-  // a download from the same ip_hash within RECENT_PAIR_WINDOW_SEC. An
-  // unpaired synth visit indicates either the download recording failed
-  // or the visit was synthesized erroneously.
+  // CHECK 3 — synthesized visits (page_path starts /pdfs/) must pair
+  // with a download for the SAME paper_slug recorded within
+  // RECENT_PAIR_WINDOW_SEC. We pair on ts + paper_slug rather than on
+  // any hash, because the synth visit and its download intentionally
+  // have DIFFERENT ip_hashes (ip_hash is salted by event kind).
   // ────────────────────────────────────────────────────────────────────
   const orphanSynthRows = (await env.DB.prepare(
     `SELECT v.id, v.ts, v.paper_slug
      FROM events v
      WHERE v.kind = 'visit'
        AND v.page_path LIKE '/pdfs/%'
+       AND v.is_bot = 0
        AND NOT EXISTS (
          SELECT 1 FROM events d
          WHERE d.kind = 'download'
-           AND d.ip_hash = v.ip_hash
            AND d.paper_slug = v.paper_slug
            AND ABS(d.ts - v.ts) <= ?
        )
@@ -85,18 +86,22 @@ export const onRequestPost = async ({ request, env }) => {
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // CHECK 4 — orphan downloads (downloads with no synth visit and no
-  // prior visit by the same ip_hash that day). Would indicate a deep-
-  // link download where synth visit logic failed.
+  // CHECK 4 — orphan downloads: a download with NO visit by the same
+  // person in the prior 24h. Uses person_hash (kind-agnostic, added in
+  // migration 0002) so we correctly cross-match visit and download
+  // events for the same person. Rows with NULL person_hash are
+  // pre-0002 legacy data we can't reliably check, so they're skipped.
   // ────────────────────────────────────────────────────────────────────
   const orphanDl = (await env.DB.prepare(
     `SELECT COUNT(*) AS n
      FROM events d
      WHERE d.kind = 'download'
+       AND d.is_bot = 0
+       AND d.person_hash IS NOT NULL
        AND NOT EXISTS (
          SELECT 1 FROM events v
          WHERE v.kind = 'visit'
-           AND v.ip_hash = d.ip_hash
+           AND v.person_hash = d.person_hash
            AND v.ts <= d.ts
            AND v.ts >= d.ts - 86400
        )`
