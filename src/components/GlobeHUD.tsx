@@ -56,7 +56,18 @@ interface Props {
   // build a hover tooltip that shows the where-from breakdown. Optional
   // so callers that don't need the tooltip can omit it without breaking.
   events?: HudEvent[];
+  /** Active range filter ('24h' | '7d' | '30d' | 'all') so the activity
+      sub-line can label its window explicitly. Optional for backwards-
+      compat with callers that don't pass it. */
+  range?: '24h' | '7d' | '30d' | 'all';
 }
+
+const RANGE_LABEL_LONG: Record<string, string> = {
+  '24h': 'Last 24 hours',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  'all': 'Since launch',
+};
 
 // SECTION-BASED HUD — replaces the old single-line cramped ribbon. Each
 // metric gets a labeled section so visitors can see at a glance what
@@ -69,7 +80,8 @@ interface Props {
 //   5. LATEST             — most-recent event with location + class
 // All numbers tabular, all labels mono small-caps for editorial rhythm.
 
-export default function GlobeHUD({ totals, activity, events }: Props) {
+export default function GlobeHUD({ totals, activity, events, range }: Props) {
+  const rangeLabel = range ? (RANGE_LABEL_LONG[range] ?? 'Current range') : 'Current range';
   // The Today section panel is opened by HOVER on desktop and by TAP
   // on touch devices. Two booleans so each input mechanism owns its
   // own state and can't get stuck (a hover-out shouldn't close a
@@ -608,10 +620,13 @@ export default function GlobeHUD({ totals, activity, events }: Props) {
         )}
       </section>
 
-      {/* Sub-line: what's currently in view (filtered) ───── */}
+      {/* Sub-line: counts within the currently selected Range filter at
+          the top of the page (24h / 7d / 30d / all). Labels the range
+          explicitly so visitors don't have to infer which window the
+          numbers come from. */}
       {(activity.visits > 0 || activity.downloads > 0) && (
         <div className="font-mono text-[10px] uppercase tracking-widest opacity-65 pt-1">
-          Currently filtering: {activity.visits} visits ({activity.firstTime} first / {activity.returning} returning) · {activity.downloads} downloads
+          {rangeLabel}: {activity.visits} visits ({activity.firstTime} first / {activity.returning} returning) · {activity.downloads} downloads
           {activity.papersTouched > 0 && <> · {activity.papersTouched} papers touched</>}
         </div>
       )}

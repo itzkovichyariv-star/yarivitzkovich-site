@@ -1480,7 +1480,7 @@ export default function LiveGlobe({ papers }: Props) {
       </div>
 
       {/* HUD */}
-      <GlobeHUD totals={totals} activity={activity} events={events} />
+      <GlobeHUD totals={totals} activity={activity} events={events} range={range} />
 
       {/* Click-pin card */}
       {selected && (
