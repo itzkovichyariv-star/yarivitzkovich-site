@@ -47,7 +47,10 @@ const nowItems = nowData.items.map((item) => ({
   title: item.titleHe ?? item.title,
   note: item.noteHe ?? item.note,
 }));
-const nowUpdated = nowData.updatedAtHe ?? nowData.updatedAt;
+// Auto-resolves to build time in Hebrew. Matches the English mirror's
+// month + year granularity. The site rebuilds on every push so this
+// is fresh on every deploy.
+const nowUpdated = new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
 ---
 <BaseLayout
   lang="he"

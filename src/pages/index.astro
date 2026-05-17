@@ -41,7 +41,12 @@ const fields = [
 ];
 
 const nowItems = nowData.items;
-const nowUpdated = nowData.updatedAt;
+// "Last updated" auto-resolves to the build time so it always reflects
+// the most recent deploy. Format: "May 2026" — month + year is the
+// right granularity for a "where I'm at" section that drifts in
+// month-sized chunks. Falls back to the manually-set nowData.updatedAt
+// for non-production builds where deterministic output matters.
+const nowUpdated = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
 ---
 <BaseLayout title={`${site.name} — Research on workplace mistreatment & AI`}>
