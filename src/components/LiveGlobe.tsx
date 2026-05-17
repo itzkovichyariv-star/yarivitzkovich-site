@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { PIN_STYLES, withAlpha, ARC_COLORS, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
-import BreakdownDrawer from './BreakdownDrawer';
+// BreakdownDrawer used to be embedded on /live as a modal. The drawer
+// content now lives at /manage/events as a full page; the Manage link
+// in the filter row takes the owner there.
 
 // We rely on a runtime import for globe.gl because it's a DOM-bound library
 // (depends on three.js, WebGL canvas, etc). Astro builds this island with
@@ -197,7 +199,7 @@ export default function LiveGlobe({ papers }: Props) {
   // Set to null when the user pins (clicks) the card or it auto-dismisses.
   const [autoUntil, setAutoUntil] = useState<number | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
-  const [isDrawerOpen, setDrawerOpen] = useState(false);
+  // drawer state removed — owner inspector now lives at /manage/events
   // Owner status checked once on mount via /api/me. The "Details" drawer
   // button only renders for owners; non-owners never see it.
   const [isOwner, setIsOwner] = useState(false);
@@ -214,22 +216,15 @@ export default function LiveGlobe({ papers }: Props) {
   // init completes.
   const [globeReady, setGlobeReady] = useState(false);
 
-  // Owner check — runs once on mount. Reveals the Details drawer button
-  // when the visitor has a valid signed cookie from /api/auth-owner.
-  // Also handles the /live#details deep-link from /manage: if the URL
-  // hash is #details and the visitor is the owner, auto-open the drawer.
+  // Owner check — runs once on mount. Reveals the owner-only Manage
+  // link in the filter row. The detailed event browser lives under
+  // /manage/events now; nothing about it is shown here on /live.
   useEffect(() => {
     let cancelled = false;
     fetch('/api/me', { credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (cancelled || !data || !data.owner) return;
-        setIsOwner(true);
-        if (typeof window !== 'undefined' && window.location.hash === '#details') {
-          setDrawerOpen(true);
-          // Clean the hash so a refresh doesn't keep re-opening the drawer.
-          history.replaceState(null, '', window.location.pathname + window.location.search);
-        }
+        if (!cancelled && data && data.owner) setIsOwner(true);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -1448,27 +1443,15 @@ export default function LiveGlobe({ papers }: Props) {
           </select>
           {loading && <span className="opacity-50">Loading…</span>}
           {isOwner && (
-            <div className="ml-auto inline-flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(true)}
-                className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2"
-                style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
-                title="Owner: open the detailed activity breakdown in place"
-              >
-                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
-                Details ↗
-              </button>
-              <a
-                href="/manage"
-                className="inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2 -mr-2"
-                style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
-                title="Owner: full management dashboard (subscribers, contacts, notifications, QC, bots, content)"
-              >
-                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
-                Manage ↗
-              </a>
-            </div>
+            <a
+              href="/manage"
+              className="ml-auto inline-flex items-center gap-1.5 hover:opacity-100 transition-opacity py-1.5 px-2 -mr-2"
+              style={{ opacity: 0.85, borderBottom: '2px solid currentColor' }}
+              title="Owner: full management dashboard (events, subscribers, contacts, notifications, QC, bots, content)"
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-accent)' }}></span>
+              Manage ↗
+            </a>
           )}
         </div>
       </div>
@@ -1512,9 +1495,6 @@ export default function LiveGlobe({ papers }: Props) {
         />
       )}
 
-      {isOwner && (
-        <BreakdownDrawer open={isDrawerOpen} onClose={() => setDrawerOpen(false)} papers={papers} />
-      )}
     </div>
   );
 }

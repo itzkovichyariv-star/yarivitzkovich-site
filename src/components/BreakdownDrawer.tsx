@@ -40,6 +40,11 @@ interface Props {
       written before P1 paper-title lookup, or to render a citation under
       first-time visits triggered by a PDF deep-link. */
   papers: PaperOption[];
+  /** 'modal' (default) renders the dimmed full-screen overlay with a
+      close button — the in-place owner inspector on /live. 'inline'
+      renders just the panel content so it can be embedded as page
+      content under /manage/events. */
+  mode?: 'modal' | 'inline';
 }
 
 type RangeKey = '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
@@ -118,7 +123,11 @@ function bucketEvents(
 // tied to the arcs on the globe. (Single source of truth in globePalette.)
 const CLASS_COLORS = ARC_COLORS;
 
-export default function BreakdownDrawer({ open, onClose, papers }: Props) {
+export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' }: Props) {
+  // Inline mode: the component always behaves as if it's open — there's
+  // no close action, since the page itself is the container.
+  const isInline = mode === 'inline';
+  const isOpen = isInline ? true : open;
   const [range, setRange] = useState<RangeKey>('7d');
   const [events, setEvents] = useState<DetailEvent[]>([]);
   const [counts, setCounts] = useState<Counts>({ firstTime: 0, returning: 0, downloads: 0, bots: 0 });
@@ -130,7 +139,7 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
   // every 30 seconds while open so the breakdown reflects live activity
   // without requiring the owner to close + reopen the drawer.
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     let cancelled = false;
 
     const load = (showSpinner: boolean) => {
@@ -169,17 +178,17 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [open, range]);
+  }, [isOpen, range]);
 
-  // ESC + click-outside dismissal
+  // ESC dismissal — only relevant in modal mode.
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen || isInline) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [isOpen, isInline, onClose]);
 
   // Group + filter events by class — bots filtered out of the visible columns
   const groups = useMemo(() => {
@@ -201,18 +210,25 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
   // because globe.gl mounts them in a stacking context that isn't
   // covered by a plain z-index on this component.
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen || isInline) return;
     document.body.classList.add('breakdown-open');
     return () => document.body.classList.remove('breakdown-open');
-  }, [open]);
+  }, [isOpen, isInline]);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
-  return (
+  // Inline mode: render the panel as plain page content (no overlay,
+  // no fixed positioning, no close button) so it can be embedded under
+  // /manage/events. Modal mode keeps its dimmed-backdrop behaviour.
+  const InlineWrapper = ({ children }: { children: React.ReactNode }) => (
+    <div ref={panelRef} className="w-full" style={{ color: 'var(--text)' }}>
+      {children}
+    </div>
+  );
+  const ModalWrapper = ({ children }: { children: React.ReactNode }) => (
     <div
       className="fixed inset-0 z-50 flex flex-col"
       onClick={(e) => {
-        // Click on the dimmed backdrop (not the panel) closes
         if (e.target === e.currentTarget) onClose();
       }}
       style={{
@@ -228,17 +244,10 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
         ref={panelRef}
         className="mx-auto my-6 w-full max-w-6xl px-6 md:px-10 py-8 overflow-y-auto rounded-lg md:rounded-xl"
         style={{
-          // Fully opaque panel — the WebGL globe behind doesn't blur cleanly
-          // through backdrop-filter on Safari, so a translucent panel let
-          // download arcs bleed through and made the breakdown text hard to
-          // read. Subtle gradient keeps the editorial feel without sacrificing
-          // legibility.
           background:
             'linear-gradient(140deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--text) 4%))',
           border: '1px solid color-mix(in srgb, var(--text) 14%, transparent)',
           color: 'var(--text)',
-          // 100dvh follows the iOS Safari URL bar collapse — 100vh would
-          // hide the bottom of the panel under the dynamic toolbar.
           maxHeight: 'calc(100dvh - 3rem)',
           boxShadow:
             '0 18px 48px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.20)',
@@ -246,6 +255,18 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {children}
+      </div>
+    </div>
+  );
+
+  const Wrapper = isInline ? InlineWrapper : (
+    ({ children }: { children: React.ReactNode }) => <ModalWrapper>{children}</ModalWrapper>
+  );
+
+  // The panel's inner content. Shared between modal and inline modes.
+  const panelInner = (
+    <>
         {/* Header: time-range tabs + close button */}
         <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap font-mono text-xs uppercase tracking-widest">
@@ -270,14 +291,16 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
             {error && error !== 'unauthorized' && <span className="opacity-70">Couldn't load.</span>}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="font-mono text-xs uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
-            aria-label="Close drawer"
-          >
-            ✕ Close
-          </button>
+          {!isInline && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="font-mono text-xs uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+              aria-label="Close drawer"
+            >
+              ✕ Close
+            </button>
+          )}
         </div>
 
         {/* Growth-over-time sparklines */}
@@ -313,9 +336,10 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
             {counts.bots} bot {counts.bots === 1 ? 'event' : 'events'} excluded
           </div>
         )}
-      </div>
-    </div>
+    </>
   );
+
+  return <Wrapper>{panelInner}</Wrapper>;
 }
 
 function Column({
