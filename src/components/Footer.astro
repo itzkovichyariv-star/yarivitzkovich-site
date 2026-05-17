@@ -87,7 +87,7 @@ const copy = {
       </div>
     </div>
     <div class="mt-20">
-      <div class="flex items-center justify-center flex-nowrap gap-x-3 sm:gap-x-5 md:gap-x-6 mb-6 whitespace-nowrap">
+      <div class="flex items-center justify-center flex-wrap gap-x-5 sm:gap-x-6 md:gap-x-8 gap-y-3 mb-6">
         {site.profiles.googleScholar && (
           <a
             href={site.profiles.googleScholar}
@@ -154,6 +154,10 @@ const copy = {
             <span class="hidden sm:inline">Web of Science</span>
           </a>
         )}
+        {/* Live moved into the academic-profile row as another small chip;
+            Subscribe and RSS were removed — Subscribe is already a top-nav
+            tab, and RSS stays discoverable via the autodiscovery <link> in
+            BaseLayout's <head> plus the explainer section on /subscribe. */}
         <a
           href="/live"
           class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
@@ -161,31 +165,6 @@ const copy = {
         >
           <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: currentColor"></span>
           Live
-        </a>
-        <a
-          href="/subscribe"
-          class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
-          aria-label="Subscribe to new publication emails"
-          title="Get an email when a new paper goes up"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="2.5" y="5" width="19" height="14" rx="2"/>
-            <path d="m3 6 9 7 9-7"/>
-          </svg>
-          Subscribe
-        </a>
-        <a
-          href="/publications.xml"
-          class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
-          aria-label="RSS feed of new publications"
-          title="Subscribe to new publications via RSS"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M4 11a9 9 0 0 1 9 9"/>
-            <path d="M4 4a16 16 0 0 1 16 16"/>
-            <circle cx="5" cy="19" r="1.5"/>
-          </svg>
-          RSS
         </a>
       </div>
       <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">
