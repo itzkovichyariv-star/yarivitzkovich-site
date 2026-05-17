@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /subscribe-confirm
 
 # Explicitly welcome Google's scholar/academic crawlers
 User-agent: Googlebot

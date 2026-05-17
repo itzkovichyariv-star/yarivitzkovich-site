@@ -1,0 +1,77 @@
+---
+// Admin landing page — owner-only links to the manage-things-on-the-
+// site sub-pages. The actual auth check happens client-side on each
+// page (each one calls a /api/admin/* endpoint that returns 401 if
+// the visitor isn't the owner, and the page redirects them away).
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const cards = [
+  {
+    href: '/admin/subscribers',
+    title: 'Subscribers',
+    desc: 'See everyone signed up for new-paper emails. Unsubscribe or delete rows as needed.',
+  },
+  {
+    href: '/admin/notifications',
+    title: 'Notifications',
+    desc: 'History of new-paper emails sent: which papers, when, to how many subscribers.',
+  },
+  {
+    href: '/admin/qc',
+    title: 'Quality checks',
+    desc: 'Daily consistency-check runs on the events table. Findings and auto-fixes.',
+  },
+];
+---
+<BaseLayout
+  title="Admin — Yariv Itzkovich"
+  description="Site management dashboard."
+>
+  <section class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Admin</div>
+    <h1
+      class="font-display leading-[0.95] mb-8"
+      style="font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 300"
+    >
+      Site management.
+    </h1>
+
+    <div id="admin-gate" class="text-muted leading-relaxed" style="display: none">
+      <p class="mb-4">You're not signed in as the owner on this device.</p>
+      <p>If you're Yariv, sign in by visiting <code>/api/auth-owner?owner=YOUR_SECRET</code> once (substitute your real <code>OWNER_SECRET</code>). The cookie lasts ~13 months and auto-renews on every visit.</p>
+    </div>
+
+    <div id="admin-content" class="grid grid-cols-1 sm:grid-cols-2 gap-6" style="display: none">
+      {cards.map((c) => (
+        <a
+          href={c.href}
+          class="block p-6 rounded-lg border hover:opacity-70 transition-opacity"
+          style="border-color: var(--divider)"
+        >
+          <div class="font-display text-xl mb-2" style="font-weight: 400">{c.title}</div>
+          <p class="text-sm text-muted leading-relaxed">{c.desc}</p>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <script is:inline>
+    // Cheapest possible owner check: call /api/me (existing endpoint
+    // used by the live page). If it returns { owner: true }, show the
+    // cards. Otherwise show the sign-in note.
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((data) => {
+        var content = document.getElementById('admin-content');
+        var gate = document.getElementById('admin-gate');
+        if (data && data.owner) {
+          content.style.display = '';
+        } else {
+          gate.style.display = '';
+        }
+      })
+      .catch(() => {
+        document.getElementById('admin-gate').style.display = '';
+      });
+  </script>
+</BaseLayout>

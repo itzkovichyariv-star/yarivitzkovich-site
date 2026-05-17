@@ -1,0 +1,83 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Quality checks — Admin — Yariv Itzkovich"
+  description="Daily QC runs and findings."
+>
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">
+      <a href="/admin" class="underline underline-offset-4 hover:opacity-70">Admin</a> · Quality checks
+    </div>
+    <h1
+      class="font-display leading-[0.95] mb-10"
+      style="font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 300"
+    >
+      Quality checks.
+    </h1>
+
+    <div id="gate" class="text-muted leading-relaxed" style="display: none">
+      Not signed in as owner. <a href="/admin" class="underline underline-offset-4">Go back</a>.
+    </div>
+    <div id="loading" class="text-muted text-sm">Loading…</div>
+    <div id="empty" class="text-muted text-sm" style="display: none">No QC runs yet. The daily cron fires at 04:00 UTC.</div>
+    <div id="error" class="text-sm" style="display: none; color: #b3411c"></div>
+    <div id="entries" class="space-y-6" style="display: none"></div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var loading = document.getElementById('loading');
+      var empty = document.getElementById('empty');
+      var errorEl = document.getElementById('error');
+      var gate = document.getElementById('gate');
+      var entriesEl = document.getElementById('entries');
+
+      function fmtTs(unix) {
+        if (!unix) return '—';
+        var d = new Date(unix * 1000);
+        return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escape(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      fetch('/api/qc-log', { credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 401) { loading.style.display = 'none'; gate.style.display = ''; throw new Error('unauthorized'); }
+          if (!r.ok) throw new Error('http_' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          loading.style.display = 'none';
+          if (!data.entries.length) { empty.style.display = ''; return; }
+          entriesEl.innerHTML = data.entries.map(function (e) {
+            var findings = (e.findings || []).map(function (f) { return '<li>' + escape(f) + '</li>'; }).join('');
+            var fixes = (e.fixes || []).map(function (f) { return '<li>' + escape(f) + '</li>'; }).join('');
+            var hasIssues = e.findings && e.findings.length > 0;
+            return '<div class="border rounded-lg p-5" style="border-color: var(--divider)">' +
+              '<div class="flex items-baseline justify-between gap-4 mb-2 flex-wrap">' +
+                '<span class="font-mono text-xs uppercase tracking-widest text-soft">' + escape(fmtTs(e.ts)) + '</span>' +
+                '<span class="font-mono text-xs ' + (hasIssues ? '' : 'text-soft') + '" style="' + (hasIssues ? 'color:#b3411c' : '') + '">' +
+                  (hasIssues ? e.findings.length + ' finding(s)' : 'clean') +
+                '</span>' +
+              '</div>' +
+              '<div class="font-mono text-xs text-muted mb-2">' +
+                e.total_events + ' events · ' + e.visits + ' visits · ' + e.downloads + ' downloads · ' + e.duration_ms + 'ms' +
+              '</div>' +
+              (findings ? '<div class="mt-3"><div class="font-mono text-[10px] uppercase tracking-widest text-soft mb-2">Findings</div><ul class="text-sm space-y-1 list-disc pl-5" style="color: var(--text)">' + findings + '</ul></div>' : '') +
+              (fixes ? '<div class="mt-3"><div class="font-mono text-[10px] uppercase tracking-widest text-soft mb-2">Fixes</div><ul class="text-sm space-y-1 list-disc pl-5" style="color: var(--text)">' + fixes + '</ul></div>' : '') +
+              '</div>';
+          }).join('');
+          entriesEl.style.display = '';
+        })
+        .catch(function (err) {
+          if (String(err.message) === 'unauthorized') return;
+          loading.style.display = 'none';
+          errorEl.textContent = "Couldn't load QC log.";
+          errorEl.style.display = '';
+        });
+    })();
+  </script>
+</BaseLayout>

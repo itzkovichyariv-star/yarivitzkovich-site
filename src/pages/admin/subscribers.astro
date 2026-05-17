@@ -1,0 +1,159 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Subscribers — Admin — Yariv Itzkovich"
+  description="Subscriber list and management."
+>
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">
+      <a href="/admin" class="underline underline-offset-4 hover:opacity-70">Admin</a> · Subscribers
+    </div>
+    <h1
+      class="font-display leading-[0.95] mb-2"
+      style="font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 300"
+    >
+      Subscribers.
+    </h1>
+
+    <div id="counts" class="font-mono text-xs uppercase tracking-widest text-soft mb-10" aria-live="polite">
+      Loading…
+    </div>
+
+    <div id="gate" class="text-muted leading-relaxed" style="display: none">
+      Not signed in as owner. <a href="/admin" class="underline underline-offset-4">Go back</a>.
+    </div>
+
+    <div id="loading" class="text-muted text-sm">Loading subscribers…</div>
+    <div id="error" class="text-sm" style="display: none; color: #b3411c"></div>
+
+    <div id="table-wrap" style="display: none">
+      <table class="w-full text-sm" style="border-collapse: collapse">
+        <thead>
+          <tr class="font-mono text-xs uppercase tracking-widest text-soft text-left">
+            <th class="py-3 pr-4 border-b" style="border-color: var(--divider)">Email</th>
+            <th class="py-3 pr-4 border-b" style="border-color: var(--divider)">Status</th>
+            <th class="py-3 pr-4 border-b" style="border-color: var(--divider)">Subscribed</th>
+            <th class="py-3 pr-4 border-b" style="border-color: var(--divider)">Confirmed</th>
+            <th class="py-3 pr-2 border-b text-right" style="border-color: var(--divider)">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var loading = document.getElementById('loading');
+      var errorEl = document.getElementById('error');
+      var gate = document.getElementById('gate');
+      var tableWrap = document.getElementById('table-wrap');
+      var rowsEl = document.getElementById('rows');
+      var countsEl = document.getElementById('counts');
+
+      function fmtTs(unix) {
+        if (!unix) return '—';
+        var d = new Date(unix * 1000);
+        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+
+      function escape(s) {
+        return String(s || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function statusPill(s) {
+        var color = s === 'active' ? '#1f7a3d'
+                  : s === 'pending' ? '#a36e1a'
+                  : '#8a8580';
+        return '<span style="font-family: ui-monospace, monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 999px; background: ' + color + '; color: white;">' + escape(s) + '</span>';
+      }
+
+      function render(data) {
+        var c = data.counts;
+        countsEl.textContent = c.total + ' total · ' + c.active + ' active · ' + c.pending + ' pending · ' + c.unsubscribed + ' unsubscribed';
+
+        rowsEl.innerHTML = '';
+        if (!data.subscribers.length) {
+          rowsEl.innerHTML = '<tr><td colspan="5" class="py-6 text-muted text-sm">No subscribers yet.</td></tr>';
+          tableWrap.style.display = '';
+          return;
+        }
+
+        for (var i = 0; i < data.subscribers.length; i++) {
+          var s = data.subscribers[i];
+          var tr = document.createElement('tr');
+          tr.className = 'border-b';
+          tr.style.borderColor = 'var(--divider)';
+          tr.innerHTML =
+            '<td class="py-3 pr-4 font-mono text-xs" style="word-break: break-all">' + escape(s.email) + '</td>' +
+            '<td class="py-3 pr-4">' + statusPill(s.status) + '</td>' +
+            '<td class="py-3 pr-4 text-xs text-muted">' + escape(fmtTs(s.subscribed_at)) + '</td>' +
+            '<td class="py-3 pr-4 text-xs text-muted">' + escape(fmtTs(s.confirmed_at)) + '</td>' +
+            '<td class="py-3 pr-2 text-right">' +
+              (s.status !== 'unsubscribed'
+                ? '<button data-action="unsubscribe" data-id="' + s.id + '" class="font-mono text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100 mr-3">Unsub</button>'
+                : '') +
+              '<button data-action="delete" data-id="' + s.id + '" class="font-mono text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100" style="color: #b3411c">Delete</button>' +
+            '</td>';
+          rowsEl.appendChild(tr);
+        }
+
+        rowsEl.addEventListener('click', function (e) {
+          var btn = e.target.closest('button[data-action]');
+          if (!btn) return;
+          var action = btn.getAttribute('data-action');
+          var id = Number(btn.getAttribute('data-id'));
+          var confirmMsg = action === 'delete' ? 'Permanently delete this subscriber row?' : 'Mark this subscriber as unsubscribed?';
+          if (!window.confirm(confirmMsg)) return;
+          btn.disabled = true;
+          btn.textContent = '…';
+          fetch('/api/admin/subscribers', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: id, action: action }),
+          })
+            .then(function (r) { return r.json(); })
+            .then(function () { load(); })
+            .catch(function () { alert('Action failed.'); btn.disabled = false; btn.textContent = action; });
+        });
+
+        tableWrap.style.display = '';
+      }
+
+      function load() {
+        loading.style.display = '';
+        errorEl.style.display = 'none';
+        tableWrap.style.display = 'none';
+
+        fetch('/api/admin/subscribers', { credentials: 'same-origin' })
+          .then(function (r) {
+            if (r.status === 401) {
+              loading.style.display = 'none';
+              gate.style.display = '';
+              throw new Error('unauthorized');
+            }
+            if (!r.ok) throw new Error('http_' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            loading.style.display = 'none';
+            render(data);
+          })
+          .catch(function (err) {
+            if (String(err.message) === 'unauthorized') return;
+            loading.style.display = 'none';
+            errorEl.textContent = "Couldn't load subscribers.";
+            errorEl.style.display = '';
+          });
+      }
+
+      load();
+    })();
+  </script>
+</BaseLayout>
