@@ -3,3 +3,9 @@
 # part of consolidating all owner-facing management under /manage.
 /admin/* /manage/content/:splat 301
 /admin /manage/content 301
+
+# The dedicated /contact page was removed — the footer's #contact section
+# now serves the same purpose (Email + WhatsApp). Any old bookmarks or
+# external links that pointed at /contact land on the homepage with the
+# anchor scrolled to the footer.
+/contact / 301

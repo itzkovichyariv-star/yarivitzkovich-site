@@ -56,12 +56,16 @@ const copy = {
           {copy.heading}
         </h2>
         <p class="mt-6 max-w-md opacity-80">{copy.lede}</p>
-        <div class="mt-10 flex flex-nowrap gap-2 sm:gap-4">
+        {/* Two real channels for reaching out. Bigger and more breathable
+            now that the C.V. button has moved to the homepage's bio
+            sidebar — visitors who want to talk to me see exactly two
+            equally-weighted options. */}
+        <div class="mt-10 flex flex-wrap gap-3 sm:gap-5">
           <a
             href={`mailto:${site.email}`}
-            class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-full text-xs sm:text-sm whitespace-nowrap border border-current hover:opacity-80 transition-opacity"
+            class="inline-flex items-center gap-3 px-6 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
               <path d="m22 7-10 5L2 7"/>
             </svg>
@@ -71,28 +75,14 @@ const copy = {
             href="https://wa.me/972523975027"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-full text-xs sm:text-sm whitespace-nowrap border border-current hover:opacity-80 transition-opacity"
+            class="inline-flex items-center gap-3 px-6 sm:px-7 py-3 sm:py-4 rounded-full text-sm sm:text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity"
             aria-label="Send a WhatsApp message"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
             </svg>
             {copy.whatsapp}
           </a>
-          {showCv && (
-            <a
-              href="https://arielacil-my.sharepoint.com/:w:/g/personal/yarivi_ariel_ac_il/IQCUibWJNImRTqbuoDZO-ZQ_AVpdf-w3k9_uk6KRBXQcjI4?e=82obWh"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-full text-xs sm:text-sm whitespace-nowrap border border-current hover:opacity-80 transition-opacity"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              {copy.cv}
-            </a>
-          )}
         </div>
       </div>
     </div>

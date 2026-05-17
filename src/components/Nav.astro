@@ -37,7 +37,7 @@ const en = (path: string) => `/${path}`;
         {t.live}
       </a>
       <a href="/subscribe" class="hover:opacity-60 transition-opacity">{t.subscribe}</a>
-      <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
+      <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
       {/* Owner-only Manage tab. Hidden on initial render; revealed by
           the inline script below after /api/me confirms the visitor is
           recognized as owner (cookie or OWNER_IPS allowlist). */}
@@ -99,7 +99,7 @@ const en = (path: string) => `/${path}`;
         {t.live}
       </a>
       <a href="/subscribe" class="hover:opacity-60 transition-opacity">{t.subscribe}</a>
-      <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
+      <a href="#contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
       <a
         href="/manage"
         data-owner-only
