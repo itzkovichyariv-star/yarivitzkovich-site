@@ -23,7 +23,12 @@ import { site } from '../data/site';
       <label for="subscribe-email" class="block font-mono text-xs uppercase tracking-widest text-soft mb-3">
         Email address
       </label>
-      <div class="flex gap-2">
+      {/* Stack input above button on phones so the row always fits the
+          page width — the previous side-by-side layout was overflowing
+          the right edge on narrow screens. From sm: up they sit side
+          by side. min-w-0 on the input lets it shrink past its
+          intrinsic width inside the flex container. */}
+      <div class="flex flex-col sm:flex-row gap-2">
         <input
           id="subscribe-email"
           name="email"
@@ -31,7 +36,7 @@ import { site } from '../data/site';
           required
           autocomplete="email"
           placeholder="you@example.com"
-          class="flex-1 px-4 py-3 rounded-full border bg-transparent text-base outline-none focus:opacity-90 transition-opacity"
+          class="flex-1 min-w-0 px-4 py-3 rounded-full border bg-transparent text-base outline-none focus:opacity-90 transition-opacity"
           style="border-color: var(--divider); color: var(--text)"
         />
         <button
@@ -93,7 +98,7 @@ import { site } from '../data/site';
     <div class="mt-16 pt-10 border-t" style="border-color: var(--divider)">
       <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Or follow via RSS</div>
       <p class="text-muted leading-relaxed max-w-2xl mb-5">
-        Use an RSS reader? Copy this feed URL and paste it into your reader — that's all.
+        Use an RSS reader (Feedly, Inoreader, NetNewsWire, Zotero, etc.)? Copy this feed URL and paste it into your reader — that's all.
       </p>
       <button
         type="button"
