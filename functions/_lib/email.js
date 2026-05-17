@@ -58,6 +58,36 @@ export async function sendEmail({ env, to, subject, html, text, replyTo }) {
 }
 
 /**
+ * Owner-notification email — fire-and-forget wrapper around sendEmail.
+ *
+ * Sends a short admin notice to env.OWNER_EMAIL whenever something
+ * notable happens (new subscriber, unsubscribe, campaign sent, QC
+ * findings). Silently no-ops if OWNER_EMAIL or RESEND_API_KEY isn't
+ * configured, so a missing setup never breaks the primary flow.
+ *
+ * Errors are swallowed (logged to console for the Pages dashboard) so
+ * a transient Resend hiccup never prevents the caller's main work
+ * from completing.
+ */
+export async function notifyOwner({ env, subject, html, text }) {
+  if (!env.OWNER_EMAIL) return { ok: false, error: 'no_owner_email' };
+  try {
+    const res = await sendEmail({
+      env,
+      to: env.OWNER_EMAIL,
+      subject: `[yarivitzkovich.org] ${subject}`,
+      html,
+      text,
+    });
+    if (!res.ok) console.error('notifyOwner failed:', res);
+    return res;
+  } catch (err) {
+    console.error('notifyOwner threw:', err);
+    return { ok: false, error: 'exception', detail: String(err) };
+  }
+}
+
+/**
  * Generate a 64-char hex token using Web Crypto.
  */
 export async function makeToken() {

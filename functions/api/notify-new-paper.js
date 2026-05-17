@@ -13,7 +13,7 @@
 //      with their unsubscribe_token.
 //   3. Records sent_count + error_count in notification_log.
 
-import { sendEmail, escapeHtml } from '../_lib/email.js';
+import { sendEmail, escapeHtml, notifyOwner } from '../_lib/email.js';
 
 export const onRequestPost = async ({ request, env }) => {
   // Reuse the QC_SECRET so the owner only manages one shared token.
@@ -80,6 +80,19 @@ export const onRequestPost = async ({ request, env }) => {
     )
     .bind(slug, title, nowSec, sent, errors)
     .run();
+
+  await notifyOwner({
+    env,
+    subject: `Campaign sent: "${title}" → ${sent} subscriber${sent === 1 ? '' : 's'}`,
+    html: `<p>New-paper notification campaign just ran:</p>
+<ul>
+  <li><strong>Paper:</strong> <a href="${escapeHtml(paperUrl)}">${escapeHtml(title)}</a></li>
+  <li><strong>Subscribers reached:</strong> ${sent}</li>
+  ${errors > 0 ? `<li style="color:#b3411c"><strong>Failed deliveries:</strong> ${errors}</li>` : ''}
+</ul>
+<p><a href="https://yarivitzkovich.org/admin/notifications">View all campaigns</a></p>`,
+    text: `Campaign sent\nPaper: ${title}\nSent: ${sent}\nErrors: ${errors}\n\nManage: https://yarivitzkovich.org/admin/notifications`,
+  });
 
   return json({ ok: true, subscribers: subs.length, sent, errors });
 };

@@ -5,7 +5,7 @@
 // We keep the row so a future re-subscribe by the same email is still
 // recognised as a returning relationship.
 
-import { escapeHtml } from '../_lib/email.js';
+import { escapeHtml, notifyOwner } from '../_lib/email.js';
 
 export const onRequestGet = async ({ request, env }) => {
   if (!env.DB) return htmlResponse(500, page('Server misconfigured.'));
@@ -38,6 +38,15 @@ export const onRequestGet = async ({ request, env }) => {
     )
     .bind(nowSec, row.id)
     .run();
+
+  await notifyOwner({
+    env,
+    subject: `Unsubscribe: ${row.email}`,
+    html: `<p>Subscriber unsubscribed:</p>
+<p><strong>${escapeHtml(row.email)}</strong></p>
+<p><a href="https://yarivitzkovich.org/admin/subscribers">View all subscribers</a></p>`,
+    text: `Subscriber unsubscribed: ${row.email}\n\nManage: https://yarivitzkovich.org/admin/subscribers`,
+  });
 
   return htmlResponse(200, page(`You've been unsubscribed.`, row.email));
 };

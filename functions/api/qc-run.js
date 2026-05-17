@@ -16,6 +16,8 @@
 // The QC just reports anomalies. The owner can review qa_log entries
 // via /api/qc-log (owner-only) and decide whether to act.
 
+import { notifyOwner, escapeHtml } from '../_lib/email.js';
+
 const RECENT_PAIR_WINDOW_SEC = 5; // synth visit must pair with download within 5s
 
 export const onRequestPost = async ({ request, env }) => {
@@ -142,6 +144,25 @@ export const onRequestPost = async ({ request, env }) => {
     JSON.stringify(fixes),
     durationMs,
   ).run();
+
+  // Only email the owner when there's something to surface — daily
+  // clean runs are silent so the inbox doesn't fill with "nothing to
+  // see here" emails.
+  if (findings.length > 0) {
+    const findingsList = findings.map((f) => `<li>${escapeHtml(f)}</li>`).join('');
+    const fixesBlock = fixes.length > 0
+      ? `<p><strong>Auto-fixes applied:</strong></p><ul>${fixes.map((f) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>`
+      : '';
+    await notifyOwner({
+      env,
+      subject: `QC: ${findings.length} finding${findings.length === 1 ? '' : 's'} (${total} events)`,
+      html: `<p>Daily quality check found anomalies:</p>
+<ul>${findingsList}</ul>
+${fixesBlock}
+<p><a href="https://yarivitzkovich.org/admin/qc">View full QC log</a></p>`,
+      text: `QC findings (${findings.length}):\n${findings.map((f) => `- ${f}`).join('\n')}\n\nFull log: https://yarivitzkovich.org/admin/qc`,
+    });
+  }
 
   return json({
     ok: true,

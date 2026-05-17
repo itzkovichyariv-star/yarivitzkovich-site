@@ -13,7 +13,7 @@
 // the scanner-consumption risk; users on corporate mail should use
 // the click-through flow served by /subscribe-confirm.
 
-import { makeToken, escapeHtml } from '../_lib/email.js';
+import { makeToken, escapeHtml, notifyOwner } from '../_lib/email.js';
 
 async function consumeToken({ env, token }) {
   if (!env.DB) return { ok: false, error: 'no_db' };
@@ -52,6 +52,18 @@ async function consumeToken({ env, token }) {
     )
     .bind(unsubToken, nowSec, row.id)
     .run();
+
+  // Fire-and-forget owner notification — failures are logged but
+  // never propagated to the user, who has already seen their own
+  // confirmation succeed.
+  await notifyOwner({
+    env,
+    subject: `New subscriber: ${row.email}`,
+    html: `<p>A new subscriber just confirmed:</p>
+<p><strong>${escapeHtml(row.email)}</strong></p>
+<p><a href="https://yarivitzkovich.org/admin/subscribers">View all subscribers</a></p>`,
+    text: `New subscriber confirmed: ${row.email}\n\nManage: https://yarivitzkovich.org/admin/subscribers`,
+  });
 
   return { ok: true, status: 'confirmed', email: row.email };
 }
