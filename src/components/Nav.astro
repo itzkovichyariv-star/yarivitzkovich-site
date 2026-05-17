@@ -10,8 +10,8 @@ interface Props {
 const { lang = 'en', langHref } = Astro.props;
 
 const labels = {
-  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', live: 'Live', contact: 'Contact', manage: 'Manage' },
-  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', live: 'Live', contact: 'יצירת קשר', manage: 'ניהול' },
+  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', live: 'Live', subscribe: 'Subscribe', contact: 'Contact', manage: 'Manage' },
+  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', live: 'Live', subscribe: 'הרשמה', contact: 'יצירת קשר', manage: 'ניהול' },
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
@@ -36,6 +36,7 @@ const en = (path: string) => `/${path}`;
         <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
         {t.live}
       </a>
+      <a href="/subscribe" class="hover:opacity-60 transition-opacity">{t.subscribe}</a>
       <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
       {/* Owner-only Manage tab. Hidden on initial render; revealed by
           the inline script below after /api/me confirms the visitor is
@@ -97,6 +98,7 @@ const en = (path: string) => `/${path}`;
         <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
         {t.live}
       </a>
+      <a href="/subscribe" class="hover:opacity-60 transition-opacity">{t.subscribe}</a>
       <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
       <a
         href="/manage"
