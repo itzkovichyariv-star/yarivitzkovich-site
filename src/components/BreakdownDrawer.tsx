@@ -42,15 +42,77 @@ interface Props {
   papers: PaperOption[];
 }
 
-type RangeKey = '24h' | '7d' | '30d' | '1y' | 'all';
+type RangeKey = '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
 
 const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
   { key: '24h', label: 'Day' },
   { key: '7d', label: 'Week' },
   { key: '30d', label: 'Month' },
+  { key: '90d', label: 'Quarter' },
   { key: '1y', label: 'Year' },
   { key: 'all', label: 'All time' },
 ];
+
+// Visits-aggregate color (matches the GlobeHUD "visits" pill).
+const VISITS_COLOR = '#9DB3BE';
+
+// Time-series bucketing. Given an event list and a range, returns 4
+// parallel arrays bucketed into N intervals from start to now. Bucket
+// granularity scales with the range: hourly for 24h, daily for 7d/30d,
+// weekly for 90d, monthly for 1y/all. This keeps each chart to ~10-30
+// data points regardless of the time window — small enough to render
+// as a clean SVG sparkline, dense enough to show real movement.
+function bucketEvents(
+  events: DetailEvent[],
+  range: RangeKey,
+): {
+  buckets: number;
+  bucketLabel: string;
+  series: { visits: number[]; firstTime: number[]; returning: number[]; downloads: number[] };
+} {
+  const endSec = Math.floor(Date.now() / 1000);
+
+  let buckets = 7;
+  let sizeSec = 86400;
+  let label = 'day';
+
+  if (range === '24h') { buckets = 24; sizeSec = 3600; label = 'hour'; }
+  else if (range === '7d') { buckets = 7; sizeSec = 86400; label = 'day'; }
+  else if (range === '30d') { buckets = 30; sizeSec = 86400; label = 'day'; }
+  else if (range === '90d') { buckets = 13; sizeSec = 7 * 86400; label = 'week'; }
+  else if (range === '1y') { buckets = 12; sizeSec = Math.floor(365 * 86400 / 12); label = 'month'; }
+  else if (range === 'all') {
+    // Fit to data span — 12 buckets between earliest event and now.
+    const minTs = events.reduce((m, e) => Math.min(m, e.ts), endSec);
+    const span = Math.max(86400, endSec - minTs);
+    buckets = 12;
+    sizeSec = Math.ceil(span / buckets);
+    label = sizeSec >= 30 * 86400 ? 'month' : sizeSec >= 7 * 86400 ? 'week' : 'day';
+  }
+
+  const startSec = endSec - buckets * sizeSec;
+  const visits = Array<number>(buckets).fill(0);
+  const firstTime = Array<number>(buckets).fill(0);
+  const returning = Array<number>(buckets).fill(0);
+  const downloads = Array<number>(buckets).fill(0);
+
+  for (const e of events) {
+    if (e.is_bot) continue;
+    if (e.ts < startSec) continue;
+    let idx = Math.floor((e.ts - startSec) / sizeSec);
+    if (idx < 0) continue;
+    if (idx >= buckets) idx = buckets - 1;
+    if (e.kind === 'download') {
+      downloads[idx]++;
+    } else {
+      visits[idx]++;
+      if (e.visitor_class === 'returning') returning[idx]++;
+      else firstTime[idx]++;
+    }
+  }
+
+  return { buckets, bucketLabel: label, series: { visits, firstTime, returning, downloads } };
+}
 
 // Same colors as the legend in LiveGlobe — keeps the drawer visually
 // tied to the arcs on the globe. (Single source of truth in globePalette.)
@@ -218,6 +280,9 @@ export default function BreakdownDrawer({ open, onClose, papers }: Props) {
           </button>
         </div>
 
+        {/* Growth-over-time sparklines */}
+        <GrowthCharts events={events} range={range} />
+
         {/* Three columns */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Column
@@ -357,4 +422,94 @@ function timeAgo(unix: number): string {
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+// Growth-over-time sparkline cards. Sits above the 3-column event lists
+// and shows the four primary metrics — visits (firstTime + returning),
+// first-time, returning, and downloads — bucketed across the selected
+// range. Pure client-side: re-buckets the event list we already fetched
+// for the row breakdowns, so no extra API call.
+function GrowthCharts({ events, range }: { events: DetailEvent[]; range: RangeKey }) {
+  const { bucketLabel, series } = useMemo(() => bucketEvents(events, range), [events, range]);
+
+  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+  const cards = [
+    { label: 'Visits',     total: sum(series.visits),    data: series.visits,    color: VISITS_COLOR },
+    { label: 'First-time', total: sum(series.firstTime), data: series.firstTime, color: CLASS_COLORS.first_time },
+    { label: 'Returning',  total: sum(series.returning), data: series.returning, color: CLASS_COLORS.returning },
+    { label: 'Downloads',  total: sum(series.downloads), data: series.downloads, color: CLASS_COLORS.download },
+  ];
+
+  return (
+    <div className="mb-8">
+      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-3">
+        Growth · per {bucketLabel}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+        {cards.map((c) => (
+          <div key={c.label}>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span
+                aria-hidden="true"
+                className="inline-block"
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: c.color,
+                  boxShadow: `0 0 4px ${c.color}`,
+                  alignSelf: 'center',
+                }}
+              />
+              <span className="font-mono text-[11px] uppercase tracking-widest opacity-70">{c.label}</span>
+            </div>
+            <div
+              className="font-display"
+              style={{ fontSize: '2rem', fontWeight: 350, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {c.total.toLocaleString()}
+            </div>
+            <div className="mt-2">
+              <Sparkline data={c.data} color={c.color} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Minimal SVG sparkline. No library, no axes — just a single path showing
+// the bucketed metric over time, with the final point highlighted so the
+// "now" position reads at-a-glance. ScalesY by max within the data so
+// each metric uses its own dynamic range (a 0-3 returning chart and a
+// 0-30 first-time chart both fill the same visual envelope).
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const width = 160;
+  const height = 38;
+  if (data.length === 0) return null;
+  const max = Math.max(1, ...data);
+  const stepX = data.length > 1 ? width / (data.length - 1) : width;
+  const pts = data.map((v, i) => {
+    const x = data.length > 1 ? i * stepX : width / 2;
+    const y = height - (v / max) * (height - 4) - 2;
+    return [x, y] as const;
+  });
+  const path = `M ${pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' L ')}`;
+  const areaPath = `${path} L ${pts[pts.length - 1][0].toFixed(1)},${height} L ${pts[0][0].toFixed(1)},${height} Z`;
+  const [lastX, lastY] = pts[pts.length - 1];
+  return (
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      style={{ overflow: 'visible', display: 'block' }}
+      aria-hidden="true"
+    >
+      <path d={areaPath} fill={color} opacity={0.12} />
+      <path d={path} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={color} />
+    </svg>
+  );
 }

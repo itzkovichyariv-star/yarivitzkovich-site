@@ -1,4 +1,4 @@
-// GET /live/details?range=24h|7d|30d|1y|all
+// GET /live/details?range=24h|7d|30d|90d|1y|all
 // Owner-only — returns the full event log for the requested time range,
 // with all fields (timestamps, page paths, paper titles, geo, ua_class).
 // The public /live/events endpoint trims to the visible-globe minimum;
@@ -10,6 +10,7 @@ const RANGE_SECONDS = {
   '24h': 24 * 3600,
   '7d':  7 * 86400,
   '30d': 30 * 86400,
+  '90d': 90 * 86400,
   '1y':  365 * 86400,
   all:   null,
 };
