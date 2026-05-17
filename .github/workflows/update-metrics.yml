@@ -42,41 +42,7 @@ jobs:
 
       - name: Detect new publications
         id: detect
-        run: |
-          node -e "
-            const fs = require('fs');
-            const path = require('path');
-
-            const works = JSON.parse(fs.readFileSync('/tmp/openalex-works.json', 'utf8')).results || [];
-
-            // Collect all DOIs already in the repo
-            const pubDir = 'src/content/publications';
-            const existing = fs.readdirSync(pubDir)
-              .filter(f => f.endsWith('.mdx'))
-              .map(f => {
-                const content = fs.readFileSync(path.join(pubDir, f), 'utf8');
-                const match = content.match(/doi:\s*['\"]?(10\.[^\s'\"]+)/i);
-                return match ? match[1].toLowerCase().trim() : null;
-              })
-              .filter(Boolean);
-
-            console.log('Existing DOIs in repo:', existing.length);
-
-            const newWorks = works.filter(w => {
-              if (!w.doi) return false;
-              const doi = w.doi.replace('https://doi.org/', '').toLowerCase().trim();
-              return !existing.includes(doi);
-            });
-
-            if (newWorks.length === 0) {
-              console.log('No new publications found.');
-              fs.writeFileSync('/tmp/new-works.json', '[]');
-            } else {
-              console.log('New publications found:', newWorks.length);
-              newWorks.forEach(w => console.log(' -', w.doi, w.title));
-              fs.writeFileSync('/tmp/new-works.json', JSON.stringify(newWorks, null, 2));
-            }
-          "
+        run: node scripts/openalex-detect-new.mjs
 
       - name: Create draft MDX files for new publications
         run: node scripts/openalex-create-drafts.mjs
