@@ -10,8 +10,8 @@ interface Props {
 const { lang = 'en', langHref } = Astro.props;
 
 const labels = {
-  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', live: 'Live', contact: 'Contact' },
-  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', live: 'Live', contact: 'יצירת קשר' },
+  en: { home: 'Home', work: 'Publications', now: 'Currently', teaching: 'Teaching', live: 'Live', contact: 'Contact', manage: 'Manage' },
+  he: { home: 'ראשי', work: 'פרסומים', now: 'כעת', teaching: 'הוראה', live: 'Live', contact: 'יצירת קשר', manage: 'ניהול' },
 };
 const t = labels[lang];
 const homeHref = lang === 'en' ? '/' : '/he/';
@@ -37,6 +37,18 @@ const en = (path: string) => `/${path}`;
         {t.live}
       </a>
       <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
+      {/* Owner-only Manage tab. Hidden on initial render; revealed by
+          the inline script below after /api/me confirms the visitor is
+          recognized as owner (cookie or OWNER_IPS allowlist). */}
+      <a
+        href="/manage"
+        data-owner-only
+        class="hover:opacity-100 transition-opacity inline-flex items-center gap-1.5"
+        style="display: none; opacity: 0.85; border-bottom: 2px solid currentColor; padding-bottom: 1px;"
+      >
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
+        {t.manage}
+      </a>
     </nav>
 
     <div class="flex items-center gap-5">
@@ -86,6 +98,15 @@ const en = (path: string) => `/${path}`;
         {t.live}
       </a>
       <a href="/contact" class="hover:opacity-60 transition-opacity">{t.contact}</a>
+      <a
+        href="/manage"
+        data-owner-only
+        class="hover:opacity-100 transition-opacity inline-flex items-center gap-1.5"
+        style="display: none; opacity: 0.85;"
+      >
+        <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: var(--color-accent)"></span>
+        {t.manage}
+      </a>
     </nav>
   </div>
 </header>
@@ -107,5 +128,32 @@ const en = (path: string) => `/${path}`;
         btn.setAttribute('aria-expanded', 'false');
       });
     });
+  })();
+</script>
+
+<script is:inline>
+  // Owner-only nav links: hidden by default (style="display: none"),
+  // revealed only after /api/me confirms the visitor is the owner.
+  // Same auth gate used elsewhere (cookie or OWNER_IPS allowlist).
+  // Cached result in sessionStorage so we don't re-call on every
+  // navigation within the same browser session.
+  (() => {
+    const links = document.querySelectorAll('[data-owner-only]');
+    if (!links.length) return;
+    const reveal = () => links.forEach((el) => { el.style.display = ''; });
+    const cached = sessionStorage.getItem('yi_is_owner');
+    if (cached === 'yes') { reveal(); return; }
+    if (cached === 'no') return;
+    fetch('/api/me', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.owner) {
+          sessionStorage.setItem('yi_is_owner', 'yes');
+          reveal();
+        } else {
+          sessionStorage.setItem('yi_is_owner', 'no');
+        }
+      })
+      .catch(() => {});
   })();
 </script>
