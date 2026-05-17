@@ -102,33 +102,26 @@ import { site } from '../data/site';
 
     <div class="mt-16 pt-10 border-t" style="border-color: var(--divider)">
       <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Or follow via RSS</div>
-      <p class="text-muted leading-relaxed max-w-2xl mb-4">
-        Already use a feed reader to follow research sites? An RSS feed is a private "subscribe button" — your reader checks for updates automatically, no email needed and I never see who's following.
-      </p>
-      <p class="text-muted leading-relaxed max-w-2xl mb-4">
-        <strong>Example:</strong> open <a href="https://feedly.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">feedly.com</a> (or Inoreader, or any reader),
-        click <em>"+ Add content"</em>, paste the URL below, then click <em>Follow</em>.
+      <p class="text-muted leading-relaxed max-w-2xl mb-5">
+        Use an RSS reader? Copy this feed URL and paste it into your reader — that's all.
       </p>
       <button
         type="button"
         id="rss-copy-btn"
-        class="flex items-center justify-between gap-3 w-full max-w-xl font-mono text-xs p-3 rounded-md border hover:opacity-80 transition-opacity mb-4 cursor-pointer text-left"
-        style="background-color: rgba(26,22,18,0.06); color: var(--text); border-color: var(--divider)"
-        title="Click to copy the RSS feed URL to your clipboard"
+        class="flex items-center justify-between gap-4 w-full max-w-xl px-5 py-4 rounded-full border-2 hover:opacity-80 transition-opacity cursor-pointer text-left"
+        style="border-color: var(--color-accent); color: var(--text)"
+        aria-label="Copy RSS feed URL to clipboard"
         data-rss-url="https://yarivitzkovich.org/publications.xml"
       >
-        <code id="rss-url-text" style="overflow-x: auto; flex: 1; min-width: 0">https://yarivitzkovich.org/publications.xml</code>
-        <span id="rss-copy-label" class="font-mono text-[10px] uppercase tracking-widest text-soft whitespace-nowrap shrink-0 inline-flex items-center gap-1.5">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <code class="font-mono text-xs sm:text-sm" style="overflow-x: auto; flex: 1; min-width: 0">https://yarivitzkovich.org/publications.xml</code>
+        <span id="rss-copy-label" class="font-mono text-xs uppercase tracking-widest whitespace-nowrap shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full" style="background-color: var(--color-accent); color: var(--color-bg)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="13" height="13" rx="2"/>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
           Copy
         </span>
       </button>
-      <p class="text-xs text-soft max-w-2xl">
-        New to RSS? Pick a free reader (<a href="https://feedly.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">Feedly</a>, <a href="https://www.inoreader.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">Inoreader</a>, <a href="https://netnewswire.com" target="_blank" rel="noopener noreferrer" class="underline underline-offset-4 hover:opacity-70">NetNewsWire</a> for Mac/iOS) and paste the URL above when it asks what site to follow.
-      </p>
     </div>
 
     <script is:inline>
@@ -142,13 +135,13 @@ import { site } from '../data/site';
 
         function showCopied() {
           label.innerHTML =
-            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
             '<polyline points="20 6 9 17 4 12"></polyline></svg>Copied';
-          label.style.color = 'var(--color-accent)';
+          // Keep the same pill styling (accent bg, bg-colored text);
+          // just the icon + word change.
           if (resetTimer) clearTimeout(resetTimer);
           resetTimer = setTimeout(function () {
             label.innerHTML = originalHtml;
-            label.style.color = '';
           }, 1800);
         }
 
