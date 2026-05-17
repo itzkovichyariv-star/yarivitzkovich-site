@@ -81,7 +81,13 @@ export const onRequestPost = async ({ request, env }) => {
     ok: true,
     status: 'pending_confirmation',
     email_send: result.ok ? 'sent' : 'failed',
-    ...(result.ok ? {} : { email_send_error: result.error }),
+    ...(result.ok
+      ? {}
+      : {
+          email_send_error: result.error,
+          email_send_detail: result.detail,
+          email_send_status: result.status,
+        }),
   });
 };
 
