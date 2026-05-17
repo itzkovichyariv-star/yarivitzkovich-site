@@ -172,6 +172,19 @@ const copy = {
           <span class="inline-block w-1.5 h-1.5 rounded-full" style="background: currentColor"></span>
           Live
         </a>
+        <a
+          href="/publications.xml"
+          class="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest opacity-70 hover:opacity-100 transition-opacity"
+          aria-label="RSS feed of new publications"
+          title="Subscribe to new publications via RSS"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M4 11a9 9 0 0 1 9 9"/>
+            <path d="M4 4a16 16 0 0 1 16 16"/>
+            <circle cx="5" cy="19" r="1.5"/>
+          </svg>
+          RSS
+        </a>
       </div>
       <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">
         {copy.copyPrefix}<span data-current-year>{new Date().getFullYear()}</span>

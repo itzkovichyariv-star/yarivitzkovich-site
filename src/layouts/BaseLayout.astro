@@ -50,6 +50,10 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <!-- RSS autodiscovery — lets RSS readers like Feedly/Inoreader detect
+         the publications feed automatically when someone pastes the site URL. -->
+    <link rel="alternate" type="application/rss+xml" title="Yariv Itzkovich — Publications" href="/publications.xml" />
+
     {/* Paper context for live-globe tracking (only on paper detail pages) */}
     {paperSlug && <meta name="paper-slug" content={paperSlug} />}
     {paperTitle && <meta name="paper-title" content={paperTitle} />}

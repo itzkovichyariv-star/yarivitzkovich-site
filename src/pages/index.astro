@@ -4,6 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { site } from '../data/site';
 import { formatStatus, formatType } from '../lib/publications';
 import nowData from '../data/now.json';
+import { START_HERE } from '../data/start-here';
 
 const allPubs = await getCollection('publications');
 const PUBLISHED = new Set(['published', 'in-press']);
@@ -65,6 +66,15 @@ const nowUpdated = nowData.updatedAt;
             <p class="mt-8 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.6s">
               Associate Editor, <em>Journal of Managerial Psychology</em>. Head of the Human Resource Management and Organizational Development track, Department of Sociology and Anthropology, Ariel University. My research examines workplace mistreatment and the potential of AI to detect and reduce it.
             </p>
+            {START_HERE.length >= 3 && (
+              <p class="mt-6 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.7s">
+                <span class="font-mono text-xs uppercase tracking-widest text-soft mr-2">Start here</span>
+                If you're new to the work, three good entry points:
+                <a href={`/publications/${START_HERE[0].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[0].label}</a> ({START_HERE[0].reason});
+                <a href={`/publications/${START_HERE[1].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[1].label}</a> ({START_HERE[1].reason}); and
+                <a href={`/publications/${START_HERE[2].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[2].label}</a> ({START_HERE[2].reason}).
+              </p>
+            )}
           </div>
           <div class="col-span-12 md:col-span-4 md:pt-4">
             {site.display.headshot && site.headshot && (
@@ -105,7 +115,7 @@ const nowUpdated = nowData.updatedAt;
     <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
     <div class="grid grid-cols-12 gap-6 mb-16">
       <div class="col-span-12 md:col-span-2">
-        <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. I</div>
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">01</div>
       </div>
       <div class="col-span-12 md:col-span-10">
         <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Fields of inquiry.</h2>
@@ -139,7 +149,7 @@ const nowUpdated = nowData.updatedAt;
     <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
       <div class="grid grid-cols-12 gap-6">
         <div class="col-span-12 md:col-span-2">
-          <div class="font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label)">§ Ch. II</div>
+          <div class="font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label)">02</div>
         </div>
         <div class="col-span-12 md:col-span-10">
           <h2 class="font-display text-4xl md:text-5xl mb-12" style="font-weight: 300">Currently.</h2>
@@ -165,7 +175,7 @@ const nowUpdated = nowData.updatedAt;
     <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
     <div class="grid grid-cols-12 gap-6 mb-12">
       <div class="col-span-12 md:col-span-2">
-        <div class="font-mono text-xs uppercase tracking-widest text-soft">§ Ch. III</div>
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">03</div>
       </div>
       <div class="col-span-12 md:col-span-10">
         <div class="flex items-baseline justify-between flex-wrap gap-4 mb-4">
@@ -252,7 +262,7 @@ const nowUpdated = nowData.updatedAt;
         </span>
       </div>
     )}
-    <script is:inline define:vars={{ intervalMs: 7000 }}>
+    <script is:inline define:vars={{ intervalMs: 13000 }}>
       (() => {
         const rotator = document.getElementById('selected-rotator');
         if (!rotator) return;

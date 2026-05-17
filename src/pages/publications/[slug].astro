@@ -13,13 +13,44 @@ import { generateAPA, generateMLA, generateChicago, stripMarkdownItalics } from 
 
 export async function getStaticPaths() {
   const entries = await getCollection('publications');
-  return entries.map((entry) => ({
-    params: { slug: entry.data.slug },
-    props: { entry },
-  }));
+  // Build a slug → entry map so we can compute "related papers" by
+  // shared topics without an extra collection read per page.
+  return entries.map((entry) => {
+    const PUBLISHED = new Set(['published', 'in-press']);
+    const others = entries.filter(
+      (o) => o.data.slug !== entry.data.slug && PUBLISHED.has(o.data.status),
+    );
+
+    // Score every other paper by overlap of topic tags with this one.
+    // Tie-break by newer year, then by featured flag.
+    const myTopics = new Set(entry.data.topics);
+    const scored = others
+      .map((o) => {
+        const overlap = o.data.topics.filter((t) => myTopics.has(t)).length;
+        return { entry: o, overlap };
+      })
+      .filter((s) => s.overlap > 0)
+      .sort((a, b) => {
+        if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+        if (b.entry.data.year !== a.entry.data.year) return b.entry.data.year - a.entry.data.year;
+        return Number(b.entry.data.featured) - Number(a.entry.data.featured);
+      });
+
+    const related = scored.slice(0, 3).map((s) => ({
+      slug: s.entry.data.slug,
+      title: s.entry.data.title,
+      year: s.entry.data.year,
+      venue: s.entry.data.venue ?? null,
+    }));
+
+    return {
+      params: { slug: entry.data.slug },
+      props: { entry, related },
+    };
+  });
 }
 
-const { entry } = Astro.props;
+const { entry, related } = Astro.props;
 const { Content } = await render(entry);
 
 const pub: Publication = {
@@ -342,6 +373,25 @@ const jsonLd = {
     <section class="prose-custom max-w-none">
       <Content />
     </section>
+
+    {related && related.length > 0 && (
+      <section class="mt-16 pt-10 border-t" style="border-color: var(--divider)">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft mb-6">Related papers</div>
+        <ul class="space-y-4">
+          {related.map((r) => (
+            <li>
+              <a href={`/publications/${r.slug}`} class="group flex items-baseline gap-4 hover:opacity-70 transition-opacity">
+                <span class="font-mono text-xs text-soft tabular-nums shrink-0">{r.year}</span>
+                <span class="flex-1">
+                  <span class="font-display text-base md:text-lg leading-snug group-hover:underline decoration-current decoration-1 underline-offset-4" style="font-weight: 400">{r.title}</span>
+                  {r.venue && <span class="block text-sm italic text-muted mt-1">{r.venue}</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
   </article>
 
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} is:inline />

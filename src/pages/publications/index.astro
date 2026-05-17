@@ -57,7 +57,7 @@ const inProgressCount = inProgress.length;
 ---
 <BaseLayout title={`Publications — Yariv Itzkovich`}>
   <section class="max-w-7xl mx-auto px-6 md:px-10 pt-32 pb-10">
-    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">§ Ch. III — Writing</div>
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">The archive</div>
     <h1
       class="font-display leading-[0.95] mb-6"
       style="font-size: clamp(3rem, 9vw, 7rem); font-weight: 300"
@@ -73,6 +73,22 @@ const inProgressCount = inProgress.length;
         <a href="/research" class="underline underline-offset-4 hover:opacity-70">{inProgressCount} papers in progress</a> (under review, in revision, or working drafts).
       </p>
     )}
+
+    {/* Hero search — a prominent, persistent entry point so visitors
+        looking for a specific paper don't have to discover the small
+        search input inside the filter bar below. Clicking focuses the
+        same React-controlled input down in PublicationsBrowser via
+        the existing ?focus=search query handler. */}
+    <a
+      href="/publications?focus=search"
+      class="mt-10 inline-flex items-center gap-3 w-full max-w-xl px-5 py-3 rounded-full border hover:opacity-70 transition-opacity"
+      style="border-color: var(--divider)"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <span class="text-sm text-muted">Search {totalPublications} papers by title, author, abstract…</span>
+    </a>
   </section>
 
   <PublicationsBrowser
