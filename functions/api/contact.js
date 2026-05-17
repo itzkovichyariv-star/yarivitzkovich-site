@@ -11,7 +11,7 @@
 //   - Skip recording if the submitter is the owner (testing) so the
 //     real-contact list stays clean.
 
-import { sendEmail, notifyOwner, escapeHtml } from '../_lib/email.js';
+import { sendEmail, notifyOwner, escapeHtml, makeToken } from '../_lib/email.js';
 import { isOwner } from '../_lib/auth.js';
 import { hashVisitor } from '../_lib/dedup.js';
 
@@ -72,6 +72,15 @@ export const onRequestPost = async ({ request, env }) => {
     .bind(nowSec, name, email, message, country, countryName, ipHash)
     .run();
 
+  // Optional: if the visitor opted in to the new-paper list, run the
+  // same double-opt-in flow the standalone /subscribe page uses.
+  // Status reflected in the response so the page can tell the user
+  // "check your inbox for the confirmation link too".
+  let subscribeStatus = null;
+  if (body?.subscribe === true || body?.subscribe === 1 || body?.subscribe === '1') {
+    subscribeStatus = await ensureSubscriber({ env, request, email });
+  }
+
   // Email the owner — fire-and-forget; the visitor's success doesn't
   // hinge on whether Resend delivers cleanly to OWNER_EMAIL.
   await notifyOwner({
@@ -90,8 +99,73 @@ export const onRequestPost = async ({ request, env }) => {
     replyTo: email,
   });
 
-  return json({ ok: true, status: 'received' });
+  return json({
+    ok: true,
+    status: 'received',
+    ...(subscribeStatus ? { subscribe_status: subscribeStatus } : {}),
+  });
 };
+
+// Shared subscribe-flow logic used when a contact form opts in to the
+// new-paper email list. Mirrors functions/api/subscribe.js: insert or
+// revive a pending row, send the confirmation link. Idempotent — an
+// already-active subscriber returns 'already_subscribed' without
+// sending another email.
+async function ensureSubscriber({ env, request, email }) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const existing = await env.DB
+    .prepare(`SELECT id, status FROM subscribers WHERE email = ?`)
+    .bind(email)
+    .first();
+
+  if (existing && existing.status === 'active') return 'already_subscribed';
+
+  const confirmToken = await makeToken();
+  if (existing) {
+    await env.DB
+      .prepare(
+        `UPDATE subscribers
+         SET status = 'pending', confirm_token = ?, subscribed_at = ?,
+             confirmed_at = NULL, unsubscribed_at = NULL, unsubscribe_token = NULL
+         WHERE id = ?`
+      )
+      .bind(confirmToken, nowSec, existing.id)
+      .run();
+  } else {
+    await env.DB
+      .prepare(
+        `INSERT INTO subscribers (email, status, confirm_token, subscribed_at)
+         VALUES (?, 'pending', ?, ?)`
+      )
+      .bind(email, confirmToken, nowSec)
+      .run();
+  }
+
+  const siteOrigin = new URL(request.url).origin;
+  const confirmUrl = `${siteOrigin}/subscribe-confirm?token=${confirmToken}`;
+  const safeUrl = escapeHtml(confirmUrl);
+  const safeEmail = escapeHtml(email);
+
+  const r = await sendEmail({
+    env,
+    to: email,
+    subject: 'Confirm your subscription to Yariv Itzkovich research updates',
+    html: `<!doctype html><html><body style="font-family: Georgia, serif; line-height: 1.55; color: #1a1612; max-width: 540px; margin: 0 auto; padding: 32px 24px;">
+  <h2 style="font-weight: 400; font-size: 22px; margin-top: 0;">One more step</h2>
+  <p>You ticked the "also email me when a new paper goes up" box on the contact form for <strong>${safeEmail}</strong>. Click below to confirm — without it, you won't get the new-paper updates.</p>
+  <p style="margin: 28px 0;">
+    <a href="${safeUrl}" style="display: inline-block; padding: 12px 20px; background: #1a1612; color: #faf6ee; text-decoration: none; border-radius: 999px; font-family: ui-monospace, monospace; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase;">Confirm subscription</a>
+  </p>
+  <p style="font-size: 13px; color: #6b6660;">Or paste this URL:<br><span style="font-family: ui-monospace, monospace; word-break: break-all;">${safeUrl}</span></p>
+  <p style="font-size: 13px; color: #6b6660;">If you didn't tick the box, just ignore this email — your message reached Yariv either way.</p>
+  <hr style="border: none; border-top: 1px solid #e8e2d5; margin: 32px 0 16px;">
+  <p style="font-size: 12px; color: #8a857e;">Yariv Itzkovich · yarivitzkovich.org</p>
+</body></html>`,
+    text: `One more step\n\nYou ticked the "also email me when a new paper goes up" box on the contact form for ${email}. Confirm by opening this link:\n\n${confirmUrl}\n\nIf you didn't tick the box, just ignore this email.\n\n— Yariv Itzkovich`,
+  });
+
+  return r.ok ? 'pending_confirmation' : 'send_failed';
+}
 
 export const onRequest = async () =>
   new Response('Method Not Allowed', { status: 405, headers: { allow: 'POST' } });

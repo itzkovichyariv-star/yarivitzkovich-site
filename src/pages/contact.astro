@@ -68,6 +68,23 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         ></textarea>
       </div>
 
+      <label class="flex items-start gap-3 cursor-pointer text-sm leading-relaxed text-muted">
+        <input
+          type="checkbox"
+          id="contact-subscribe"
+          name="subscribe"
+          value="1"
+          class="mt-1"
+          style="accent-color: var(--color-accent)"
+        />
+        <span>
+          Also email me when a new paper goes up.
+          <span class="block text-xs text-soft mt-1">
+            One short email every few months. You can unsubscribe with one click anytime.
+          </span>
+        </span>
+      </label>
+
       {/* Honeypot — invisible to humans, irresistible to bots. */}
       <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
         <label>Website (leave empty)
@@ -120,6 +137,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           name: (fd.get('name') || '').toString().trim(),
           email: (fd.get('email') || '').toString().trim(),
           message: (fd.get('message') || '').toString().trim(),
+          subscribe: fd.get('subscribe') === '1',
           website: (fd.get('website') || '').toString(),
         };
 
@@ -132,7 +150,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           .then(function (res) {
             submitBtn.disabled = false;
             if (res.status === 200 && res.body.ok) {
-              show("Thanks — your message is on its way. I'll get back to you.", false);
+              var msg = "Thanks — your message is on its way. I'll get back to you.";
+              if (res.body.subscribe_status === 'pending_confirmation') {
+                msg += " Check your inbox: I also sent a confirmation link for the new-paper email list.";
+              } else if (res.body.subscribe_status === 'already_subscribed') {
+                msg += " (You're already on the new-paper list — no double subscription.)";
+              }
+              show(msg, false);
               form.reset();
               submitBtn.textContent = 'Send message';
               return;
