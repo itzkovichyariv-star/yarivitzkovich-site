@@ -39,25 +39,31 @@ export const onRequestPost = async ({ request, env }) => {
   const fixes = [];
 
   // ────────────────────────────────────────────────────────────────────
-  // CHECK 1 — overall counts add up
+  // CHECK 1 — overall counts add up for HUMAN events. Bot rows are
+  // managed separately under /manage/bots; QC focuses on the integrity
+  // of what visitors see on /live. Bots get their own count for the
+  // qa_log row but aren't checked for orphan pairing (they routinely
+  // hit /pdfs/ without preceding the visit code path).
   // ────────────────────────────────────────────────────────────────────
-  const total = (await env.DB.prepare('SELECT COUNT(*) AS n FROM events').first()).n;
-  const visits = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'visit'").first()).n;
-  const downloads = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'download'").first()).n;
-  const other = total - visits - downloads;
+  const humanTotal = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE is_bot = 0").first()).n;
+  const humanVisits = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE is_bot = 0 AND kind = 'visit'").first()).n;
+  const humanDownloads = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE is_bot = 0 AND kind = 'download'").first()).n;
+  const botTotal = (await env.DB.prepare("SELECT COUNT(*) AS n FROM events WHERE is_bot = 1").first()).n;
+  const grandTotal = humanTotal + botTotal;
+  const other = humanTotal - humanVisits - humanDownloads;
 
   if (other !== 0) {
-    findings.push(`event count mismatch: total=${total}, visits=${visits}, downloads=${downloads}, unaccounted=${other}`);
+    findings.push(`human event count mismatch: total=${humanTotal}, visits=${humanVisits}, downloads=${humanDownloads}, unaccounted=${other}`);
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // CHECK 2 — downloads must always have a paper_slug
+  // CHECK 2 — human downloads must always have a paper_slug
   // ────────────────────────────────────────────────────────────────────
   const orphanDownloads = (await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM events WHERE kind = 'download' AND (paper_slug IS NULL OR paper_slug = '')"
+    "SELECT COUNT(*) AS n FROM events WHERE is_bot = 0 AND kind = 'download' AND (paper_slug IS NULL OR paper_slug = '')"
   ).first()).n;
   if (orphanDownloads > 0) {
-    findings.push(`${orphanDownloads} downloads with NULL paper_slug`);
+    findings.push(`${orphanDownloads} human downloads with NULL paper_slug`);
   }
 
   // ────────────────────────────────────────────────────────────────────
@@ -111,9 +117,14 @@ export const onRequestPost = async ({ request, env }) => {
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // AUTO-FIX 1 — backfill paper_title where it's NULL but another row
-  // with the same paper_slug has a known title. Safe operation: we only
-  // copy values that are already in the DB.
+  // AUTO-FIX 1 — backfill paper_title from a sibling event with the
+  // same paper_slug. The previous version of this query matched every
+  // row with NULL paper_title regardless of whether a recoverable
+  // title actually existed — so it kept "fixing" the same ~180 rows
+  // every day even when no real change happened. The EXISTS clause
+  // restricts the UPDATE to rows where the SELECT subquery will
+  // actually return a non-null value, so meta.changes reflects only
+  // genuine fixes.
   // ────────────────────────────────────────────────────────────────────
   const titleBackfill = await env.DB.prepare(
     `UPDATE events
@@ -126,7 +137,13 @@ export const onRequestPost = async ({ request, env }) => {
      )
      WHERE paper_slug IS NOT NULL
        AND paper_slug != ''
-       AND (paper_title IS NULL OR paper_title = '')`
+       AND (paper_title IS NULL OR paper_title = '')
+       AND EXISTS (
+         SELECT 1 FROM events e3
+         WHERE e3.paper_slug = events.paper_slug
+           AND e3.paper_title IS NOT NULL
+           AND e3.paper_title != ''
+       )`
   ).run();
   const backfilled = titleBackfill.meta?.changes || 0;
   if (backfilled > 0) {
@@ -134,7 +151,9 @@ export const onRequestPost = async ({ request, env }) => {
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // Write qa_log row
+  // Write qa_log row. total_events / visits / downloads now record the
+  // HUMAN-only counts so the QC dashboard matches what /live shows.
+  // Bot stats live under /manage/bots and aren't part of QC integrity.
   // ────────────────────────────────────────────────────────────────────
   const durationMs = Date.now() - startedAt;
   await env.DB.prepare(
@@ -142,9 +161,9 @@ export const onRequestPost = async ({ request, env }) => {
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     Math.floor(Date.now() / 1000),
-    total,
-    visits,
-    downloads,
+    humanTotal,
+    humanVisits,
+    humanDownloads,
     JSON.stringify(findings),
     JSON.stringify(fixes),
     durationMs,
@@ -160,8 +179,8 @@ export const onRequestPost = async ({ request, env }) => {
       : '';
     await notifyOwner({
       env,
-      subject: `QC: ${findings.length} finding${findings.length === 1 ? '' : 's'} (${total} events)`,
-      html: `<p>Daily quality check found anomalies:</p>
+      subject: `QC: ${findings.length} finding${findings.length === 1 ? '' : 's'} (${humanTotal} human events)`,
+      html: `<p>Daily quality check found anomalies in HUMAN events:</p>
 <ul>${findingsList}</ul>
 ${fixesBlock}
 <p><a href="https://yarivitzkovich.org/manage/qc">View full QC log</a></p>`,
@@ -171,9 +190,11 @@ ${fixesBlock}
 
   return json({
     ok: true,
-    total_events: total,
-    visits,
-    downloads,
+    human_events: humanTotal,
+    human_visits: humanVisits,
+    human_downloads: humanDownloads,
+    bot_events: botTotal,
+    grand_total: grandTotal,
     findings,
     fixes,
     duration_ms: durationMs,

@@ -1,0 +1,159 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Contact — Yariv Itzkovich"
+  description="Get in touch — collaborations, editorial matters, speaking, prospective students, or just to say hello."
+>
+  <section class="max-w-3xl mx-auto px-6 md:px-10 pt-32 pb-24">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Contact</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(3rem, 8vw, 6rem); font-weight: 300"
+    >
+      Get in touch.
+    </h1>
+    <p class="text-lg leading-relaxed text-muted mb-10 max-w-2xl">
+      Collaborations, editorial matters at <em>JMP</em>, speaking invitations,
+      prospective PhD students, or master students with an interest in technology
+      and the dark side of organizations — drop a note and I'll get back to you.
+    </p>
+
+    <form id="contact-form" class="max-w-xl space-y-5">
+      <div>
+        <label for="contact-name" class="block font-mono text-xs uppercase tracking-widest text-soft mb-2">
+          Your name
+        </label>
+        <input
+          id="contact-name"
+          name="name"
+          type="text"
+          required
+          autocomplete="name"
+          maxlength="120"
+          class="w-full px-4 py-3 rounded-md border bg-transparent text-base outline-none"
+          style="border-color: var(--divider); color: var(--text)"
+        />
+      </div>
+
+      <div>
+        <label for="contact-email" class="block font-mono text-xs uppercase tracking-widest text-soft mb-2">
+          Email address
+        </label>
+        <input
+          id="contact-email"
+          name="email"
+          type="email"
+          required
+          autocomplete="email"
+          maxlength="200"
+          class="w-full px-4 py-3 rounded-md border bg-transparent text-base outline-none"
+          style="border-color: var(--divider); color: var(--text)"
+        />
+      </div>
+
+      <div>
+        <label for="contact-message" class="block font-mono text-xs uppercase tracking-widest text-soft mb-2">
+          Message
+        </label>
+        <textarea
+          id="contact-message"
+          name="message"
+          required
+          rows="6"
+          minlength="5"
+          maxlength="5000"
+          class="w-full px-4 py-3 rounded-md border bg-transparent text-base outline-none resize-y leading-relaxed"
+          style="border-color: var(--divider); color: var(--text)"
+        ></textarea>
+      </div>
+
+      {/* Honeypot — invisible to humans, irresistible to bots. */}
+      <div style="position: absolute; left: -9999px; top: -9999px;" aria-hidden="true">
+        <label>Website (leave empty)
+          <input type="text" name="website" tabindex="-1" autocomplete="off" />
+        </label>
+      </div>
+
+      <div class="flex items-center gap-4 flex-wrap pt-2">
+        <button
+          type="submit"
+          id="contact-submit"
+          class="px-6 py-3 rounded-full font-mono text-xs uppercase tracking-widest"
+          style="background-color: var(--color-accent); color: var(--color-bg)"
+        >
+          Send message
+        </button>
+        <p id="contact-status" class="text-sm" aria-live="polite" style="display: none"></p>
+      </div>
+    </form>
+
+    <div class="mt-14 pt-10 border-t" style="border-color: var(--divider)">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Prefer email or WhatsApp?</div>
+      <p class="text-muted leading-relaxed max-w-2xl">
+        Use the chips in the footer — both go straight to the same inbox.
+      </p>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('contact-form');
+      var statusEl = document.getElementById('contact-status');
+      var submitBtn = document.getElementById('contact-submit');
+      if (!form || !statusEl) return;
+
+      function show(text, isError) {
+        statusEl.textContent = text;
+        statusEl.style.display = 'inline-block';
+        statusEl.style.color = isError ? '#b3411c' : 'var(--text)';
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending…';
+        show('', false);
+
+        var fd = new FormData(form);
+        var payload = {
+          name: (fd.get('name') || '').toString().trim(),
+          email: (fd.get('email') || '').toString().trim(),
+          message: (fd.get('message') || '').toString().trim(),
+          website: (fd.get('website') || '').toString(),
+        };
+
+        fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+          .then(function (res) {
+            submitBtn.disabled = false;
+            if (res.status === 200 && res.body.ok) {
+              show("Thanks — your message is on its way. I'll get back to you.", false);
+              form.reset();
+              submitBtn.textContent = 'Send message';
+              return;
+            }
+            submitBtn.textContent = 'Send message';
+            if (res.body && res.body.error === 'rate_limited') {
+              show("Looks like you just sent a message — please wait a bit before sending another.", true);
+            } else if (res.body && res.body.error === 'invalid_email') {
+              show("That doesn't look like a valid email address.", true);
+            } else if (res.body && (res.body.error === 'invalid_name' || res.body.error === 'invalid_message')) {
+              show("Please check the form — name and message are required.", true);
+            } else {
+              show("Something went wrong. Please try again in a moment, or email Yariv directly via the footer.", true);
+            }
+          })
+          .catch(function () {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Send message';
+            show("Couldn't reach the server. Please try again.", true);
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

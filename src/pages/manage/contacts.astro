@@ -1,0 +1,126 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Contacts — Admin — Yariv Itzkovich"
+  description="Contact-form submissions."
+>
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">
+      <a href="/manage" class="underline underline-offset-4 hover:opacity-70">Admin</a> · Contacts
+    </div>
+    <h1
+      class="font-display leading-[0.95] mb-2"
+      style="font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 300"
+    >
+      Contacts.
+    </h1>
+
+    <div id="counts" class="font-mono text-xs uppercase tracking-widest text-soft mb-10" aria-live="polite">
+      Loading…
+    </div>
+
+    <div id="gate" class="text-muted leading-relaxed" style="display: none">
+      Not signed in as owner. <a href="/manage" class="underline underline-offset-4">Go back</a>.
+    </div>
+    <div id="empty" class="text-muted text-sm" style="display: none">No contacts yet.</div>
+    <div id="error" class="text-sm" style="display: none; color: #b3411c"></div>
+    <div id="rows" class="space-y-5" style="display: none"></div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var rowsEl = document.getElementById('rows');
+      var countsEl = document.getElementById('counts');
+      var gate = document.getElementById('gate');
+      var empty = document.getElementById('empty');
+      var errorEl = document.getElementById('error');
+
+      function fmtTs(unix) {
+        if (!unix) return '—';
+        var d = new Date(unix * 1000);
+        return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escape(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function statusPill(s) {
+        var color = s === 'new' ? '#a36e1a'
+                  : s === 'read' ? '#1f7a3d'
+                  : '#8a8580';
+        return '<span style="font-family: ui-monospace, monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 8px; border-radius: 999px; background: ' + color + '; color: white;">' + escape(s) + '</span>';
+      }
+
+      function load() {
+        fetch('/api/manage/contacts', { credentials: 'same-origin' })
+          .then(function (r) {
+            if (r.status === 401) { gate.style.display = ''; throw new Error('unauthorized'); }
+            if (!r.ok) throw new Error('http_' + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            var c = data.counts;
+            countsEl.textContent = c.total + ' total · ' + c.new + ' new · ' + c.read + ' read · ' + c.archived + ' archived';
+            if (!data.contacts.length) {
+              empty.style.display = '';
+              rowsEl.style.display = 'none';
+              return;
+            }
+            rowsEl.innerHTML = data.contacts.map(function (r) {
+              var actionButtons = '';
+              if (r.status === 'new') actionButtons += '<button data-action="mark_read" data-id="' + r.id + '" class="font-mono text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100 mr-3">Mark read</button>';
+              if (r.status !== 'archived') actionButtons += '<button data-action="archive" data-id="' + r.id + '" class="font-mono text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100 mr-3">Archive</button>';
+              actionButtons += '<button data-action="delete" data-id="' + r.id + '" class="font-mono text-[10px] uppercase tracking-widest opacity-60 hover:opacity-100" style="color: #b3411c">Delete</button>';
+
+              return '<article class="border rounded-lg p-5" style="border-color: var(--divider)">' +
+                '<header class="flex items-baseline justify-between gap-4 mb-3 flex-wrap">' +
+                  '<div>' +
+                    '<span class="font-display text-lg" style="font-weight: 400">' + escape(r.name) + '</span>' +
+                    ' <a href="mailto:' + escape(r.email) + '" class="font-mono text-xs underline underline-offset-4 hover:opacity-70 ml-1">' + escape(r.email) + '</a>' +
+                    (r.country_name ? ' <span class="font-mono text-xs text-soft ml-2">· ' + escape(r.country_name) + '</span>' : '') +
+                  '</div>' +
+                  '<div class="flex items-center gap-3">' + statusPill(r.status) + '<span class="font-mono text-xs text-soft">' + escape(fmtTs(r.ts)) + '</span></div>' +
+                '</header>' +
+                '<p class="leading-relaxed mb-4" style="white-space: pre-wrap; color: var(--text)">' + escape(r.message) + '</p>' +
+                '<div class="text-right">' + actionButtons + '</div>' +
+                '</article>';
+            }).join('');
+            rowsEl.style.display = '';
+          })
+          .catch(function (err) {
+            if (String(err.message) === 'unauthorized') return;
+            errorEl.textContent = "Couldn't load contacts.";
+            errorEl.style.display = '';
+          });
+      }
+
+      rowsEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        var action = btn.getAttribute('data-action');
+        var id = Number(btn.getAttribute('data-id'));
+        var confirmMsg = action === 'delete' ? 'Permanently delete this contact?' :
+                         action === 'archive' ? 'Archive this contact (hide from active list)?' :
+                         null;
+        if (confirmMsg && !window.confirm(confirmMsg)) return;
+        btn.disabled = true;
+        btn.textContent = '…';
+        fetch('/api/manage/contacts', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: id, action: action }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function () { load(); })
+          .catch(function () { alert('Action failed.'); btn.disabled = false; btn.textContent = action; });
+      });
+
+      load();
+    })();
+  </script>
+</BaseLayout>

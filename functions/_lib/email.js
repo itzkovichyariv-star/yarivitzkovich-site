@@ -69,7 +69,7 @@ export async function sendEmail({ env, to, subject, html, text, replyTo }) {
  * a transient Resend hiccup never prevents the caller's main work
  * from completing.
  */
-export async function notifyOwner({ env, subject, html, text }) {
+export async function notifyOwner({ env, subject, html, text, replyTo }) {
   if (!env.OWNER_EMAIL) return { ok: false, error: 'no_owner_email' };
   try {
     const res = await sendEmail({
@@ -78,6 +78,7 @@ export async function notifyOwner({ env, subject, html, text }) {
       subject: `[yarivitzkovich.org] ${subject}`,
       html,
       text,
+      replyTo,
     });
     if (!res.ok) console.error('notifyOwner failed:', res);
     return res;

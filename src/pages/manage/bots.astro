@@ -1,0 +1,144 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Bot activity — Admin — Yariv Itzkovich"
+  description="Scrapers, search-engine crawlers, and RSS readers hitting the site."
+>
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">
+      <a href="/manage" class="underline underline-offset-4 hover:opacity-70">Admin</a> · Bot activity
+    </div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(2.5rem, 6vw, 4rem); font-weight: 300"
+    >
+      Bot activity.
+    </h1>
+    <p class="text-muted leading-relaxed mb-10 max-w-2xl">
+      Bot events are filtered out of <a href="/live" class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">/live</a> and the public stats so human numbers stay honest. They're tracked here so you can spot anomalies — a sudden surge of scrapers, an unfamiliar crawler, etc.
+    </p>
+
+    <div id="gate" class="text-muted leading-relaxed" style="display: none">
+      Not signed in as owner. <a href="/manage" class="underline underline-offset-4">Go back</a>.
+    </div>
+    <div id="loading" class="text-muted text-sm">Loading…</div>
+    <div id="error" class="text-sm" style="display: none; color: #b3411c"></div>
+
+    <div id="content" style="display: none">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
+        <div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">Total · ever</div>
+          <div id="total-ever" class="font-display" style="font-size: 2rem; font-weight: 350; line-height: 1; font-variant-numeric: tabular-nums">—</div>
+          <div id="total-breakdown" class="font-mono text-[11px] text-soft mt-2"></div>
+        </div>
+        <div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">Last 7 days</div>
+          <div id="total-7d" class="font-display" style="font-size: 2rem; font-weight: 350; line-height: 1; font-variant-numeric: tabular-nums">—</div>
+        </div>
+        <div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">Last 24 hours</div>
+          <div id="total-24h" class="font-display" style="font-size: 2rem; font-weight: 350; line-height: 1; font-variant-numeric: tabular-nums">—</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 mb-12">
+        <div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">By client type</div>
+          <table class="w-full text-sm">
+            <tbody id="class-rows"></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Top countries</div>
+          <table class="w-full text-sm">
+            <tbody id="country-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Most recent bot events</div>
+      <table class="w-full text-sm" style="border-collapse: collapse">
+        <thead>
+          <tr class="font-mono text-xs uppercase tracking-widest text-soft text-left">
+            <th class="py-3 pr-3 border-b" style="border-color: var(--divider)">When</th>
+            <th class="py-3 pr-3 border-b" style="border-color: var(--divider)">Kind</th>
+            <th class="py-3 pr-3 border-b" style="border-color: var(--divider)">Path</th>
+            <th class="py-3 pr-3 border-b" style="border-color: var(--divider)">Country</th>
+            <th class="py-3 pr-2 border-b" style="border-color: var(--divider)">Class</th>
+          </tr>
+        </thead>
+        <tbody id="recent-rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var loading = document.getElementById('loading');
+      var errorEl = document.getElementById('error');
+      var gate = document.getElementById('gate');
+      var content = document.getElementById('content');
+
+      function fmtTs(unix) {
+        if (!unix) return '—';
+        var d = new Date(unix * 1000);
+        return d.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      }
+
+      function escape(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      fetch('/api/manage/bots', { credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 401) { loading.style.display = 'none'; gate.style.display = ''; throw new Error('unauthorized'); }
+          if (!r.ok) throw new Error('http_' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          loading.style.display = 'none';
+
+          document.getElementById('total-ever').textContent = data.overall.total.toLocaleString();
+          document.getElementById('total-breakdown').textContent =
+            data.overall.visits + ' visits · ' + data.overall.downloads + ' downloads';
+          document.getElementById('total-7d').textContent = (data.last_7d || 0).toLocaleString();
+          document.getElementById('total-24h').textContent = (data.last_24h || 0).toLocaleString();
+
+          document.getElementById('class-rows').innerHTML = (data.by_ua_class || []).map(function (r) {
+            return '<tr class="border-b" style="border-color: var(--divider)">' +
+              '<td class="py-2 pr-3 font-mono text-xs uppercase tracking-wider">' + escape(r.ua_class) + '</td>' +
+              '<td class="py-2 pr-2 text-right font-mono text-sm tabular-nums">' + r.n + '</td>' +
+              '</tr>';
+          }).join('') || '<tr><td class="py-2 text-muted text-xs">no data</td></tr>';
+
+          document.getElementById('country-rows').innerHTML = (data.top_countries || []).map(function (r) {
+            return '<tr class="border-b" style="border-color: var(--divider)">' +
+              '<td class="py-2 pr-3 text-sm">' + escape(r.country_name || r.country) + '</td>' +
+              '<td class="py-2 pr-2 text-right font-mono text-sm tabular-nums">' + r.n + '</td>' +
+              '</tr>';
+          }).join('') || '<tr><td class="py-2 text-muted text-xs">no data</td></tr>';
+
+          document.getElementById('recent-rows').innerHTML = (data.recent || []).map(function (r) {
+            return '<tr class="border-b" style="border-color: var(--divider)">' +
+              '<td class="py-2 pr-3 text-xs text-muted whitespace-nowrap">' + escape(fmtTs(r.ts)) + '</td>' +
+              '<td class="py-2 pr-3 font-mono text-[11px] uppercase tracking-widest">' + escape(r.kind) + '</td>' +
+              '<td class="py-2 pr-3 font-mono text-xs" style="word-break: break-all">' + escape(r.page_path || r.paper_slug || '—') + '</td>' +
+              '<td class="py-2 pr-3 text-xs">' + escape(r.country_name || '—') + '</td>' +
+              '<td class="py-2 pr-2 font-mono text-[11px] uppercase">' + escape(r.ua_class || 'unknown') + '</td>' +
+              '</tr>';
+          }).join('') || '<tr><td colspan="5" class="py-3 text-muted text-sm">No bot events yet.</td></tr>';
+
+          content.style.display = '';
+        })
+        .catch(function (err) {
+          if (String(err.message) === 'unauthorized') return;
+          loading.style.display = 'none';
+          errorEl.textContent = "Couldn't load bot activity.";
+          errorEl.style.display = '';
+        });
+    })();
+  </script>
+</BaseLayout>

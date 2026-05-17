@@ -7,6 +7,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 const cards = [
   {
+    href: '/manage/content/',
+    title: 'Content',
+    desc: 'Visual editor for the Now section and publication metadata. Edit and commit without touching MDX directly.',
+  },
+  {
+    href: '/manage/contacts',
+    title: 'Contacts',
+    desc: 'Messages people sent through the contact form. Mark read, archive, or delete.',
+  },
+  {
     href: '/manage/subscribers',
     title: 'Subscribers',
     desc: 'See everyone signed up for new-paper emails. Unsubscribe or delete rows as needed.',
@@ -17,9 +27,14 @@ const cards = [
     desc: 'History of new-paper emails sent: which papers, when, to how many subscribers.',
   },
   {
+    href: '/manage/bots',
+    title: 'Bot activity',
+    desc: 'Scrapers, search-engine crawlers, and RSS readers — kept separate from human stats so /live stays honest.',
+  },
+  {
     href: '/manage/qc',
     title: 'Quality checks',
-    desc: 'Daily consistency-check runs on the events table. Findings and auto-fixes.',
+    desc: 'Daily integrity check on human events. Findings here mean a real problem; bot traffic is tracked under Bot activity instead.',
   },
 ];
 ---

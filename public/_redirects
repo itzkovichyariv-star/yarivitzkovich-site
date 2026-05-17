@@ -1,0 +1,5 @@
+# Old admin URLs → new manage URLs.
+# The Decap CMS used to live at /admin; it's now at /manage/content as
+# part of consolidating all owner-facing management under /manage.
+/admin/* /manage/content/:splat 301
+/admin /manage/content 301
