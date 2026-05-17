@@ -1,0 +1,115 @@
+---
+// Email-confirmation landing page. The link in the confirmation email
+// points HERE (not directly at /api/subscribe-confirm) so that email
+// security scanners — Outlook Safe Links, Mimecast, Proofpoint — can
+// GET this page without invalidating the user's token. The actual
+// confirmation is a POST, which scanners don't perform.
+//
+// The user lands here, sees their email address pre-filled, and clicks
+// a "Confirm subscription" button. That button POSTs to
+// /api/subscribe-confirm which does the DB update.
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="Confirm subscription — Yariv Itzkovich"
+  description="One last step to confirm your subscription."
+>
+  <section class="max-w-2xl mx-auto px-6 md:px-10 pt-32 pb-24">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Almost done</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 300"
+    >
+      Confirm your subscription.
+    </h1>
+
+    <div id="confirm-state-pending">
+      <p class="text-lg text-muted leading-relaxed mb-10 max-w-xl">
+        Click the button below to confirm. We do this two-step dance to make sure your inbox provider's link-scanner didn't accidentally confirm for you.
+      </p>
+      <button
+        id="confirm-button"
+        type="button"
+        class="px-6 py-3 rounded-full font-mono text-xs uppercase tracking-widest"
+        style="background-color: var(--color-accent); color: var(--color-bg)"
+      >
+        Confirm subscription
+      </button>
+      <p id="confirm-error" class="mt-6 text-sm" style="display: none; color: #b3411c"></p>
+    </div>
+
+    <div id="confirm-state-success" style="display: none">
+      <p class="text-lg leading-relaxed mb-4 max-w-xl" style="color: var(--text)">
+        Subscription confirmed. You'll get a short email when a new paper goes up.
+      </p>
+      <p class="text-sm text-muted">
+        Confirmed: <strong id="confirmed-email" style="color: var(--text)"></strong>
+      </p>
+      <a href="/" class="mt-10 inline-block font-mono text-xs uppercase tracking-widest underline underline-offset-4 hover:opacity-70">
+        Back to the site →
+      </a>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token') || '';
+      var btn = document.getElementById('confirm-button');
+      var errorEl = document.getElementById('confirm-error');
+      var pendingState = document.getElementById('confirm-state-pending');
+      var successState = document.getElementById('confirm-state-success');
+      var confirmedEmailEl = document.getElementById('confirmed-email');
+
+      if (!token) {
+        if (errorEl) {
+          errorEl.textContent = 'No confirmation token in this link. Please use the link from your confirmation email, or sign up again.';
+          errorEl.style.display = 'block';
+        }
+        if (btn) btn.disabled = true;
+        return;
+      }
+
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Confirm subscription';
+      }
+
+      btn && btn.addEventListener('click', function () {
+        btn.disabled = true;
+        btn.textContent = 'Confirming…';
+        errorEl.style.display = 'none';
+
+        fetch('/api/subscribe-confirm', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: token }),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.body.ok) {
+              var reason = res.body && res.body.error;
+              if (reason === 'invalid_token') {
+                showError("That confirmation link is no longer valid. If you still want to subscribe, please sign up again.");
+              } else if (reason === 'already_active') {
+                if (confirmedEmailEl) confirmedEmailEl.textContent = (res.body.email || 'your email');
+                pendingState.style.display = 'none';
+                successState.style.display = 'block';
+              } else {
+                showError("Something went wrong. Please try again in a moment, or email Yariv directly.");
+              }
+              return;
+            }
+            if (confirmedEmailEl) confirmedEmailEl.textContent = res.body.email || 'your email';
+            pendingState.style.display = 'none';
+            successState.style.display = 'block';
+          })
+          .catch(function () {
+            showError("Couldn't reach the server. Please try again.");
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

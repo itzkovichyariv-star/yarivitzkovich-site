@@ -67,7 +67,12 @@ export const onRequestPost = async ({ request, env }) => {
   // failure to the user — the row sits as pending and a manual retry
   // can re-send later.
   const siteOrigin = new URL(request.url).origin;
-  const confirmUrl = `${siteOrigin}/api/subscribe-confirm?token=${confirmToken}`;
+  // Point at the Astro page, not the API endpoint, so corporate email
+  // scanners (Outlook Safe Links, Mimecast, Proofpoint) that auto-fetch
+  // links to scan for phishing can GET the page without consuming the
+  // token. Actual confirmation is a POST from a button on that page,
+  // which scanners don't perform.
+  const confirmUrl = `${siteOrigin}/subscribe-confirm?token=${confirmToken}`;
 
   const result = await sendEmail({
     env,
