@@ -180,10 +180,11 @@ export default function PublicationsBrowser({
 
   const groupedByTopic = useMemo(() => {
     // Each paper appears under exactly one topic section (its first topic),
-    // so it never shows as a duplicate when searching or browsing.
+    // so it never shows as a duplicate when searching or browsing. Books
+    // are now included in the topic grouping alongside articles — a book
+    // on incivility belongs under Incivility, same as an article.
     const map = new Map<string, Publication[]>();
     filtered.forEach((p) => {
-      if (BOOK_TYPES.has(p.type)) return;
       const primaryTopic = p.topics[0];
       if (!primaryTopic) return;
       if (!map.has(primaryTopic)) map.set(primaryTopic, []);
@@ -191,11 +192,6 @@ export default function PublicationsBrowser({
     });
     return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
   }, [filtered]);
-
-  const booksInView = useMemo(
-    () => filtered.filter((p) => BOOK_TYPES.has(p.type)),
-    [filtered],
-  );
 
   const topicLabel = useCallback(
     (id: string) => topics.find((t) => t.id === id)?.label ?? id,
@@ -347,12 +343,7 @@ export default function PublicationsBrowser({
         {view === 'grid' && <GridView key={`grid-${activeType}-${yearMin}-${activeTopics.join(',')}-${searchText}`} pubs={filtered} onSelect={setSelected} topicLabel={topicLabel} />}
         {view === 'timeline' && <TimelineView key={`tl-${activeType}-${yearMin}-${activeTopics.join(',')}-${searchText}`} pubs={filtered} onSelect={setSelected} />}
         {view === 'topics' && (
-          <>
-            {booksInView.length > 0 && (
-              <BooksSection books={booksInView} onSelect={setSelected} />
-            )}
-            <TopicsView groups={groupedByTopic} topicLabel={topicLabel} onSelect={setSelected} />
-          </>
+          <TopicsView groups={groupedByTopic} topicLabel={topicLabel} onSelect={setSelected} />
         )}
 
         {filtered.length === 0 && (

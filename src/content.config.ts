@@ -11,7 +11,12 @@ const authorSchema = z.object({
 });
 
 const publications = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/publications' }),
+  // Top-level .mdx files only — the recursive ** pattern would pull in
+  // auto-generated stubs from _drafts/, which have status="published" by
+  // default and would surface on /publications with empty topics. The
+  // OpenAlex sync's openalex-detect-new.mjs reads _drafts/ directly via
+  // the filesystem (not via this collection), so the dedup is unaffected.
+  loader: glob({ pattern: '*.mdx', base: './src/content/publications' }),
   schema: z.object({
     id: z.string(),
     slug: z.string(),
