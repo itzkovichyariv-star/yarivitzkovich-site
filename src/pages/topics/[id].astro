@@ -1,0 +1,196 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { TOPICS, type TopicId } from '../../data/topics';
+import { TOPIC_PAGES } from '../../data/topic-page-content';
+import { formatAuthors, formatStatus, formatType, type Publication } from '../../lib/publications';
+
+// Generate one page per topic in the taxonomy. Each page is the
+// canonical landing surface for that topic — keyword-rich H1,
+// structured prose intro, list of papers, related topics.
+//
+// SEO purpose: rank for topical Google/Scholar queries like
+// "workplace incivility research" rather than just for individual
+// paper titles. Each page surfaces the topic's synonyms in the meta
+// keywords + an "also known as" panel so the keyword-density signal
+// covers the many phrasings researchers actually type.
+
+export async function getStaticPaths() {
+  const entries = await getCollection('publications');
+  const PUBLISHED = new Set(['published', 'in-press']);
+  const allPublished = entries.filter((e) => PUBLISHED.has(e.data.status));
+
+  return TOPICS.map((topic) => {
+    const papers = allPublished
+      .filter((e) => e.data.topics.includes(topic.id))
+      .sort((a, b) => b.data.year - a.data.year)
+      .map((e) => ({
+        slug: e.data.slug,
+        title: e.data.title,
+        authors: e.data.authors,
+        year: e.data.year,
+        type: e.data.type,
+        status: e.data.status,
+        venue: e.data.venue ?? null,
+        venueShort: e.data.venueShort ?? null,
+        tldr: e.data.tldr,
+      }));
+
+    return {
+      params: { id: topic.id },
+      props: { topic, papers },
+    };
+  });
+}
+
+interface Author { name: string; isMe?: boolean }
+interface PaperCard {
+  slug: string;
+  title: string;
+  authors: Author[];
+  year: number;
+  type: Publication['type'];
+  status: Publication['status'];
+  venue: string | null;
+  venueShort: string | null;
+  tldr?: string;
+}
+
+const { topic, papers } = Astro.props as { topic: typeof TOPICS[number]; papers: PaperCard[] };
+const content = TOPIC_PAGES[topic.id as TopicId];
+const intro = content?.intro ?? topic.description ?? '';
+const synonyms = content?.synonyms ?? [];
+const questions = content?.questions ?? [];
+const relatedTopics = (content?.relatedTopics ?? [])
+  .map((id) => TOPICS.find((t) => t.id === id))
+  .filter(Boolean) as typeof TOPICS[number][];
+
+const pageTitle = `${topic.label} research — Yariv Itzkovich`;
+const metaDescription = synonyms.length > 0
+  ? `${topic.label}: ${synonyms.slice(0, 5).join(', ')}. ${papers.length} paper${papers.length === 1 ? '' : 's'} from Yariv Itzkovich's research programme.`
+  : `${topic.label} research from Yariv Itzkovich — ${papers.length} paper${papers.length === 1 ? '' : 's'}.`;
+const metaKeywords = [topic.label, ...synonyms, 'Yariv Itzkovich', 'organizational behavior'].join(', ');
+
+// Strip markdown italics (single asterisks → italic spans) for inline
+// rendering of the intro. Keeps the data file readable while
+// preserving the emphasis on the page.
+function renderMd(text: string): string {
+  return text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+const introHtml = renderMd(intro);
+---
+<BaseLayout title={pageTitle} description={metaDescription}>
+  <Fragment slot="head">
+    <meta name="keywords" content={metaKeywords} />
+    {/* Structured data so Google understands this is a topic-themed
+        collection of scholarly works rather than just an article. */}
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: pageTitle,
+      description: metaDescription,
+      url: new URL(`/topics/${topic.id}`, Astro.site).href,
+      about: { '@type': 'Thing', name: topic.label, alternateName: synonyms },
+      author: { '@id': 'https://yarivitzkovich.org/#person' },
+      inLanguage: 'en',
+      isPartOf: { '@type': 'WebSite', '@id': 'https://yarivitzkovich.org/#website' },
+      hasPart: papers.slice(0, 20).map((p) => ({
+        '@type': 'ScholarlyArticle',
+        headline: p.title,
+        datePublished: `${p.year}-01-01`,
+        url: new URL(`/publications/${p.slug}`, Astro.site).href,
+      })),
+    })} />
+  </Fragment>
+
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-32 pb-12">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">
+      <a href="/topics" class="underline underline-offset-4 hover:opacity-70">Topics</a> · {topic.label}
+    </div>
+    <h1
+      class="font-display leading-[0.95] mb-8"
+      style="font-size: clamp(3rem, 9vw, 7rem); font-weight: 300"
+    >
+      {topic.label}.
+    </h1>
+
+    {intro && (
+      <div
+        class="max-w-2xl text-lg leading-relaxed text-muted font-display mb-10"
+        style="font-weight: 300"
+        set:html={introHtml}
+      />
+    )}
+
+    <div class="flex flex-wrap gap-x-6 gap-y-2 font-mono text-xs uppercase tracking-widest text-soft">
+      <span>{papers.length} {papers.length === 1 ? 'paper' : 'papers'}</span>
+      {synonyms.length > 0 && <span>· also known as: {synonyms.slice(0, 4).join(', ')}</span>}
+    </div>
+  </section>
+
+  {questions.length > 0 && (
+    <section class="max-w-5xl mx-auto px-6 md:px-10 pb-12">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Questions I'm working on</div>
+      <ul class="space-y-2 max-w-3xl">
+        {questions.map((q) => (
+          <li class="text-base leading-relaxed" style="color: var(--text)">— {q}</li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {synonyms.length > 0 && (
+    <section class="max-w-5xl mx-auto px-6 md:px-10 pb-12">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-3">Also known as</div>
+      <div class="flex flex-wrap gap-2 max-w-3xl">
+        {synonyms.map((s) => (
+          <span class="inline-flex items-center px-3 py-1 rounded-full font-mono text-[11px] uppercase tracking-widest border" style="border-color: var(--divider); color: var(--text)">{s}</span>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pb-12">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-6">Papers in this area</div>
+    {papers.length === 0 ? (
+      <p class="text-muted">No papers yet under this topic.</p>
+    ) : (
+      <ul class="space-y-8">
+        {papers.map((p) => (
+          <li>
+            <a href={`/publications/${p.slug}`} class="group block py-3 border-b" style="border-color: var(--divider)">
+              <div class="flex items-baseline gap-3 mb-2 flex-wrap font-mono text-xs uppercase tracking-widest text-soft">
+                <span class="tabular-nums">{p.year}</span>
+                <span>{formatType(p.type)}</span>
+                {formatStatus(p.status) && (
+                  <span class="px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+                    {formatStatus(p.status)}
+                  </span>
+                )}
+              </div>
+              <h2 class="font-display text-xl md:text-2xl leading-snug mb-2 group-hover:underline decoration-current decoration-1 underline-offset-4" style="font-weight: 400">
+                {p.title}
+              </h2>
+              <p class="text-sm italic text-muted mb-1">{formatAuthors(p.authors)}</p>
+              {p.venue && <p class="text-sm text-muted mb-2">{p.venue}</p>}
+              {p.tldr && <p class="text-sm leading-relaxed text-muted max-w-3xl" style="opacity: 0.85">{p.tldr}</p>}
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  {relatedTopics.length > 0 && (
+    <section class="max-w-5xl mx-auto px-6 md:px-10 pb-24 pt-6 border-t" style="border-color: var(--divider)">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Related topics</div>
+      <div class="flex flex-wrap gap-3">
+        {relatedTopics.map((rt) => (
+          <a href={`/topics/${rt.id}`} class="inline-flex items-center gap-2 px-4 py-2 rounded-full border hover:opacity-70 transition-opacity text-sm" style="border-color: var(--divider); color: var(--text)">
+            {rt.label} →
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+</BaseLayout>

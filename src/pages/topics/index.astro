@@ -1,0 +1,96 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { TOPICS } from '../../data/topics';
+import { TOPIC_PAGES } from '../../data/topic-page-content';
+
+// Topics index — surface all topic landing pages with their paper
+// counts so visitors and crawlers can see the topical span of the
+// site at a glance. This page itself rarely ranks; its real job is
+// to be the internal-link hub that signals to Google what the site
+// is *about*.
+
+const entries = await getCollection('publications');
+const PUBLISHED = new Set(['published', 'in-press']);
+const allPublished = entries.filter((e) => PUBLISHED.has(e.data.status));
+
+const topicsWithCounts = TOPICS.map((t) => {
+  const count = allPublished.filter((e) => e.data.topics.includes(t.id)).length;
+  const content = TOPIC_PAGES[t.id];
+  return {
+    id: t.id,
+    label: t.label,
+    color: t.color,
+    description: t.description,
+    intro: content?.intro,
+    synonyms: content?.synonyms ?? [],
+    count,
+  };
+})
+  // Only show topics with at least one paper — empty taxonomy entries
+  // are confusing.
+  .filter((t) => t.count > 0)
+  // Most-covered first
+  .sort((a, b) => b.count - a.count);
+
+const total = allPublished.length;
+---
+<BaseLayout
+  title="Topics — Yariv Itzkovich"
+  description="Topic-by-topic index of Yariv Itzkovich's research: incivility, bullying, bystander intervention, abusive supervision, AI and organizational behaviour."
+>
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-32 pb-12">
+    <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Topics</div>
+    <h1
+      class="font-display leading-[0.95] mb-6"
+      style="font-size: clamp(3rem, 9vw, 7rem); font-weight: 300"
+    >
+      By topic.
+    </h1>
+    <p class="max-w-2xl text-lg text-muted leading-relaxed">
+      A topical view of {total} publications across {topicsWithCounts.length} research areas. Each entry below is a curated landing page with intro, key questions, and the full list of papers tagged with that topic.
+    </p>
+  </section>
+
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pb-24">
+    <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+      {topicsWithCounts.map((t) => (
+        <li>
+          <a
+            href={`/topics/${t.id}`}
+            class="group block py-8 border-b transition-opacity hover:opacity-70"
+            style="border-color: var(--divider)"
+          >
+            <div class="flex items-baseline justify-between gap-4 mb-2">
+              <h2 class="font-display text-2xl md:text-3xl group-hover:underline decoration-current decoration-1 underline-offset-4" style="font-weight: 400">
+                {t.label}
+              </h2>
+              <span class="font-mono text-xs uppercase tracking-widest text-soft tabular-nums whitespace-nowrap">
+                {t.count} {t.count === 1 ? 'paper' : 'papers'}
+              </span>
+            </div>
+            {(t.intro || t.description) && (
+              <p class="text-sm leading-relaxed text-muted max-w-xl" style="opacity: 0.85">
+                {/* Plain-text excerpt of the intro, max 200 chars; or the short data/topics description. */}
+                {(() => {
+                  const src = (t.intro || t.description || '').replace(/\*/g, '');
+                  return src.length > 220 ? src.slice(0, 217) + '…' : src;
+                })()}
+              </p>
+            )}
+            {t.synonyms.length > 0 && (
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                {t.synonyms.slice(0, 3).map((s) => (
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full font-mono text-[10px] uppercase tracking-widest border" style="border-color: var(--divider)">{s}</span>
+                ))}
+                {t.synonyms.length > 3 && (
+                  <span class="font-mono text-[10px] uppercase tracking-widest text-soft px-2 py-0.5">+{t.synonyms.length - 3} more</span>
+                )}
+              </div>
+            )}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+</BaseLayout>
