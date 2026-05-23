@@ -812,34 +812,37 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
         ))}
       </div>
 
-      {/* X-axis scrubber — step through buckets to read individual values */}
-      <div className="mt-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
+      {/* X-axis time scrubber — bordered buttons make the control obviously tappable */}
+      <div
+        className="mt-4 pt-3 flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest"
+        style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
+      >
         <button
           type="button"
           onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
           disabled={activeIdx <= 0}
-          className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
+          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
           aria-label="Earlier bucket"
         >←</button>
-        <span className="flex-1 text-center opacity-60">{axisLabels[activeIdx] ?? ''}</span>
+        <div className="flex-1 text-center">
+          <div className="opacity-80">{axisLabels[activeIdx] ?? ''}</div>
+          <div className="mt-1 flex justify-center gap-3 flex-wrap">
+            {cards.map((c) => (
+              <span key={c.label} className="font-mono text-[10px]" style={{ color: c.color, opacity: 0.8 }}>
+                {c.short} {c.data[activeIdx] ?? 0}
+              </span>
+            ))}
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => setActiveIdx((i) => Math.min(nBuckets - 1, i + 1))}
           disabled={activeIdx >= nBuckets - 1}
-          className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
+          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
           aria-label="Later bucket"
         >→</button>
-      </div>
-      <div className="mt-1 flex gap-3 flex-wrap">
-        {cards.map((c) => (
-          <span
-            key={c.label}
-            className="font-mono text-[10px] uppercase tracking-widest"
-            style={{ color: c.color, opacity: 0.75 }}
-          >
-            {c.short} {c.data[activeIdx] ?? 0}
-          </span>
-        ))}
       </div>
     </div>
   );
