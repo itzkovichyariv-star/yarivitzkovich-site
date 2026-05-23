@@ -1,12 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import BreakdownDrawer from '../../components/BreakdownDrawer';
-import { getCollection } from 'astro:content';
-
-// We need the publications list for paper-title resolution inside the
-// event browser (same data the /live page passes to BreakdownDrawer).
-const entries = await getCollection('publications');
-const papers = entries.map((e) => ({ slug: e.data.slug, title: e.data.title }));
 ---
 <BaseLayout
   title="Events — Admin — Yariv Itzkovich"
@@ -22,16 +16,13 @@ const papers = entries.map((e) => ({ slug: e.data.slug, title: e.data.title }));
     >
       Events.
     </h1>
-    <p class="text-muted leading-relaxed mb-10 max-w-2xl">
-      Every visit and download since launch, with geo and timing details. Filter by range. Same data the live globe shows, presented for inspection.
-    </p>
 
     <div id="gate" class="text-muted leading-relaxed" style="display: none">
       Not signed in as owner. <a href="/manage" class="underline underline-offset-4">Go back</a>.
     </div>
 
     <div id="events-content" style="display: none">
-      <BreakdownDrawer client:load open={true} onClose={() => {}} papers={papers} mode="inline" />
+      <BreakdownDrawer client:load open={true} onClose={() => {}} mode="inline" />
     </div>
   </section>
 
