@@ -457,7 +457,10 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
             />
           </div>
         ) : (
-          <GrowthCharts events={events} range={range} />
+          <>
+            <GrowthCharts events={events} range={range} />
+            <PaperBreakdown events={events} />
+          </>
         )}
 
     </>
@@ -834,6 +837,84 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
             <div className="mt-2">
               <Sparkline data={c.data} color={c.color} activeIdx={activeIdx} />
             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PaperBreakdown({ events }: { events: DetailEvent[] }) {
+  const breakdown = useMemo(() => {
+    const bySlug = new Map<string, { title: string; count: number; countries: Map<string, number> }>();
+    for (const e of events) {
+      if (e.is_bot || e.kind !== 'download' || !e.paper_slug) continue;
+      const slug = e.paper_slug;
+      const title = e.paper_title || slug.replace(/-/g, ' ');
+      if (!bySlug.has(slug)) bySlug.set(slug, { title, count: 0, countries: new Map() });
+      const entry = bySlug.get(slug)!;
+      entry.count++;
+      const loc = e.country_name || e.continent_name || 'Unknown';
+      entry.countries.set(loc, (entry.countries.get(loc) ?? 0) + 1);
+    }
+    return Array.from(bySlug.entries())
+      .map(([slug, { title, count, countries }]) => ({
+        slug,
+        title,
+        count,
+        locations: Array.from(countries.entries())
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 6)
+          .map(([label, n]) => ({ label, n })),
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [events]);
+
+  if (breakdown.length === 0) return null;
+
+  return (
+    <div
+      className="mt-8 pt-6"
+      style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
+    >
+      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
+        Downloads · by paper
+      </div>
+      <div className="space-y-5">
+        {breakdown.map((p) => (
+          <div key={p.slug}>
+            <div className="flex items-start justify-between gap-4">
+              <a
+                href={`/publications/${p.slug}`}
+                className="font-display text-sm leading-snug opacity-90 hover:opacity-100 transition-opacity"
+                style={{
+                  color: 'var(--text)',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'transparent',
+                  textUnderlineOffset: '3px',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.textDecorationColor = 'currentColor')}
+                onMouseLeave={(e) => (e.currentTarget.style.textDecorationColor = 'transparent')}
+              >
+                {p.title}
+              </a>
+              <span
+                className="font-mono text-xs whitespace-nowrap shrink-0"
+                style={{ color: CLASS_COLORS.download, fontVariantNumeric: 'tabular-nums' }}
+              >
+                ↓ {p.count}
+              </span>
+            </div>
+            {p.locations.length > 0 && (
+              <div
+                className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-widest"
+                style={{ opacity: 0.45 }}
+              >
+                {p.locations.map((loc) => (
+                  <span key={loc.label}>{loc.label} {loc.n}</span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
