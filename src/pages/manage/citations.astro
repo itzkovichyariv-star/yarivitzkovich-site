@@ -76,14 +76,17 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         <div class="border rounded-lg p-5 text-center" style="border-color: var(--divider)">
           <div id="stat-h" class="text-3xl font-display mb-1" style="font-weight: 300">—</div>
           <div class="font-mono text-[10px] uppercase tracking-widest text-soft">h-index</div>
+          <div id="stat-h-since" class="font-mono text-[10px] text-soft mt-1" style="display:none"></div>
         </div>
         <div class="border rounded-lg p-5 text-center" style="border-color: var(--divider)">
           <div id="stat-i10" class="text-3xl font-display mb-1" style="font-weight: 300">—</div>
           <div class="font-mono text-[10px] uppercase tracking-widest text-soft">i-10 index</div>
+          <div id="stat-i10-since" class="font-mono text-[10px] text-soft mt-1" style="display:none"></div>
         </div>
         <div class="border rounded-lg p-5 text-center" style="border-color: var(--divider)">
           <div id="stat-total" class="text-3xl font-display mb-1" style="font-weight: 300">—</div>
           <div class="font-mono text-[10px] uppercase tracking-widest text-soft">Total citations</div>
+          <div id="stat-total-since" class="font-mono text-[10px] text-soft mt-1" style="display:none"></div>
         </div>
       </div>
       <!-- Row 2: self vs external citation breakdown -->
@@ -143,6 +146,9 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
       var progressBar  = document.getElementById('progress-bar');
       var progressFill = document.getElementById('progress-fill');
       var progressLbl  = document.getElementById('progress-label');
+      var statHSince     = document.getElementById('stat-h-since');
+      var statI10Since   = document.getElementById('stat-i10-since');
+      var statTotalSince = document.getElementById('stat-total-since');
 
       var progressTimer = null;
       function startProgress() {
@@ -194,33 +200,37 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
           .replace(/$/,'</p>');
       }
 
+      // Works for both GS format (is_self flag) and S2 format (authors array)
       function isSelf(citing) {
+        if (typeof citing.is_self === 'boolean') return citing.is_self;
+        if (typeof citing.authors === 'string') return citing.authors.toLowerCase().includes('itzkovich');
         return (citing.authors || []).some(function (a) {
           return (a.name || '').toLowerCase().includes('itzkovich');
         });
+      }
+
+      function renderCitingRow(c) {
+        // Handles both GS (authors = string) and S2 (authors = array) formats
+        var authors = typeof c.authors === 'string'
+          ? esc(c.authors.split(',').slice(0, 3).join(', '))
+          : (c.authors || []).slice(0, 2).map(function (a) { return esc(a.name || ''); }).join(', ');
+        var doi = (c.externalIds || {}).DOI;
+        var cTitle = esc(c.title || 'Untitled');
+        var linked = doi
+          ? '<a href="https://doi.org/' + esc(doi) + '" target="_blank" rel="noopener" class="underline underline-offset-2 hover:opacity-70">' + cTitle + '</a>'
+          : cTitle;
+        return '<div class="text-soft mt-1 ml-4 text-xs">· ' + linked +
+          (c.year ? ' (' + c.year + ')' : '') +
+          (authors ? ' — ' + authors : '') + '</div>';
       }
 
       function renderPaper(p) {
         var title    = esc(titleMap[p.paper_slug] || p.paper_slug);
         var selfN    = p.self_citation_count || 0;
         var external = (p.citation_count || 0) - selfN;
-        var s2url    = p.semantic_scholar_id
-          ? 'https://www.semanticscholar.org/paper/' + esc(p.semantic_scholar_id)
-          : null;
 
-        // Show external citations first, then self-citations collapsed at end
         var externalCiting = (p.citing_papers || []).filter(function (c) { return !isSelf(c); });
-        var topCiting = externalCiting.slice(0, 4).map(function (c) {
-          var authors = (c.authors || []).slice(0, 2).map(function (a) { return esc(a.name || ''); }).join(', ');
-          var doi = (c.externalIds || {}).DOI;
-          var cTitle = esc(c.title || 'Untitled');
-          var linked = doi
-            ? '<a href="https://doi.org/' + esc(doi) + '" target="_blank" rel="noopener" class="underline underline-offset-2 hover:opacity-70">' + cTitle + '</a>'
-            : cTitle;
-          return '<div class="text-soft mt-1 ml-4 text-xs">· ' + linked +
-            (c.year ? ' (' + c.year + ')' : '') +
-            (authors ? ' — ' + authors : '') + '</div>';
-        }).join('');
+        var topCiting = externalCiting.slice(0, 4).map(renderCitingRow).join('');
 
         var selfTag = selfN > 0
           ? '<span class="font-mono text-[10px] uppercase tracking-widest" style="opacity:.5">' + selfN + ' self</span>'
@@ -229,34 +239,50 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         return [
           '<div class="flex items-start justify-between gap-4 flex-wrap mb-2">',
             '<div class="font-display" style="font-weight:400">' + title + '</div>',
-            '<div class="flex items-center gap-3 font-mono text-xs text-soft shrink-0">',
-              s2url ? '<a href="' + s2url + '" target="_blank" rel="noopener" class="underline underline-offset-2 hover:opacity-70">S2 ↗</a>' : '',
-              '<span>fetched ' + esc(fmtTs(p.fetched_at)) + '</span>',
-            '</div>',
+            '<span class="font-mono text-xs text-soft shrink-0">fetched ' + esc(fmtTs(p.fetched_at)) + '</span>',
           '</div>',
           '<div class="flex gap-4 items-baseline font-mono text-xs text-muted mb-1">',
             '<span style="font-variant-numeric:tabular-nums">' + p.citation_count + ' total</span>',
             '<span>' + external + ' external</span>',
             selfTag,
-            p.doi ? '<span class="text-soft ml-auto">DOI&thinsp;' + esc(p.doi) + '</span>' : '<span class="text-soft ml-auto opacity-50">title search</span>',
+            p.doi ? '<span class="text-soft ml-auto">DOI&thinsp;' + esc(p.doi) + '</span>' : '',
           '</div>',
           topCiting ? '<div class="mt-2">' + topCiting + '</div>' : '',
         ].join('');
       }
 
       function showCitations(data) {
-        var total = data.totalCitations || 0;
-        var self  = data.totalSelfCitations || 0;
-        var ext   = total - self;
-        var pct   = total > 0 ? Math.round(self / total * 100) : 0;
+        // Use authoritative GS metrics when available, fall back to computed
+        var gs     = data.gsMetrics || {};
+        var total  = gs.citations  || data.totalCitations || 0;
+        var h      = gs.h_index    || data.hIndex || 0;
+        var i10    = gs.i10_index  || data.i10 || 0;
+        var self   = data.totalSelfCitations || 0;
+        var ext    = total - self;
+        var pct    = total > 0 ? Math.round(self / total * 100) : 0;
 
         statTotal.textContent    = total.toLocaleString();
-        statH.textContent        = data.hIndex || 0;
-        statI10.textContent      = data.i10 || 0;
+        statH.textContent        = h;
+        statI10.textContent      = i10;
         statExternal.textContent = ext.toLocaleString();
         statSelf.textContent     = self.toLocaleString();
         statSelfLbl.textContent  = 'Self-citations (' + pct + '%)';
         statsRow.style.display   = '';
+
+        if (gs.h_index_since) {
+          statHSince.textContent = gs.h_index_since + ' since 2021';
+          statHSince.style.display = '';
+        } else { statHSince.style.display = 'none'; }
+
+        if (gs.i10_index_since) {
+          statI10Since.textContent = gs.i10_index_since + ' since 2021';
+          statI10Since.style.display = '';
+        } else { statI10Since.style.display = 'none'; }
+
+        if (gs.citations_since) {
+          statTotalSince.textContent = gs.citations_since.toLocaleString() + ' since 2021';
+          statTotalSince.style.display = '';
+        } else { statTotalSince.style.display = 'none'; }
 
         var papers = data.papers || [];
         if (papers.length === 0) { empty.style.display = ''; return; }

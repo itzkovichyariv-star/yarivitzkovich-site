@@ -161,7 +161,11 @@ export const onRequestGet = async ({ request, env }) => {
   const total     = papers.reduce((s, p) => s + p.citation_count, 0);
   const totalSelf = papers.reduce((s, p) => s + (p.self_citation_count || 0), 0);
 
-  return json({ ok: true, papers, hIndex, i10, totalCitations: total, totalSelfCitations: totalSelf });
+  // GS-level metrics (set by /api/scholar-sync) — more accurate than computed values
+  const gsMeta = await env.DB.prepare("SELECT value FROM site_meta WHERE key = 'gs_metrics'").first();
+  const gsMetrics = gsMeta ? JSON.parse(gsMeta.value || '{}') : null;
+
+  return json({ ok: true, papers, hIndex, i10, totalCitations: total, totalSelfCitations: totalSelf, gsMetrics });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
