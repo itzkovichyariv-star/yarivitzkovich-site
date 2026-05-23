@@ -769,11 +769,15 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
   }, [nBuckets]);
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
+  const cumSum = (arr: number[]) => {
+    let r = 0;
+    return arr.map((v) => (r += v));
+  };
   const cards = [
-    { label: 'Visits',     short: 'V',   total: sum(series.visits),    data: series.visits,    color: VISITS_COLOR },
-    { label: 'First-time', short: 'New', total: sum(series.firstTime), data: series.firstTime, color: CLASS_COLORS.first_time },
-    { label: 'Returning',  short: 'Ret', total: sum(series.returning), data: series.returning, color: CLASS_COLORS.returning },
-    { label: 'Downloads',  short: 'DL',  total: sum(series.downloads), data: series.downloads, color: CLASS_COLORS.download },
+    { label: 'Visits',     total: sum(series.visits),    data: series.visits,    cum: cumSum(series.visits),    color: VISITS_COLOR },
+    { label: 'First-time', total: sum(series.firstTime), data: series.firstTime, cum: cumSum(series.firstTime), color: CLASS_COLORS.first_time },
+    { label: 'Returning',  total: sum(series.returning), data: series.returning, cum: cumSum(series.returning), color: CLASS_COLORS.returning },
+    { label: 'Downloads',  total: sum(series.downloads), data: series.downloads, cum: cumSum(series.downloads), color: CLASS_COLORS.download },
   ];
 
   return (
@@ -817,12 +821,12 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
               />
               <span className="font-mono text-[11px] uppercase tracking-widest opacity-70">{c.label}</span>
             </div>
-            {/* Big number = THIS bucket; total shown small for context */}
+            {/* Big number = cumulative up to this bucket within the period */}
             <div
               className="font-display"
               style={{ fontSize: '2rem', fontWeight: 350, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}
             >
-              {(c.data[activeIdx] ?? 0).toLocaleString()}
+              {(c.cum[activeIdx] ?? 0).toLocaleString()}
             </div>
             <div className="font-mono text-[10px] opacity-35 mt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
               {c.total.toLocaleString()} total
