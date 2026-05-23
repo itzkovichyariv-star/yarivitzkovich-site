@@ -1,0 +1,72 @@
+name: Daily citations
+
+# Runs every day at 05:00 UTC (08:00 Israel Standard Time).
+# Fires one hour after the daily QC so the two jobs don't compete for
+# Semantic Scholar rate-limit headroom.
+#
+# What it does:
+#   1. Fetches the paper list from /papers-doi.json (generated at build time)
+#   2. POSTs it to /api/citations with the QC_SECRET token
+#   3. The function fetches from Semantic Scholar, updates the D1 cache,
+#      and emails the owner if any citation counts increased.
+#
+# Manual trigger: Actions tab → Daily citations → Run workflow.
+#
+# Required secret: QC_SECRET  (same token as the daily-qc workflow)
+# Optional env var: S2_API_KEY — set it in Cloudflare Pages to raise the
+#   Semantic Scholar rate limit and make the refresh significantly faster.
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  citations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Refresh citation cache on yarivitzkovich.org
+        env:
+          QC_SECRET: ${{ secrets.QC_SECRET }}
+        run: |
+          if [ -z "${QC_SECRET}" ]; then
+            echo "::error::QC_SECRET secret is not set."
+            echo "Add it under Settings → Secrets and variables → Actions → New repository secret."
+            exit 1
+          fi
+
+          # Fetch the paper list that Astro generated at build time
+          papers_json=$(curl --silent --show-error --fail-with-body \
+            --max-time 15 \
+            https://yarivitzkovich.org/papers-doi.json)
+
+          echo "Paper list fetched. Paper count:"
+          echo "${papers_json}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('papers', [])))"
+
+          # POST to /api/citations — this can take several minutes depending
+          # on how many papers have citations (each requires a follow-up call
+          # to fetch the citing-paper list).
+          response=$(curl --silent --show-error --fail-with-body \
+            --max-time 600 \
+            -X POST https://yarivitzkovich.org/api/citations \
+            -H "x-qc-token: ${QC_SECRET}" \
+            -H "content-type: application/json" \
+            -d "${papers_json}")
+
+          echo "Response:"
+          echo "${response}" | python3 -m json.tool
+
+          refreshed=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('refreshed', 0))")
+          increases=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('increases', [])))")
+          not_found=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('not_found', 0))")
+          errors=$(echo "${response}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('errors', [])))")
+
+          echo "::notice::Refreshed ${refreshed} papers, ${increases} citation increase(s), ${not_found} not found, ${errors} error(s)."
+
+          if [ "${increases}" != "0" ]; then
+            echo "::notice::Citation counts increased — owner email sent."
+          fi
+          if [ "${errors}" != "0" ]; then
+            echo "::warning::${errors} paper(s) had errors during refresh — check the response above."
+          fi

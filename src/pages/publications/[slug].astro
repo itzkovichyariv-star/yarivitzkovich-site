@@ -247,6 +247,12 @@ const jsonLd = {
           DOI ↗
         </a>
       )}
+      <span
+        id="cited-by-badge"
+        class="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm border"
+        style="display: none !important; border-color: var(--divider); opacity: 0.75"
+        aria-label="Citation count from Semantic Scholar"
+      ></span>
       {pub.abstract && (
         <button
           type="button"
@@ -290,6 +296,21 @@ const jsonLd = {
           btn.addEventListener('focus', function () { btn.dataset.hover = '1'; render(); });
           btn.addEventListener('blur', function () { btn.dataset.hover = '0'; render(); });
         }
+      })();
+    </script>
+
+    <script is:inline define:vars={{ pubSlug: pub.slug }}>
+      (function () {
+        var badge = document.getElementById('cited-by-badge');
+        if (!badge) return;
+        fetch('/api/citations?slug=' + encodeURIComponent(pubSlug))
+          .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+          .then(function (data) {
+            if (!data.ok || typeof data.citation_count !== 'number') return;
+            badge.textContent = 'Cited by ' + data.citation_count;
+            badge.style.removeProperty('display');
+          })
+          .catch(function () {});
       })();
     </script>
 
