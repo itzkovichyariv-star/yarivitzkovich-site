@@ -58,6 +58,103 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
   { key: 'all', label: 'All time' },
 ];
 
+type PeriodType = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+const PERIOD_OPTIONS: Array<{ key: PeriodType; label: string }> = [
+  { key: 'day',     label: 'Day' },
+  { key: 'week',    label: 'Week' },
+  { key: 'month',   label: 'Month' },
+  { key: 'quarter', label: 'Quarter' },
+  { key: 'year',    label: 'Year' },
+];
+
+function getPeriodBounds(type: PeriodType, offset: number): { from: number; to: number; label: string } {
+  const now = new Date();
+  const nowSec = Math.floor(now.getTime() / 1000);
+
+  if (type === 'day') {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);
+    const from = Math.floor(d.getTime() / 1000);
+    const to = offset === 0 ? nowSec : from + 86400 - 1;
+    return { from, to, label: d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) };
+  }
+
+  if (type === 'week') {
+    const dow = (now.getDay() + 6) % 7; // 0 = Monday
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow + offset * 7);
+    const weekEnd   = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
+    const from = Math.floor(weekStart.getTime() / 1000);
+    const to   = offset === 0 ? nowSec : Math.floor(weekEnd.getTime() / 1000) + 86399;
+    const label = weekStart.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) +
+      ' – ' + weekEnd.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    return { from, to, label };
+  }
+
+  if (type === 'month') {
+    const d       = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+    return {
+      from:  Math.floor(d.getTime() / 1000),
+      to:    offset === 0 ? nowSec : Math.floor(monthEnd.getTime() / 1000),
+      label: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+    };
+  }
+
+  if (type === 'quarter') {
+    const curQ   = Math.floor(now.getMonth() / 3);
+    const totalQ = curQ + offset;
+    const year   = now.getFullYear() + Math.floor(totalQ >= 0 ? totalQ / 4 : (totalQ - 3) / 4);
+    const qIdx   = ((totalQ % 4) + 4) % 4;
+    const qStart = new Date(year, qIdx * 3, 1);
+    const qEnd   = new Date(year, qIdx * 3 + 3, 0, 23, 59, 59);
+    return {
+      from:  Math.floor(qStart.getTime() / 1000),
+      to:    offset === 0 ? nowSec : Math.floor(qEnd.getTime() / 1000),
+      label: `Q${qIdx + 1} ${year}`,
+    };
+  }
+
+  // year
+  const year    = now.getFullYear() + offset;
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59);
+  return {
+    from:  Math.floor(new Date(year, 0, 1).getTime() / 1000),
+    to:    offset === 0 ? nowSec : Math.floor(yearEnd.getTime() / 1000),
+    label: String(year),
+  };
+}
+
+// Bucket events between explicit from/to bounds (used by the compare panels).
+function bucketEventsByPeriod(
+  events: DetailEvent[],
+  fromSec: number,
+  toSec: number,
+): { bucketLabel: string; series: { visits: number[]; firstTime: number[]; returning: number[]; downloads: number[] } } {
+  const span = Math.max(1, toSec - fromSec);
+  let buckets: number, sizeSec: number, label: string;
+  if      (span <= 2 * 86400)   { buckets = Math.max(2, Math.ceil(span / 3600)); sizeSec = 3600;                  label = 'hour'; }
+  else if (span <= 14 * 86400)  { buckets = Math.ceil(span / 86400);              sizeSec = 86400;                 label = 'day'; }
+  else if (span <= 100 * 86400) { buckets = 13;                                   sizeSec = Math.ceil(span / 13);  label = 'week'; }
+  else if (span <= 400 * 86400) { buckets = 12;                                   sizeSec = Math.ceil(span / 12);  label = 'month'; }
+  else                          { buckets = 12;                                   sizeSec = Math.ceil(span / 12);  label = 'quarter'; }
+
+  const visits    = Array<number>(buckets).fill(0);
+  const firstTime = Array<number>(buckets).fill(0);
+  const returning = Array<number>(buckets).fill(0);
+  const downloads = Array<number>(buckets).fill(0);
+
+  for (const e of events) {
+    if (e.is_bot) continue;
+    if (e.ts < fromSec || e.ts > toSec) continue;
+    let idx = Math.floor((e.ts - fromSec) / sizeSec);
+    if (idx < 0) idx = 0;
+    if (idx >= buckets) idx = buckets - 1;
+    if (e.kind === 'download') downloads[idx]++;
+    else { visits[idx]++; if (e.visitor_class === 'returning') returning[idx]++; else firstTime[idx]++; }
+  }
+  return { bucketLabel: label, series: { visits, firstTime, returning, downloads } };
+}
+
 // Visits-aggregate color (matches the GlobeHUD "visits" pill).
 const VISITS_COLOR = '#9DB3BE';
 
@@ -134,24 +231,32 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [compareMode, setCompareMode] = useState(false);
-  const [rangeB, setRangeB] = useState<RangeKey>('30d');
+  // Compare panel A — period type + step offset (0 = current, -1 = previous, …)
+  const [periodTypeA, setPeriodTypeA] = useState<PeriodType>('month');
+  const [offsetA, setOffsetA] = useState(0);
+  // Compare panel B — defaults to previous month so the comparison is immediately useful
+  const [periodTypeB, setPeriodTypeB] = useState<PeriodType>('month');
+  const [offsetB, setOffsetB] = useState(-1);
   const [eventsB, setEventsB] = useState<DetailEvent[]>([]);
   const [loadingB, setLoadingB] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fetch events when the drawer opens or the range changes — and re-poll
-  // every 30 seconds while open so the breakdown reflects live activity
-  // without requiring the owner to close + reopen the drawer.
+  // Fetch events for panel A. In normal mode uses the relative ?range= key;
+  // in compare mode uses exact ?from=&to= bounds from the period picker.
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
 
     const load = (showSpinner: boolean) => {
-      if (showSpinner) {
-        setLoading(true);
-        setError(null);
+      if (showSpinner) { setLoading(true); setError(null); }
+      let url: string;
+      if (compareMode) {
+        const { from, to } = getPeriodBounds(periodTypeA, offsetA);
+        url = `/live/details?from=${from}&to=${to}`;
+      } else {
+        url = `/live/details?range=${range}`;
       }
-      fetch(`/live/details?range=${range}`, { credentials: 'same-origin' })
+      fetch(url, { credentials: 'same-origin' })
         .then((r) => {
           if (r.status === 401) throw new Error('unauthorized');
           if (!r.ok) throw new Error(`http_${r.status}`);
@@ -178,20 +283,18 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
       load(false);
     }, 30_000);
 
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [isOpen, range]);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [isOpen, range, compareMode, periodTypeA, offsetA]);
 
-  // Fetch comparison-panel events whenever compare mode is on or rangeB changes.
+  // Fetch comparison panel B using the period picker bounds.
   useEffect(() => {
     if (!isOpen || !compareMode) return;
     let cancelled = false;
 
     const loadB = (showSpinner: boolean) => {
       if (showSpinner) setLoadingB(true);
-      fetch(`/live/details?range=${rangeB}`, { credentials: 'same-origin' })
+      const { from, to } = getPeriodBounds(periodTypeB, offsetB);
+      fetch(`/live/details?from=${from}&to=${to}`, { credentials: 'same-origin' })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (cancelled || !data) return;
@@ -206,7 +309,7 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
       if (!document.hidden) loadB(false);
     }, 30_000);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [isOpen, compareMode, rangeB]);
+  }, [isOpen, compareMode, periodTypeB, offsetB]);
 
   // ESC dismissal — only relevant in modal mode.
   useEffect(() => {
@@ -354,8 +457,24 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
         {/* Growth-over-time sparklines — single view or side-by-side compare */}
         {compareMode ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-2">
-            <ComparePanel label="A" events={events} range={range} onRangeChange={setRange} loading={loading} />
-            <ComparePanel label="B" events={eventsB} range={rangeB} onRangeChange={setRangeB} loading={loadingB} />
+            <ComparePanel
+              label="A"
+              events={events}
+              periodType={periodTypeA}
+              offset={offsetA}
+              onPeriodTypeChange={(t) => { setPeriodTypeA(t); setOffsetA(0); }}
+              onOffsetChange={setOffsetA}
+              loading={loading}
+            />
+            <ComparePanel
+              label="B"
+              events={eventsB}
+              periodType={periodTypeB}
+              offset={offsetB}
+              onPeriodTypeChange={(t) => { setPeriodTypeB(t); setOffsetB(-1); }}
+              onOffsetChange={setOffsetB}
+              loading={loadingB}
+            />
           </div>
         ) : (
           <GrowthCharts events={events} range={range} />
@@ -506,29 +625,39 @@ function truncate(s: string, max: number): string {
 function ComparePanel({
   label,
   events,
-  range,
-  onRangeChange,
+  periodType,
+  offset,
+  onPeriodTypeChange,
+  onOffsetChange,
   loading,
 }: {
   label: string;
   events: DetailEvent[];
-  range: RangeKey;
-  onRangeChange: (r: RangeKey) => void;
+  periodType: PeriodType;
+  offset: number;
+  onPeriodTypeChange: (t: PeriodType) => void;
+  onOffsetChange: (o: number) => void;
   loading?: boolean;
 }) {
+  const { from, to, label: periodLabel } = useMemo(
+    () => getPeriodBounds(periodType, offset),
+    [periodType, offset],
+  );
+
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap font-mono text-[10px] uppercase tracking-widest mb-3">
+      {/* Period type tabs */}
+      <div className="flex items-center gap-3 flex-wrap font-mono text-[10px] uppercase tracking-widest mb-2">
         <span className="opacity-35" style={{ userSelect: 'none' }}>{label} ·</span>
-        {RANGE_OPTIONS.map((opt) => (
+        {PERIOD_OPTIONS.map((opt) => (
           <button
             key={opt.key}
             type="button"
-            onClick={() => onRangeChange(opt.key)}
+            onClick={() => onPeriodTypeChange(opt.key)}
             className="hover:opacity-100 transition-opacity"
             style={{
-              opacity: range === opt.key ? 1 : 0.45,
-              borderBottom: range === opt.key ? '1px solid currentColor' : '1px solid transparent',
+              opacity: periodType === opt.key ? 1 : 0.45,
+              borderBottom: periodType === opt.key ? '1px solid currentColor' : '1px solid transparent',
               paddingBottom: '2px',
             }}
           >
@@ -537,7 +666,30 @@ function ComparePanel({
         ))}
         {loading && <span className="opacity-40">Loading…</span>}
       </div>
-      <GrowthCharts events={events} range={range} compact />
+
+      {/* Period navigator: ← May 2026 → */}
+      <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest mb-4">
+        <button
+          type="button"
+          onClick={() => onOffsetChange(offset - 1)}
+          className="opacity-55 hover:opacity-100 transition-opacity px-1"
+          aria-label="Previous period"
+        >
+          ←
+        </button>
+        <span className="opacity-90 min-w-[7rem] text-center">{periodLabel}</span>
+        <button
+          type="button"
+          onClick={() => onOffsetChange(offset + 1)}
+          disabled={offset >= 0}
+          className="opacity-55 hover:opacity-100 transition-opacity px-1 disabled:opacity-20"
+          aria-label="Next period"
+        >
+          →
+        </button>
+      </div>
+
+      <GrowthCharts events={events} periodFrom={from} periodTo={to} compact />
     </div>
   );
 }
@@ -547,8 +699,19 @@ function ComparePanel({
 // first-time, returning, and downloads — bucketed across the selected
 // range. Pure client-side: re-buckets the event list we already fetched
 // for the row breakdowns, so no extra API call.
-function GrowthCharts({ events, range, compact }: { events: DetailEvent[]; range: RangeKey; compact?: boolean }) {
-  const { bucketLabel, series } = useMemo(() => bucketEvents(events, range), [events, range]);
+function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
+  events: DetailEvent[];
+  range?: RangeKey;
+  periodFrom?: number;
+  periodTo?: number;
+  compact?: boolean;
+}) {
+  const { bucketLabel, series } = useMemo(
+    () => (periodFrom !== undefined && periodTo !== undefined)
+      ? bucketEventsByPeriod(events, periodFrom, periodTo)
+      : bucketEvents(events, range ?? '7d'),
+    [events, range, periodFrom, periodTo],
+  );
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
   const cards = [

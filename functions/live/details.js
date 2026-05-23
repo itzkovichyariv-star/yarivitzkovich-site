@@ -32,17 +32,35 @@ export const onRequestGet = async ({ request, env }) => {
   }
 
   const url = new URL(request.url);
-  const rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
-  if (!(rangeKey in RANGE_SECONDS)) {
-    return new Response(JSON.stringify({ ok: false, error: 'invalid_range' }), {
-      status: 400,
-      headers: { 'content-type': 'application/json' },
-    });
-  }
+  // Accept either explicit bounds (?from=<unix>&to=<unix>) for the
+  // compare-panel period navigation, or the relative ?range= key used
+  // by the single-panel and legacy callers.
+  const fromParam = url.searchParams.get('from');
+  const toParam   = url.searchParams.get('to');
+  let sinceTs, untilTs;
 
-  const sinceTs = RANGE_SECONDS[rangeKey] === null
-    ? 0
-    : Math.floor(Date.now() / 1000) - RANGE_SECONDS[rangeKey];
+  if (fromParam && toParam) {
+    sinceTs  = parseInt(fromParam, 10);
+    untilTs  = parseInt(toParam, 10);
+    if (isNaN(sinceTs) || isNaN(untilTs) || sinceTs >= untilTs) {
+      return new Response(JSON.stringify({ ok: false, error: 'invalid_range' }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+  } else {
+    const rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
+    if (!(rangeKey in RANGE_SECONDS)) {
+      return new Response(JSON.stringify({ ok: false, error: 'invalid_range' }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    sinceTs = RANGE_SECONDS[rangeKey] === null
+      ? 0
+      : Math.floor(Date.now() / 1000) - RANGE_SECONDS[rangeKey];
+    untilTs = Math.floor(Date.now() / 1000);
+  }
 
   // Pull the full row — including page_path, ua_class, is_bot which the
   // public endpoint omits. The drawer needs everything to render the
@@ -56,11 +74,11 @@ export const onRequestGet = async ({ request, env }) => {
          city, region, lat, lng,
          ua_class, is_bot
        FROM events
-       WHERE ts >= ?
+       WHERE ts >= ? AND ts <= ?
        ORDER BY ts DESC
        LIMIT ?`
     )
-    .bind(sinceTs, MAX_ROWS)
+    .bind(sinceTs, untilTs, MAX_ROWS)
     .all();
 
   const events = result.results || [];
