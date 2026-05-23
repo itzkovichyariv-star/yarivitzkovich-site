@@ -258,24 +258,21 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
           ? '<span class="font-mono text-[10px] uppercase tracking-widest" style="opacity:.5">' + selfN + ' self</span>'
           : '';
 
-        // Journal metrics badge
+        // Journal metrics badge — JCR quartile + Impact Factor
         var venue    = venueMap[p.paper_slug] || '';
         var jKey     = normVenue(venue);
         var jm       = journalMetrics[jKey];
         var jBadge   = '';
         if (jm) {
           var qColor = { Q1: '#2d7d2d', Q2: '#5c7a2d', Q3: '#7a5c2d', Q4: '#7a2d2d' };
-          var qStyle = jm.best_quartile
-            ? 'background:' + (qColor[jm.best_quartile] || '#555') + ';color:#fff;padding:1px 5px;border-radius:3px'
+          var q      = jm.jcr_quartile || jm.best_quartile;
+          var qStyle = q ? 'background:' + (qColor[q] || '#555') + ';color:#fff;padding:1px 5px;border-radius:3px' : '';
+          var qTag   = q ? '<span style="' + qStyle + '" class="font-mono text-[10px]">' + q + '</span>' : '';
+          var ifTag  = jm.impact_factor
+            ? '<span class="font-mono text-[10px] text-soft">IF&thinsp;' + Number(jm.impact_factor).toFixed(3) + '</span>'
             : '';
-          var qTag = jm.best_quartile
-            ? '<span style="' + qStyle + '" class="font-mono text-[10px]">' + jm.best_quartile + '</span>'
-            : '';
-          var sjrTag = jm.sjr
-            ? '<span class="font-mono text-[10px] text-soft">SJR&thinsp;' + Number(jm.sjr).toFixed(3) + '</span>'
-            : '';
-          if (qTag || sjrTag) {
-            jBadge = '<span class="flex items-center gap-2">' + qTag + sjrTag + '</span>';
+          if (qTag || ifTag) {
+            jBadge = '<span class="flex items-center gap-2">' + qTag + ifTag + '</span>';
           }
         }
 

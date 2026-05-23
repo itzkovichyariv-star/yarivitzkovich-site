@@ -1,6 +1,6 @@
 // POST /api/journal-sync
-// Receives Scimago journal metrics from the monthly-journal-sync GitHub Actions
-// workflow and upserts them into the journal_metrics D1 table.
+// Receives JCR metrics from the Clarivate WOS Journals API (via GitHub Actions
+// annual-journal-sync workflow) and upserts them into the journal_metrics D1 table.
 //
 // GET /api/journal-sync
 // Owner-only: returns all stored journal metrics.
@@ -22,7 +22,7 @@ export const onRequestGet = async ({ request, env }) => {
 
   const rows = (
     await env.DB
-      .prepare('SELECT * FROM journal_metrics ORDER BY best_quartile ASC, sjr DESC')
+      .prepare('SELECT * FROM journal_metrics ORDER BY jcr_quartile ASC, impact_factor DESC')
       .all()
   ).results || [];
 
@@ -51,16 +51,28 @@ export const onRequestPost = async ({ request, env }) => {
     if (!j.journal_key) continue;
     await env.DB
       .prepare(
-        `INSERT INTO journal_metrics (journal_key, journal_name, sjr, best_quartile, h_index, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO journal_metrics
+           (journal_key, journal_name, sjr, best_quartile, h_index, impact_factor, jcr_quartile, fetched_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(journal_key) DO UPDATE SET
            journal_name  = excluded.journal_name,
            sjr           = excluded.sjr,
            best_quartile = excluded.best_quartile,
            h_index       = excluded.h_index,
+           impact_factor = excluded.impact_factor,
+           jcr_quartile  = excluded.jcr_quartile,
            fetched_at    = excluded.fetched_at`
       )
-      .bind(j.journal_key, j.journal_name, j.sjr ?? null, j.best_quartile ?? null, j.h_index ?? null, nowTs)
+      .bind(
+        j.journal_key,
+        j.journal_name,
+        j.sjr          ?? null,
+        j.best_quartile ?? null,
+        j.h_index      ?? null,
+        j.impact_factor ?? null,
+        j.jcr_quartile  ?? null,
+        nowTs
+      )
       .run();
     stored++;
   }
