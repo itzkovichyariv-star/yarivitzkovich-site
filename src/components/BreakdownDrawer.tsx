@@ -778,9 +778,27 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
 
   return (
     <div className={compact ? 'mb-4' : 'mb-8'}>
-      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-3">
-        Growth · per {bucketLabel}
+      {/* Scrubber sits above the charts — it's the shared time context */}
+      <div className="flex items-center gap-3 mb-4 font-mono text-[11px] uppercase tracking-widest">
+        <button
+          type="button"
+          onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
+          disabled={activeIdx <= 0}
+          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
+          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
+          aria-label="Earlier bucket"
+        >←</button>
+        <span className="flex-1 text-center opacity-75">{axisLabels[activeIdx] ?? ''}</span>
+        <button
+          type="button"
+          onClick={() => setActiveIdx((i) => Math.min(nBuckets - 1, i + 1))}
+          disabled={activeIdx >= nBuckets - 1}
+          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
+          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
+          aria-label="Later bucket"
+        >→</button>
       </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
         {cards.map((c) => (
           <div key={c.label}>
@@ -799,50 +817,21 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
               />
               <span className="font-mono text-[11px] uppercase tracking-widest opacity-70">{c.label}</span>
             </div>
+            {/* Big number = THIS bucket; total shown small for context */}
             <div
               className="font-display"
               style={{ fontSize: '2rem', fontWeight: 350, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}
             >
-              {c.total.toLocaleString()}
+              {(c.data[activeIdx] ?? 0).toLocaleString()}
+            </div>
+            <div className="font-mono text-[10px] opacity-35 mt-0.5" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {c.total.toLocaleString()} total
             </div>
             <div className="mt-2">
               <Sparkline data={c.data} color={c.color} activeIdx={activeIdx} />
             </div>
           </div>
         ))}
-      </div>
-
-      {/* X-axis time scrubber — bordered buttons make the control obviously tappable */}
-      <div
-        className="mt-4 pt-3 flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest"
-        style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
-          disabled={activeIdx <= 0}
-          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
-          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
-          aria-label="Earlier bucket"
-        >←</button>
-        <div className="flex-1 text-center">
-          <div className="opacity-80">{axisLabels[activeIdx] ?? ''}</div>
-          <div className="mt-1 flex justify-center gap-3 flex-wrap">
-            {cards.map((c) => (
-              <span key={c.label} className="font-mono text-[10px]" style={{ color: c.color, opacity: 0.8 }}>
-                {c.short} {c.data[activeIdx] ?? 0}
-              </span>
-            ))}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setActiveIdx((i) => Math.min(nBuckets - 1, i + 1))}
-          disabled={activeIdx >= nBuckets - 1}
-          className="hover:opacity-100 transition-opacity disabled:opacity-20 px-2 py-1 rounded"
-          style={{ opacity: 0.65, border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)' }}
-          aria-label="Later bucket"
-        >→</button>
       </div>
     </div>
   );
