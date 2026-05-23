@@ -8,7 +8,20 @@ import tailwindcss from '@tailwindcss/vite';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://yarivitzkovich.org',
-  integrations: [react(), mdx(), sitemap()],
+  integrations: [
+    react(),
+    mdx(),
+    sitemap({
+      // Exclude private/admin and double-opt-in confirmation routes. These
+      // are already Disallow'd in /public/robots.txt; listing them in the
+      // sitemap as well sends mixed signals to crawlers ("you said don't
+      // crawl, but here's the URL?"). Cleaner to omit them entirely.
+      filter: (page) =>
+        !page.includes('/manage') &&
+        !page.includes('/subscribe-confirm') &&
+        !page.includes('/api/'),
+    }),
+  ],
   vite: {
     plugins: [tailwindcss()],
   },

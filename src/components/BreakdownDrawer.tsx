@@ -133,6 +133,10 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
   const [counts, setCounts] = useState<Counts>({ firstTime: 0, returning: 0, downloads: 0, bots: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [rangeB, setRangeB] = useState<RangeKey>('30d');
+  const [eventsB, setEventsB] = useState<DetailEvent[]>([]);
+  const [loadingB, setLoadingB] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Fetch events when the drawer opens or the range changes — and re-poll
@@ -179,6 +183,30 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
       window.clearInterval(id);
     };
   }, [isOpen, range]);
+
+  // Fetch comparison-panel events whenever compare mode is on or rangeB changes.
+  useEffect(() => {
+    if (!isOpen || !compareMode) return;
+    let cancelled = false;
+
+    const loadB = (showSpinner: boolean) => {
+      if (showSpinner) setLoadingB(true);
+      fetch(`/live/details?range=${rangeB}`, { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          setEventsB(data.events || []);
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled && showSpinner) setLoadingB(false); });
+    };
+
+    loadB(true);
+    const id = window.setInterval(() => {
+      if (!document.hidden) loadB(false);
+    }, 30_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [isOpen, compareMode, rangeB]);
 
   // ESC dismissal — only relevant in modal mode.
   useEffect(() => {
@@ -270,25 +298,45 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
         {/* Header: time-range tabs + close button */}
         <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap font-mono text-xs uppercase tracking-widest">
-            <span className="text-soft">Range</span>
-            {RANGE_OPTIONS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setRange(key)}
-                className="hover:opacity-100 transition-opacity"
-                style={{
-                  opacity: range === key ? 1 : 0.55,
-                  borderBottom: range === key ? '1px solid currentColor' : '1px solid transparent',
-                  paddingBottom: '2px',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+            {!compareMode && (
+              <>
+                <span className="opacity-35" style={{ cursor: 'default', userSelect: 'none' }}>Range ·</span>
+                {RANGE_OPTIONS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setRange(key)}
+                    className="hover:opacity-100 transition-opacity"
+                    style={{
+                      opacity: range === key ? 1 : 0.55,
+                      borderBottom: range === key ? '1px solid currentColor' : '1px solid transparent',
+                      paddingBottom: '2px',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </>
+            )}
             {loading && <span className="opacity-50">Loading…</span>}
             {error === 'unauthorized' && <span className="opacity-70">Sign in as owner first.</span>}
             {error && error !== 'unauthorized' && <span className="opacity-70">Couldn't load.</span>}
+            <button
+              type="button"
+              onClick={() => setCompareMode((v) => {
+                if (v) setEventsB([]);
+                return !v;
+              })}
+              className="hover:opacity-100 transition-opacity"
+              style={{
+                opacity: compareMode ? 1 : 0.45,
+                borderBottom: compareMode ? '1px solid currentColor' : '1px solid transparent',
+                paddingBottom: '2px',
+                marginLeft: compareMode ? undefined : '0.5rem',
+              }}
+            >
+              Compare
+            </button>
           </div>
 
           {!isInline && (
@@ -303,8 +351,15 @@ export default function BreakdownDrawer({ open, onClose, papers, mode = 'modal' 
           )}
         </div>
 
-        {/* Growth-over-time sparklines */}
-        <GrowthCharts events={events} range={range} />
+        {/* Growth-over-time sparklines — single view or side-by-side compare */}
+        {compareMode ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-2">
+            <ComparePanel label="A" events={events} range={range} onRangeChange={setRange} loading={loading} />
+            <ComparePanel label="B" events={eventsB} range={rangeB} onRangeChange={setRangeB} loading={loadingB} />
+          </div>
+        ) : (
+          <GrowthCharts events={events} range={range} />
+        )}
 
         {/* Three columns */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -448,12 +503,51 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+function ComparePanel({
+  label,
+  events,
+  range,
+  onRangeChange,
+  loading,
+}: {
+  label: string;
+  events: DetailEvent[];
+  range: RangeKey;
+  onRangeChange: (r: RangeKey) => void;
+  loading?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 flex-wrap font-mono text-[10px] uppercase tracking-widest mb-3">
+        <span className="opacity-35" style={{ userSelect: 'none' }}>{label} ·</span>
+        {RANGE_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onRangeChange(opt.key)}
+            className="hover:opacity-100 transition-opacity"
+            style={{
+              opacity: range === opt.key ? 1 : 0.45,
+              borderBottom: range === opt.key ? '1px solid currentColor' : '1px solid transparent',
+              paddingBottom: '2px',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+        {loading && <span className="opacity-40">Loading…</span>}
+      </div>
+      <GrowthCharts events={events} range={range} compact />
+    </div>
+  );
+}
+
 // Growth-over-time sparkline cards. Sits above the 3-column event lists
 // and shows the four primary metrics — visits (firstTime + returning),
 // first-time, returning, and downloads — bucketed across the selected
 // range. Pure client-side: re-buckets the event list we already fetched
 // for the row breakdowns, so no extra API call.
-function GrowthCharts({ events, range }: { events: DetailEvent[]; range: RangeKey }) {
+function GrowthCharts({ events, range, compact }: { events: DetailEvent[]; range: RangeKey; compact?: boolean }) {
   const { bucketLabel, series } = useMemo(() => bucketEvents(events, range), [events, range]);
 
   const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
@@ -465,7 +559,7 @@ function GrowthCharts({ events, range }: { events: DetailEvent[]; range: RangeKe
   ];
 
   return (
-    <div className="mb-8">
+    <div className={compact ? '' : 'mb-8'}>
       <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-3">
         Growth · per {bucketLabel}
       </div>
