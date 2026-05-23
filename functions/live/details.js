@@ -37,7 +37,7 @@ export const onRequestGet = async ({ request, env }) => {
   // by the single-panel and legacy callers.
   const fromParam = url.searchParams.get('from');
   const toParam   = url.searchParams.get('to');
-  let sinceTs, untilTs;
+  let sinceTs, untilTs, rangeKey;
 
   if (fromParam && toParam) {
     sinceTs  = parseInt(fromParam, 10);
@@ -49,7 +49,7 @@ export const onRequestGet = async ({ request, env }) => {
       });
     }
   } else {
-    const rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
+    rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
     if (!(rangeKey in RANGE_SECONDS)) {
       return new Response(JSON.stringify({ ok: false, error: 'invalid_range' }), {
         status: 400,
