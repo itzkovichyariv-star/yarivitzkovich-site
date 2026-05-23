@@ -27,11 +27,12 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4
+        run: pip install requests scholarly
 
       - name: Sync from Google Scholar
         env:
           QC_SECRET: ${{ secrets.QC_SECRET }}
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: |
           if [ -z "${QC_SECRET}" ]; then
             echo "::error::QC_SECRET secret is not set."
