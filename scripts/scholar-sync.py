@@ -7,6 +7,12 @@ Uses the `scholarly` package which handles Google Scholar's anti-bot
 measures better than raw requests. Set SCRAPER_API_KEY env var to use
 ScraperAPI as a proxy if scholarly alone is still blocked.
 
+NOTE: This script only fetches the profile-level metrics and per-paper
+citation counts. It does NOT fetch per-paper citing-paper lists (that
+would require 80+ requests and triggers Scholar rate limits). Citing-paper
+details and self-citation detection are handled by the separate S2 workflow
+(daily-citations.yml / /api/citations POST).
+
 Usage (called by GitHub Actions daily-scholar-sync.yml):
   python scripts/scholar-sync.py <api_url> <qc_secret>
 """
@@ -22,7 +28,6 @@ from scholarly import scholarly, ProxyGenerator
 SCHOLAR_USER    = "HyN_EIgAAAAJ"
 OWNER_NAME      = "itzkovich"
 MATCH_THRESHOLD = 0.72
-MAX_CITING      = 50
 
 
 def norm(s):
@@ -75,7 +80,7 @@ def main():
     slug_map = {norm(p["title"]): p["slug"] for p in site_papers}
     print(f"  {len(slug_map)} slugs loaded.")
 
-    # Fetch author profile via scholarly
+    # Fetch author profile via scholarly (profile page = 1–2 requests only)
     print("Fetching Scholar profile …")
     try:
         author = scholarly.search_author_id(SCHOLAR_USER)
@@ -83,24 +88,30 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to fetch Scholar profile: {e}")
 
-    # scholarly's "5y" window = since 2021 (2026 − 5 = 2021)
+    # Debug: log raw scholarly values so we can verify field mapping
+    print(f"DEBUG scholarly fields: citedby={author.get('citedby')} citedby5y={author.get('citedby5y')} "
+          f"hindex={author.get('hindex')} hindex5y={author.get('hindex5y')} "
+          f"i10index={author.get('i10index')} i10index5y={author.get('i10index5y')}")
+
+    # scholarly "5y" window = since 2021 (current year 2026 − 5 = 2021)
     metrics = {
-        "citations":       author.get("citedby", 0),
-        "h_index":         author.get("hindex", 0),
-        "i10_index":       author.get("i10index", 0),
-        "citations_since": author.get("citedby5y", 0),
-        "h_index_since":   author.get("hindex5y", 0),
-        "i10_index_since": author.get("i10index5y", 0),
+        "citations":       author.get("citedby", 0)    or 0,
+        "h_index":         author.get("hindex", 0)     or 0,
+        "i10_index":       author.get("i10index", 0)   or 0,
+        "citations_since": author.get("citedby5y", 0)  or 0,
+        "h_index_since":   author.get("hindex5y", 0)   or 0,
+        "i10_index_since": author.get("i10index5y", 0) or 0,
     }
     print(
-        f"Profile: {metrics['citations']} citations | "
-        f"h-index {metrics['h_index']} | i10 {metrics['i10_index']}"
+        f"Profile: {metrics['citations']} citations (all) / {metrics['citations_since']} (since 2021) | "
+        f"h-index {metrics['h_index']} / {metrics['h_index_since']} | "
+        f"i10 {metrics['i10_index']} / {metrics['i10_index_since']}"
     )
 
     matched, unmatched = [], []
     for pub in author.get("publications", []):
         title      = pub.get("bib", {}).get("title", "")
-        cite_count = pub.get("num_citations", 0)
+        cite_count = pub.get("num_citations", 0) or 0
 
         slug = match_slug(title, slug_map)
         if not slug:
@@ -108,37 +119,12 @@ def main():
             print(f"  UNMATCHED: {title[:70]}")
             continue
 
-        print(f"\n• {title[:65]}")
-        print(f"  slug={slug}  citations={cite_count}")
+        print(f"  • {title[:65]}  [{cite_count} cites → {slug}]")
 
-        citing     = []
-        self_count = 0
-        if cite_count > 0:
-            try:
-                pub_filled = scholarly.fill(pub)
-                for cp in scholarly.citedby(pub_filled):
-                    authors_str = cp.get("bib", {}).get("author", "")
-                    year        = str(cp.get("bib", {}).get("pub_year", ""))
-                    is_self     = OWNER_NAME in authors_str.lower()
-                    citing.append({
-                        "title":   cp.get("bib", {}).get("title", ""),
-                        "authors": authors_str,
-                        "year":    year,
-                        "is_self": is_self,
-                    })
-                    if is_self:
-                        self_count += 1
-                    if len(citing) >= MAX_CITING:
-                        break
-                print(f"  {len(citing)} citing papers fetched, {self_count} self-citations")
-            except Exception as e:
-                print(f"  Warning: citing papers unavailable — {e}")
-
+        # Only send citation_count — citing-paper details come from the S2 workflow
         matched.append({
-            "slug":                slug,
-            "citation_count":      cite_count,
-            "self_citation_count": self_count,
-            "citing_papers":       citing,
+            "slug":           slug,
+            "citation_count": cite_count,
         })
 
     # POST to API

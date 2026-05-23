@@ -14,6 +14,7 @@ const allPapers = pubs
     doi: p.data.doi ?? null,
     title: p.data.title,
     year: p.data.year,
+    venue: p.data.venue ?? null,
   }));
 
 const withDoi    = allPapers.filter((p) => p.doi).length;
@@ -102,6 +103,12 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
       </div>
     </div>
 
+    <!-- Citation timeline by year -->
+    <div id="timeline-section" style="display: none" class="mb-10">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-4">Citations by year</div>
+      <div id="timeline-bars" class="space-y-2"></div>
+    </div>
+
     <!-- Per-paper list -->
     <div id="loading" class="text-muted text-sm">Loading…</div>
     <div id="empty" class="text-muted text-sm" style="display: none">
@@ -143,12 +150,14 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
       var statSelf     = document.getElementById('stat-self');
       var statSelfLbl  = document.getElementById('stat-self-label');
       var statExternal = document.getElementById('stat-external');
-      var progressBar  = document.getElementById('progress-bar');
-      var progressFill = document.getElementById('progress-fill');
-      var progressLbl  = document.getElementById('progress-label');
+      var progressBar    = document.getElementById('progress-bar');
+      var progressFill   = document.getElementById('progress-fill');
+      var progressLbl    = document.getElementById('progress-label');
       var statHSince     = document.getElementById('stat-h-since');
       var statI10Since   = document.getElementById('stat-i10-since');
       var statTotalSince = document.getElementById('stat-total-since');
+      var timelineSection = document.getElementById('timeline-section');
+      var timelineBars    = document.getElementById('timeline-bars');
 
       var progressTimer = null;
       function startProgress() {
@@ -168,9 +177,22 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         setTimeout(function () { progressBar.style.display = 'none'; }, 1500);
       }
 
-      // slug → title lookup built from the build-time list
+      // slug → title and venue lookups from build-time list
       var titleMap = {};
-      (allPapers || []).forEach(function (p) { titleMap[p.slug] = p.title; });
+      var venueMap = {};
+      (allPapers || []).forEach(function (p) {
+        titleMap[p.slug] = p.title;
+        if (p.venue) venueMap[p.slug] = p.venue;
+      });
+
+      // Normalise a venue name the same way the Python script does,
+      // so we can match slugs → journal_metrics keys.
+      function normVenue(s) {
+        return (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      }
+
+      // journal metrics map: key → { sjr, best_quartile, h_index }
+      var journalMetrics = {};
 
       function fmtTs(unix) {
         if (!unix) return '—';
@@ -236,27 +258,92 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
           ? '<span class="font-mono text-[10px] uppercase tracking-widest" style="opacity:.5">' + selfN + ' self</span>'
           : '';
 
+        // Journal metrics badge
+        var venue    = venueMap[p.paper_slug] || '';
+        var jKey     = normVenue(venue);
+        var jm       = journalMetrics[jKey];
+        var jBadge   = '';
+        if (jm) {
+          var qColor = { Q1: '#2d7d2d', Q2: '#5c7a2d', Q3: '#7a5c2d', Q4: '#7a2d2d' };
+          var qStyle = jm.best_quartile
+            ? 'background:' + (qColor[jm.best_quartile] || '#555') + ';color:#fff;padding:1px 5px;border-radius:3px'
+            : '';
+          var qTag = jm.best_quartile
+            ? '<span style="' + qStyle + '" class="font-mono text-[10px]">' + jm.best_quartile + '</span>'
+            : '';
+          var sjrTag = jm.sjr
+            ? '<span class="font-mono text-[10px] text-soft">SJR&thinsp;' + Number(jm.sjr).toFixed(3) + '</span>'
+            : '';
+          if (qTag || sjrTag) {
+            jBadge = '<span class="flex items-center gap-2">' + qTag + sjrTag + '</span>';
+          }
+        }
+
         return [
           '<div class="flex items-start justify-between gap-4 flex-wrap mb-2">',
             '<div class="font-display" style="font-weight:400">' + title + '</div>',
             '<span class="font-mono text-xs text-soft shrink-0">fetched ' + esc(fmtTs(p.fetched_at)) + '</span>',
           '</div>',
-          '<div class="flex gap-4 items-baseline font-mono text-xs text-muted mb-1">',
+          venue ? '<div class="font-mono text-[10px] text-soft mb-1">' + esc(venue) + '</div>' : '',
+          '<div class="flex gap-4 items-center flex-wrap font-mono text-xs text-muted mb-1">',
             '<span style="font-variant-numeric:tabular-nums">' + p.citation_count + ' total</span>',
             '<span>' + external + ' external</span>',
             selfTag,
-            p.doi ? '<span class="text-soft ml-auto">DOI&thinsp;' + esc(p.doi) + '</span>' : '',
+            jBadge ? '<span class="ml-auto">' + jBadge + '</span>' : '',
           '</div>',
           topCiting ? '<div class="mt-2">' + topCiting + '</div>' : '',
         ].join('');
       }
 
+      function showTimeline(papers) {
+        // Aggregate citing papers by year across all papers
+        var byYear = {};
+        papers.forEach(function (p) {
+          (p.citing_papers || []).forEach(function (c) {
+            var y = parseInt(c.year || c.pub_year || '', 10);
+            if (y >= 2000 && y <= 2030) byYear[y] = (byYear[y] || 0) + 1;
+          });
+        });
+        var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
+        if (years.length === 0) return;
+
+        var maxVal = Math.max.apply(null, years.map(function (y) { return byYear[y]; }));
+        timelineBars.innerHTML = years.map(function (y) {
+          var n   = byYear[y];
+          var pct = maxVal > 0 ? Math.round(n / maxVal * 100) : 0;
+          return [
+            '<div class="flex items-center gap-3">',
+              '<span class="font-mono text-[10px] text-soft w-10 text-right shrink-0">' + y + '</span>',
+              '<div class="flex-1 rounded-full overflow-hidden" style="height:8px;background:var(--divider)">',
+                '<div class="h-full rounded-full" style="width:' + pct + '%;background:var(--text);opacity:0.6"></div>',
+              '</div>',
+              '<span class="font-mono text-[10px] text-soft w-8 shrink-0">' + n + '</span>',
+            '</div>',
+          ].join('');
+        }).join('');
+        timelineSection.style.display = '';
+      }
+
       function showCitations(data) {
-        // Use authoritative GS metrics when available, fall back to computed
-        var gs     = data.gsMetrics || {};
-        var total  = gs.citations  || data.totalCitations || 0;
-        var h      = gs.h_index    || data.hIndex || 0;
-        var i10    = gs.i10_index  || data.i10 || 0;
+        // Populate journal metrics lookup from API response
+        if (data.journalMetrics) {
+          journalMetrics = data.journalMetrics;
+        }
+
+        // Use authoritative GS metrics when available, fall back to computed.
+        // Guard: if h_index equals h_index_since, scholarly probably returned
+        // the wrong column — fall back to computed value from S2 data.
+        var gs    = data.gsMetrics || {};
+        var gsH   = gs.h_index   || 0;
+        var gsI10 = gs.i10_index || 0;
+        var hSince   = gs.h_index_since   || 0;
+        var i10Since = gs.i10_index_since || 0;
+
+        // If all-time equals since-2021, the mapping is likely swapped — trust computed instead
+        var h   = (gsH && gsH !== hSince)   ? gsH   : (data.hIndex || hSince || 0);
+        var i10 = (gsI10 && gsI10 !== i10Since) ? gsI10 : (data.i10  || i10Since || 0);
+
+        var total  = gs.citations || data.totalCitations || 0;
         var self   = data.totalSelfCitations || 0;
         var ext    = total - self;
         var pct    = total > 0 ? Math.round(self / total * 100) : 0;
@@ -269,23 +356,25 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         statSelfLbl.textContent  = 'Self-citations (' + pct + '%)';
         statsRow.style.display   = '';
 
-        if (gs.h_index_since) {
-          statHSince.textContent = gs.h_index_since + ' since 2021';
+        if (hSince && hSince !== h) {
+          statHSince.textContent   = hSince + ' since 2021';
           statHSince.style.display = '';
         } else { statHSince.style.display = 'none'; }
 
-        if (gs.i10_index_since) {
-          statI10Since.textContent = gs.i10_index_since + ' since 2021';
+        if (i10Since && i10Since !== i10) {
+          statI10Since.textContent   = i10Since + ' since 2021';
           statI10Since.style.display = '';
         } else { statI10Since.style.display = 'none'; }
 
         if (gs.citations_since) {
-          statTotalSince.textContent = gs.citations_since.toLocaleString() + ' since 2021';
+          statTotalSince.textContent   = gs.citations_since.toLocaleString() + ' since 2021';
           statTotalSince.style.display = '';
         } else { statTotalSince.style.display = 'none'; }
 
         var papers = data.papers || [];
         if (papers.length === 0) { empty.style.display = ''; return; }
+
+        showTimeline(papers);
 
         papersList.innerHTML = papers.map(function (p) {
           return '<div class="border rounded-lg p-5" style="border-color: var(--divider)">' + renderPaper(p) + '</div>';

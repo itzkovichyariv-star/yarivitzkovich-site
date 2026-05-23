@@ -1,0 +1,41 @@
+name: Monthly journal metrics sync
+
+# Runs on the 1st of each month at 07:00 UTC.
+# Fetches SJR score, quartile, and h-index from Scimago for every journal
+# in the publications collection and stores the results in D1 via
+# /api/journal-sync. Results appear in the citations dashboard per paper.
+#
+# Manual trigger: Actions tab → Monthly journal metrics sync → Run workflow.
+# Required secret: QC_SECRET
+
+on:
+  schedule:
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Sync journal metrics from Scimago
+        env:
+          QC_SECRET: ${{ secrets.QC_SECRET }}
+        run: |
+          if [ -z "${QC_SECRET}" ]; then
+            echo "::error::QC_SECRET secret is not set."
+            exit 1
+          fi
+
+          python scripts/journal-sync.py \
+            "https://yarivitzkovich.org/api/journal-sync" \
+            "${QC_SECRET}"

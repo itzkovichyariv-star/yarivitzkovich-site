@@ -54,7 +54,9 @@ export const onRequestPost = async ({ request, env }) => {
   for (const p of papers) {
     if (!p.slug) continue;
 
-    // Preserve existing doi + semantic_scholar_id when upserting from GS source
+    // GS sync provides citation_count only. Preserve all existing citing-paper
+    // data (self_citation_count, citing_papers_json) set by the S2 workflow —
+    // overwriting them with empty arrays would destroy self-citation detection.
     await env.DB
       .prepare(
         `INSERT INTO citation_cache
@@ -63,21 +65,16 @@ export const onRequestPost = async ({ request, env }) => {
            ?,
            (SELECT doi FROM citation_cache WHERE paper_slug = ?),
            (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
-           ?, ?, ?, ?
+           ?,
+           COALESCE((SELECT self_citation_count FROM citation_cache WHERE paper_slug = ?), 0),
+           COALESCE((SELECT citing_papers_json  FROM citation_cache WHERE paper_slug = ?), '[]'),
+           ?
          )
          ON CONFLICT(paper_slug) DO UPDATE SET
-           citation_count      = excluded.citation_count,
-           self_citation_count = excluded.self_citation_count,
-           citing_papers_json  = excluded.citing_papers_json,
-           fetched_at          = excluded.fetched_at`
+           citation_count = excluded.citation_count,
+           fetched_at     = excluded.fetched_at`
       )
-      .bind(
-        p.slug, p.slug, p.slug,
-        p.citation_count,
-        p.self_citation_count || 0,
-        JSON.stringify(p.citing_papers || []),
-        nowTs
-      )
+      .bind(p.slug, p.slug, p.slug, p.citation_count, p.slug, p.slug, nowTs)
       .run();
 
     const prev = prevCounts[p.slug] ?? null;

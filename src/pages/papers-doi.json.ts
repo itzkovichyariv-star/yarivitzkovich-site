@@ -14,6 +14,7 @@ export async function GET() {
       doi: p.data.doi ?? null,
       title: p.data.title,
       year: p.data.year,
+      venue: p.data.venue ?? null,
     }));
 
   return new Response(JSON.stringify({ papers }), {

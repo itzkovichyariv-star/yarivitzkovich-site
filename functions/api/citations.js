@@ -165,7 +165,14 @@ export const onRequestGet = async ({ request, env }) => {
   const gsMeta = await env.DB.prepare("SELECT value FROM site_meta WHERE key = 'gs_metrics'").first();
   const gsMetrics = gsMeta ? JSON.parse(gsMeta.value || '{}') : null;
 
-  return json({ ok: true, papers, hIndex, i10, totalCitations: total, totalSelfCitations: totalSelf, gsMetrics });
+  // Journal metrics (set by /api/journal-sync from Scimago)
+  const journalRows = (
+    await env.DB.prepare('SELECT journal_key, journal_name, sjr, best_quartile, h_index FROM journal_metrics').all()
+  ).results || [];
+  const journalMetrics = {};
+  for (const j of journalRows) journalMetrics[j.journal_key] = j;
+
+  return json({ ok: true, papers, hIndex, i10, totalCitations: total, totalSelfCitations: totalSelf, gsMetrics, journalMetrics });
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
