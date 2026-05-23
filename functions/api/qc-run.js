@@ -17,17 +17,17 @@
 // via /api/qc-log (owner-only) and decide whether to act.
 
 import { notifyOwner, escapeHtml } from '../_lib/email.js';
+import { isOwner } from '../_lib/auth.js';
 
 const RECENT_PAIR_WINDOW_SEC = 5; // synth visit must pair with download within 5s
 
 export const onRequestPost = async ({ request, env }) => {
-  // Token auth — generated once by the owner, stored in Cloudflare Pages
-  // env vars AND in the GitHub Actions secret.
+  // Accept either the QC_SECRET token (GitHub Actions cron) or the owner
+  // cookie (browser "Run now" button on /manage/qc).
   const provided = request.headers.get('x-qc-token');
-  if (!env.QC_SECRET) {
-    return json({ ok: false, error: 'no_secret_configured' }, 500);
-  }
-  if (!provided || provided !== env.QC_SECRET) {
+  const tokenOk = env.QC_SECRET && provided === env.QC_SECRET;
+  const cookieOk = !tokenOk && (await isOwner(request, env));
+  if (!tokenOk && !cookieOk) {
     return json({ ok: false, error: 'unauthorized' }, 401);
   }
   if (!env.DB) {
