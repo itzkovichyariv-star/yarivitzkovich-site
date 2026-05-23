@@ -103,7 +103,7 @@ function getPeriodBounds(type: PeriodType, offset: number): { from: number; to: 
   if (type === 'quarter') {
     const curQ   = Math.floor(now.getMonth() / 3);
     const totalQ = curQ + offset;
-    const year   = now.getFullYear() + Math.floor(totalQ >= 0 ? totalQ / 4 : (totalQ - 3) / 4);
+    const year   = now.getFullYear() + Math.floor(totalQ / 4);
     const qIdx   = ((totalQ % 4) + 4) % 4;
     const qStart = new Date(year, qIdx * 3, 1);
     const qEnd   = new Date(year, qIdx * 3 + 3, 0, 23, 59, 59);
@@ -622,6 +622,9 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const SITE_START_YEAR = 2024;
+
 function ComparePanel({
   label,
   events,
@@ -644,6 +647,55 @@ function ComparePanel({
     [periodType, offset],
   );
 
+  // Stable "now" for all offset calculations within a session.
+  const now      = useMemo(() => new Date(), []);
+  const nowYear  = now.getFullYear();
+  const nowMonth = now.getMonth();
+  const nowQ     = Math.floor(nowMonth / 3);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(nowYear);
+  const navRef = useRef<HTMLDivElement>(null);
+
+  // Close picker when clicking outside the nav row.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [pickerOpen]);
+
+  const handlePeriodTypeChange = (t: PeriodType) => {
+    setPickerOpen(false);
+    onPeriodTypeChange(t);
+  };
+
+  const hasPicker = periodType === 'month' || periodType === 'quarter' || periodType === 'year';
+
+  const handleLabelClick = () => {
+    if (pickerOpen) { setPickerOpen(false); return; }
+    // Sync the picker's year navigator to the year of the currently selected period.
+    if (periodType === 'month') {
+      setPickerYear(new Date(nowYear, nowMonth + offset, 1).getFullYear());
+    } else if (periodType === 'quarter') {
+      setPickerYear(nowYear + Math.floor((nowQ + offset) / 4));
+    } else if (periodType === 'year') {
+      setPickerYear(nowYear + offset);
+    }
+    setPickerOpen(true);
+  };
+
+  const isFutureMonth   = (y: number, m: number) => y > nowYear || (y === nowYear && m > nowMonth);
+  const isFutureQuarter = (y: number, q: number) => y > nowYear || (y === nowYear && q > nowQ);
+
+  const isSelectedMonth   = (y: number, m: number) => (y - nowYear) * 12 + m - nowMonth === offset;
+  const isSelectedQuarter = (y: number, q: number) => (y - nowYear) * 4  + q - nowQ    === offset;
+  const isSelectedYear    = (y: number)             => y - nowYear === offset;
+
   return (
     <div>
       {/* Period type tabs */}
@@ -653,7 +705,7 @@ function ComparePanel({
           <button
             key={opt.key}
             type="button"
-            onClick={() => onPeriodTypeChange(opt.key)}
+            onClick={() => handlePeriodTypeChange(opt.key)}
             className="hover:opacity-100 transition-opacity"
             style={{
               opacity: periodType === opt.key ? 1 : 0.45,
@@ -667,26 +719,179 @@ function ComparePanel({
         {loading && <span className="opacity-40">Loading…</span>}
       </div>
 
-      {/* Period navigator: ← May 2026 → */}
-      <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest mb-4">
-        <button
-          type="button"
-          onClick={() => onOffsetChange(offset - 1)}
-          className="opacity-55 hover:opacity-100 transition-opacity px-1"
-          aria-label="Previous period"
-        >
-          ←
-        </button>
-        <span className="opacity-90 min-w-[7rem] text-center">{periodLabel}</span>
-        <button
-          type="button"
-          onClick={() => onOffsetChange(offset + 1)}
-          disabled={offset >= 0}
-          className="opacity-55 hover:opacity-100 transition-opacity px-1 disabled:opacity-20"
-          aria-label="Next period"
-        >
-          →
-        </button>
+      {/* Period navigator: ← [label] → — label is tappable for month/quarter/year */}
+      <div className="relative" ref={navRef}>
+        <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-widest mb-4">
+          <button
+            type="button"
+            onClick={() => onOffsetChange(offset - 1)}
+            className="opacity-55 hover:opacity-100 transition-opacity px-1"
+            aria-label="Previous period"
+          >
+            ←
+          </button>
+
+          {hasPicker ? (
+            <button
+              type="button"
+              onClick={handleLabelClick}
+              className="opacity-90 min-w-[7rem] text-center hover:opacity-100 transition-opacity"
+              style={{ textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: '3px' }}
+              aria-label="Open period picker"
+            >
+              {periodLabel}
+            </button>
+          ) : (
+            <span className="opacity-90 min-w-[7rem] text-center">{periodLabel}</span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onOffsetChange(offset + 1)}
+            disabled={offset >= 0}
+            className="opacity-55 hover:opacity-100 transition-opacity px-1 disabled:opacity-20"
+            aria-label="Next period"
+          >
+            →
+          </button>
+        </div>
+
+        {/* Period picker dropdown */}
+        {pickerOpen && (
+          <div
+            className="absolute z-20 rounded-lg p-4"
+            style={{
+              top: '2.4rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--surface)',
+              border: '1px solid color-mix(in srgb, var(--text) 18%, transparent)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+              minWidth: '13rem',
+            }}
+          >
+            {/* Month picker: year nav + 3×4 month grid */}
+            {periodType === 'month' && (
+              <>
+                <div className="flex items-center justify-between mb-3 font-mono text-[10px] uppercase tracking-widest">
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y - 1)}
+                    disabled={pickerYear <= SITE_START_YEAR}
+                    className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+                  >←</button>
+                  <span className="opacity-90">{pickerYear}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y + 1)}
+                    disabled={pickerYear >= nowYear}
+                    className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+                  >→</button>
+                </div>
+                <div className="grid grid-cols-4 gap-1">
+                  {MONTHS_SHORT.map((m, idx) => {
+                    const disabled = isFutureMonth(pickerYear, idx);
+                    const selected = isSelectedMonth(pickerYear, idx);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          onOffsetChange((pickerYear - nowYear) * 12 + idx - nowMonth);
+                          setPickerOpen(false);
+                        }}
+                        className="font-mono text-[10px] uppercase tracking-widest py-1 rounded transition-opacity hover:opacity-100"
+                        style={{
+                          opacity: disabled ? 0.2 : selected ? 1 : 0.6,
+                          fontWeight: selected ? 700 : 400,
+                          background: selected ? 'color-mix(in srgb, var(--text) 14%, transparent)' : 'transparent',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Quarter picker: year nav + Q1–Q4 buttons */}
+            {periodType === 'quarter' && (
+              <>
+                <div className="flex items-center justify-between mb-3 font-mono text-[10px] uppercase tracking-widest">
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y - 1)}
+                    disabled={pickerYear <= SITE_START_YEAR}
+                    className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+                  >←</button>
+                  <span className="opacity-90">{pickerYear}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPickerYear((y) => y + 1)}
+                    disabled={pickerYear >= nowYear}
+                    className="opacity-55 hover:opacity-100 transition-opacity disabled:opacity-20 px-1"
+                  >→</button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {['Q1', 'Q2', 'Q3', 'Q4'].map((q, idx) => {
+                    const disabled = isFutureQuarter(pickerYear, idx);
+                    const selected = isSelectedQuarter(pickerYear, idx);
+                    return (
+                      <button
+                        key={q}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => {
+                          onOffsetChange((pickerYear - nowYear) * 4 + idx - nowQ);
+                          setPickerOpen(false);
+                        }}
+                        className="font-mono text-[10px] uppercase tracking-widest py-1.5 rounded transition-opacity hover:opacity-100"
+                        style={{
+                          opacity: disabled ? 0.2 : selected ? 1 : 0.6,
+                          fontWeight: selected ? 700 : 400,
+                          background: selected ? 'color-mix(in srgb, var(--text) 14%, transparent)' : 'transparent',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {q}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Year picker: vertical list from current year down to SITE_START_YEAR */}
+            {periodType === 'year' && (
+              <div className="flex flex-col gap-0.5">
+                {Array.from(
+                  { length: nowYear - SITE_START_YEAR + 1 },
+                  (_, i) => nowYear - i,
+                ).map((y) => {
+                  const selected = isSelectedYear(y);
+                  return (
+                    <button
+                      key={y}
+                      type="button"
+                      onClick={() => { onOffsetChange(y - nowYear); setPickerOpen(false); }}
+                      className="font-mono text-[10px] uppercase tracking-widest py-1.5 px-2 rounded text-left transition-opacity hover:opacity-100"
+                      style={{
+                        opacity: selected ? 1 : 0.6,
+                        fontWeight: selected ? 700 : 400,
+                        background: selected ? 'color-mix(in srgb, var(--text) 14%, transparent)' : 'transparent',
+                      }}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <GrowthCharts events={events} periodFrom={from} periodTo={to} compact />
