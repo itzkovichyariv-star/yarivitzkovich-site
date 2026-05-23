@@ -61,6 +61,14 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
       <span id="status-msg" class="font-mono text-xs uppercase tracking-widest text-soft"></span>
     </div>
 
+    <!-- Progress bar shown while fetching -->
+    <div id="progress-bar" style="display: none" class="mb-8">
+      <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2" id="progress-label">Fetching from Semantic Scholar…</div>
+      <div class="rounded-full overflow-hidden" style="height: 3px; background: var(--divider)">
+        <div id="progress-fill" class="h-full rounded-full" style="background: var(--text); width: 0%; transition: width 0.4s ease"></div>
+      </div>
+    </div>
+
     <!-- Summary stats — two rows: indices, then citation breakdown -->
     <div id="stats-row" style="display: none" class="mb-10 space-y-3">
       <!-- Row 1: academic indices -->
@@ -132,6 +140,27 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
       var statSelf     = document.getElementById('stat-self');
       var statSelfLbl  = document.getElementById('stat-self-label');
       var statExternal = document.getElementById('stat-external');
+      var progressBar  = document.getElementById('progress-bar');
+      var progressFill = document.getElementById('progress-fill');
+      var progressLbl  = document.getElementById('progress-label');
+
+      var progressTimer = null;
+      function startProgress() {
+        progressBar.style.display = '';
+        progressFill.style.width = '0%';
+        var pct = 0;
+        // Animate to ~90% over 2 minutes, then stall — completes on success
+        progressTimer = setInterval(function () {
+          pct = pct < 85 ? pct + (85 - pct) * 0.015 : pct;
+          progressFill.style.width = pct.toFixed(1) + '%';
+        }, 500);
+      }
+      function finishProgress(label) {
+        clearInterval(progressTimer);
+        progressFill.style.width = '100%';
+        if (label) progressLbl.textContent = label;
+        setTimeout(function () { progressBar.style.display = 'none'; }, 1500);
+      }
 
       // slug → title lookup built from the build-time list
       var titleMap = {};
@@ -279,7 +308,8 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
 
       refreshBtn.addEventListener('click', function () {
         refreshBtn.disabled = true;
-        statusMsg.textContent = 'Fetching from Semantic Scholar…';
+        statusMsg.textContent = '';
+        startProgress();
         fetch('/api/citations', {
           method: 'POST',
           credentials: 'same-origin',
@@ -292,15 +322,19 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
             if (data.not_found > 0) warns.push(data.not_found + ' not found');
             if (data.errors && data.errors.length) warns.push(data.errors.length + ' error(s)');
             var extra = warns.length ? ' · ' + warns.join(' · ') : '';
-            statusMsg.textContent = 'Refreshed ' + (data.refreshed || 0) + ' papers' + extra;
-            // reload display
+            var msg = 'Done — ' + (data.refreshed || 0) + ' papers refreshed' + extra;
+            finishProgress(msg);
+            statusMsg.textContent = msg;
             statsRow.style.display   = 'none';
             papersList.style.display = 'none';
             empty.style.display      = 'none';
             loading.style.display    = '';
             loadCitations();
           })
-          .catch(function (err) { statusMsg.textContent = 'Failed — ' + err.message; })
+          .catch(function (err) {
+            finishProgress('Failed — ' + err.message);
+            statusMsg.textContent = 'Failed — ' + err.message;
+          })
           .finally(function () { refreshBtn.disabled = false; });
       });
 
