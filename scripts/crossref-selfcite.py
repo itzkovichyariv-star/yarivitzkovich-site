@@ -49,8 +49,8 @@ def doi_match(doi_a, doi_b):
     return bool(a and b and a == b)
 
 
-def fetch_references(doi):
-    """Return list of {doi, title, authors} from CrossRef for a given DOI."""
+def fetch_references_by_doi(doi):
+    """Return (resolved_doi, refs[]) from CrossRef for a given DOI."""
     url = f"{CROSSREF_API}/{requests.utils.quote(doi, safe='')}"
     try:
         r = requests.get(url, headers=HEADERS, timeout=15)
@@ -58,15 +58,42 @@ def fetch_references(doi):
         data = r.json().get("message", {})
     except Exception as e:
         print(f"    CrossRef error for {doi}: {e}")
-        return []
+        return doi, []
+    return doi, _parse_refs(data)
 
-    raw_refs = data.get("reference", [])
+
+def search_crossref_by_title(title):
+    """Search CrossRef by title; return (doi, refs[]) for the best match, or (None, [])."""
+    params = {
+        "query.bibliographic": title,
+        "rows": 5,
+        "select": "DOI,title,reference",
+    }
+    try:
+        r = requests.get(CROSSREF_API, params=params, headers=HEADERS, timeout=15)
+        r.raise_for_status()
+        items = r.json().get("message", {}).get("items", [])
+    except Exception as e:
+        print(f"    CrossRef search error: {e}")
+        return None, []
+
+    for item in items:
+        cr_titles = item.get("title") or []
+        cr_title  = cr_titles[0] if cr_titles else ""
+        if title_match(title, cr_title, threshold=0.80):
+            doi = item.get("DOI", "")
+            print(f"    CrossRef title match: {cr_title[:60]}")
+            return doi, _parse_refs(item)
+
+    return None, []
+
+
+def _parse_refs(data):
     refs = []
-    for ref in raw_refs:
+    for ref in data.get("reference", []):
         refs.append({
-            "doi":     ref.get("DOI", ""),
-            "title":   ref.get("article-title") or ref.get("volume-title") or "",
-            "authors": ref.get("author", ""),
+            "doi":   ref.get("DOI", ""),
+            "title": ref.get("article-title") or ref.get("volume-title") or "",
         })
     return refs
 
@@ -94,7 +121,7 @@ def main():
         title_to_slug[norm(p["title"])] = p["slug"]
 
     papers_with_doi = [p for p in site_papers if p.get("doi")]
-    print(f"  {len(papers_with_doi)} papers have DOIs — will fetch references.\n")
+    print(f"  {len(papers_with_doi)} papers have DOIs; others will be searched by title.\n")
 
     results = []
 
@@ -103,17 +130,26 @@ def main():
         doi   = (paper.get("doi") or "").strip()
         title = paper["title"]
 
-        if not doi:
-            print(f"[{i+1}/{len(site_papers)}] {title[:55]}  [no DOI — skip]")
-            results.append({
-                "slug": slug, "citation_count": 0,
-                "self_citation_count": 0, "citing_papers": [],
-            })
-            continue
-
         print(f"[{i+1}/{len(site_papers)}] {title[:60]}")
 
-        refs = fetch_references(doi)
+        if doi:
+            _, refs = fetch_references_by_doi(doi)
+        else:
+            print(f"  No DOI — searching CrossRef by title …")
+            found_doi, refs = search_crossref_by_title(title)
+            if found_doi:
+                # Save discovered DOI for future runs
+                doi_to_slug[found_doi.strip().lower()] = slug
+            if not refs:
+                print(f"  Not found in CrossRef — skipping")
+                results.append({
+                    "slug": slug,
+                    "self_citation_count": 0,
+                    "citing_papers": [],
+                })
+                time.sleep(DELAY)
+                continue
+
         print(f"  {len(refs)} references found in CrossRef")
 
         self_papers = []
@@ -146,11 +182,8 @@ def main():
 
         print(f"  → {len(self_papers)} self-citations detected")
 
-        # We only know self-citations here, not total citation_count.
-        # Send null so the API's COALESCE preserves Scholar's existing count.
         results.append({
             "slug":                slug,
-            "citation_count":      None,   # API will COALESCE with existing Scholar count
             "self_citation_count": len(self_papers),
             "citing_papers":       self_papers,
         })
