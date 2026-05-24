@@ -123,7 +123,10 @@ def main():
     papers_with_doi = [p for p in site_papers if p.get("doi")]
     print(f"  {len(papers_with_doi)} papers have DOIs; others will be searched by title.\n")
 
-    results = []
+    # self_counts[slug] = how many of Yariv's OTHER papers cite this paper
+    # citing_map[slug]  = list of citing-paper descriptions
+    self_counts  = {p["slug"]: 0 for p in site_papers}
+    citing_map   = {p["slug"]: [] for p in site_papers}
 
     for i, paper in enumerate(site_papers):
         slug  = paper["slug"]
@@ -138,57 +141,58 @@ def main():
             print(f"  No DOI — searching CrossRef by title …")
             found_doi, refs = search_crossref_by_title(title)
             if found_doi:
-                # Save discovered DOI for future runs
                 doi_to_slug[found_doi.strip().lower()] = slug
             if not refs:
                 print(f"  Not found in CrossRef — skipping")
-                results.append({
-                    "slug": slug,
-                    "self_citation_count": 0,
-                    "citing_papers": [],
-                })
                 time.sleep(DELAY)
                 continue
 
-        print(f"  {len(refs)} references found in CrossRef")
+        print(f"  {len(refs)} references in CrossRef", end="")
 
-        self_papers = []
+        found = 0
         for ref in refs:
             ref_doi   = re.sub(r"https?://(dx\.)?doi\.org/", "", ref["doi"]).strip().lower()
             ref_title = ref["title"]
 
-            # Check by DOI first
-            matched_slug = None
+            # Which Yariv paper is being cited by this paper?
+            cited_slug = None
             if ref_doi and ref_doi in doi_to_slug and doi_to_slug[ref_doi] != slug:
-                matched_slug = doi_to_slug[ref_doi]
-
-            # Fallback: fuzzy title match
-            if not matched_slug and ref_title:
+                cited_slug = doi_to_slug[ref_doi]
+            if not cited_slug and ref_title:
                 nt = norm(ref_title)
                 for nt2, s2 in title_to_slug.items():
                     if s2 != slug and title_match(nt, nt2):
-                        matched_slug = s2
+                        cited_slug = s2
                         break
 
-            if matched_slug:
-                cited_title = next(
-                    (p["title"] for p in site_papers if p["slug"] == matched_slug), matched_slug
-                )
-                self_papers.append({
-                    "authors": f"Itzkovich Y et al. → cites: {cited_title[:60]}",
+            if cited_slug:
+                # cited_slug is the paper BEING self-cited — increment its count
+                self_counts[cited_slug] += 1
+                citing_map[cited_slug].append({
+                    "authors": f"Itzkovich Y et al. (in: {title[:55]})",
                     "is_self":  True,
                 })
-                print(f"    ✓ self-cite found: {cited_title[:60]}")
+                found += 1
 
-        print(f"  → {len(self_papers)} self-citations detected")
-
-        results.append({
-            "slug":                slug,
-            "self_citation_count": len(self_papers),
-            "citing_papers":       self_papers,
-        })
+        if found:
+            print(f"  — {found} self-ref(s) found (this paper cites {found} of your own papers)")
+        else:
+            print()
 
         time.sleep(DELAY)
+
+    # Build results using inverted map: each paper gets count of times Yariv cited IT
+    results = []
+    for paper in site_papers:
+        slug = paper["slug"]
+        sc   = self_counts[slug]
+        if sc:
+            print(f"  ✓ {paper['title'][:60]}  → cited {sc}x by Yariv")
+        results.append({
+            "slug":                slug,
+            "self_citation_count": sc,
+            "citing_papers":       citing_map[slug],
+        })
 
     # POST
     total_self = sum(p["self_citation_count"] for p in results)
