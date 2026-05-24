@@ -52,8 +52,8 @@ export const onRequestPost = async ({ request, env }) => {
     await env.DB
       .prepare(
         `INSERT INTO journal_metrics
-           (journal_key, journal_name, sjr, best_quartile, h_index, impact_factor, jcr_quartile, fetched_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           (journal_key, journal_name, sjr, best_quartile, h_index, impact_factor, jcr_quartile, percentile, fetched_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(journal_key) DO UPDATE SET
            journal_name  = excluded.journal_name,
            sjr           = excluded.sjr,
@@ -61,6 +61,7 @@ export const onRequestPost = async ({ request, env }) => {
            h_index       = excluded.h_index,
            impact_factor = excluded.impact_factor,
            jcr_quartile  = excluded.jcr_quartile,
+           percentile    = COALESCE(excluded.percentile, journal_metrics.percentile),
            fetched_at    = excluded.fetched_at`
       )
       .bind(
@@ -71,6 +72,7 @@ export const onRequestPost = async ({ request, env }) => {
         j.h_index      ?? null,
         j.impact_factor ?? null,
         j.jcr_quartile  ?? null,
+        j.percentile   ?? null,
         nowTs
       )
       .run();
