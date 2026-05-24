@@ -55,28 +55,52 @@ export const onRequestPost = async ({ request, env }) => {
   for (const p of papers) {
     if (!p.slug) continue;
 
-    // GS sync provides citation_count only. Preserve all existing citing-paper
-    // data (self_citation_count, citing_papers_json) set by the S2 workflow —
-    // overwriting them with empty arrays would destroy self-citation detection.
-    await env.DB
-      .prepare(
-        `INSERT INTO citation_cache
-           (paper_slug, doi, semantic_scholar_id, citation_count, self_citation_count, citing_papers_json, fetched_at)
-         VALUES (
-           ?,
-           (SELECT doi FROM citation_cache WHERE paper_slug = ?),
-           (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
-           ?,
-           COALESCE((SELECT self_citation_count FROM citation_cache WHERE paper_slug = ?), 0),
-           COALESCE((SELECT citing_papers_json  FROM citation_cache WHERE paper_slug = ?), '[]'),
-           ?
-         )
-         ON CONFLICT(paper_slug) DO UPDATE SET
-           citation_count = excluded.citation_count,
-           fetched_at     = excluded.fetched_at`
-      )
-      .bind(p.slug, p.slug, p.slug, p.citation_count, p.slug, p.slug, nowTs)
-      .run();
+    const hasCiting = Array.isArray(p.citing_papers) && p.citing_papers.length > 0;
+    const selfCount = hasCiting ? (p.self_citation_count ?? 0)
+                                : null; // null = preserve existing
+
+    if (hasCiting) {
+      // selfcite-sync script provided full citing data — write it all
+      await env.DB
+        .prepare(
+          `INSERT INTO citation_cache
+             (paper_slug, doi, semantic_scholar_id, citation_count, self_citation_count, citing_papers_json, fetched_at)
+           VALUES (
+             ?,
+             (SELECT doi FROM citation_cache WHERE paper_slug = ?),
+             (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
+             ?, ?, ?, ?
+           )
+           ON CONFLICT(paper_slug) DO UPDATE SET
+             citation_count      = excluded.citation_count,
+             self_citation_count = excluded.self_citation_count,
+             citing_papers_json  = excluded.citing_papers_json,
+             fetched_at          = excluded.fetched_at`
+        )
+        .bind(p.slug, p.slug, p.slug, p.citation_count, selfCount, JSON.stringify(p.citing_papers), nowTs)
+        .run();
+    } else {
+      // Regular GS count-only sync — preserve existing citing-paper data from S2/selfcite
+      await env.DB
+        .prepare(
+          `INSERT INTO citation_cache
+             (paper_slug, doi, semantic_scholar_id, citation_count, self_citation_count, citing_papers_json, fetched_at)
+           VALUES (
+             ?,
+             (SELECT doi FROM citation_cache WHERE paper_slug = ?),
+             (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
+             ?,
+             COALESCE((SELECT self_citation_count FROM citation_cache WHERE paper_slug = ?), 0),
+             COALESCE((SELECT citing_papers_json  FROM citation_cache WHERE paper_slug = ?), '[]'),
+             ?
+           )
+           ON CONFLICT(paper_slug) DO UPDATE SET
+             citation_count = excluded.citation_count,
+             fetched_at     = excluded.fetched_at`
+        )
+        .bind(p.slug, p.slug, p.slug, p.citation_count, p.slug, p.slug, nowTs)
+        .run();
+    }
 
     const prev = prevCounts[p.slug] ?? null;
     if (prev !== null && p.citation_count > prev) {
