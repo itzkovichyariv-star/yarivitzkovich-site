@@ -84,7 +84,7 @@ def main():
     print("Fetching Scholar profile …")
     try:
         author = scholarly.search_author_id(SCHOLAR_USER)
-        author = scholarly.fill(author, sections=["basics", "counts", "publications"])
+        author = scholarly.fill(author, sections=["basics", "indices", "publications"])
     except Exception as e:
         sys.exit(f"Failed to fetch Scholar profile: {e}")
 
