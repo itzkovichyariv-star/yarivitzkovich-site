@@ -1,126 +1,150 @@
 #!/usr/bin/env python3
 """
-Fetches Journal Citation Reports (JCR) metrics from the Clarivate
-Web of Science Journals API for every venue in the publications collection
-and posts results to /api/journal-sync which stores them in D1.
+Fetches JCR Impact Factor and quartile for every journal in the publications
+collection by browsing letpub.com — a free public aggregator of Journal Citation
+Reports data widely used by researchers to check IF before submitting papers.
 
-Metrics per journal: Impact Factor (JIF), best JCR quartile (Q1–Q4).
-
-Requires env var CLARIVATE_API_KEY — get yours at developer.clarivate.com
-using your institutional Web of Science credentials. JCR updates once a year
-(June), so this sync runs on an annual schedule (July 1).
+No API key required. Uses requests + BeautifulSoup (same as Scholar scraping).
+Runs annually (July 1) after Clarivate publishes updated JCR data each June.
 
 Usage (called by GitHub Actions annual-journal-sync.yml):
   python scripts/journal-sync.py <api_url> <qc_secret>
 """
 
-import os
 import re
 import sys
 import time
 
 import requests
+from bs4 import BeautifulSoup
 
-WOS_JOURNALS_API = "https://api.clarivate.com/apis/wos-journals/v1"
-DELAY            = 1   # second between API calls
+LETPUB_SEARCH = (
+    "https://www.letpub.com.cn/index.php"
+    "?page=journalapp&action=search"
+    "&searchname={name}&searchissn=&searchfield="
+    "&searchimpactlow=&searchimpacthigh=&searchscitype=&submit=Search"
+)
+DELAY = 3  # seconds between requests
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.letpub.com.cn/index.php?page=journalapp",
+}
 
 
 def norm(s):
     return re.sub(r"\s+", " ", s.lower().strip())
 
 
-def best_quartile(categories):
-    """Return the best (lowest-numbered) quartile across all WOS categories."""
-    qs = []
-    for cat in (categories or []):
-        q = cat.get("quartile") or cat.get("jcrQuartile") or ""
-        m = re.search(r"Q([1-4])", str(q))
-        if m:
-            qs.append(int(m.group(1)))
-    return f"Q{min(qs)}" if qs else None
+def word_overlap(a, b):
+    wa, wb = set(norm(a).split()), set(norm(b).split())
+    return len(wa & wb) / max(len(wa | wb), 1)
 
 
-def fetch_jcr(journal_name, api_key):
-    headers = {
-        "X-ApiKey": api_key,
-        "Accept": "application/json",
-        "User-Agent": "yarivitzkovich-site/1.0 journal-sync",
-    }
+def best_quartile(qs):
+    """Return the best (lowest-numbered) quartile from a list like ['Q1','Q3']."""
+    nums = [int(m.group(1)) for q in qs for m in [re.search(r"Q([1-4])", q)] if m]
+    return f"Q{min(nums)}" if nums else None
+
+
+def fetch_letpub(journal_name):
+    url = LETPUB_SEARCH.format(name=requests.utils.quote(journal_name))
     try:
-        # Search by title — returns ranked matches
-        r = requests.get(
-            f"{WOS_JOURNALS_API}/journals",
-            params={"q": journal_name, "limit": 5},
-            headers=headers,
-            timeout=20,
-        )
-        if r.status_code == 401:
-            sys.exit("ERROR: CLARIVATE_API_KEY is invalid or expired.")
-        if r.status_code == 403:
-            sys.exit("ERROR: API key does not have access to the WOS Journals API.")
-        if r.status_code == 404 or not r.text.strip():
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        if r.status_code != 200:
+            print(f"  HTTP {r.status_code}")
             return None
-        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        # Log raw response for the first call so we can verify field names
-        data = r.json()
-        hits = data.get("hits") or data.get("journals") or []
-        if not hits:
+        # LetPub returns a results table; each row is one journal
+        table = soup.find("table", {"id": "MainContent_GridView1"}) or \
+                soup.find("table", class_=re.compile(r"(result|journal)", re.I))
+
+        if not table:
+            # Fallback: find any table with IF-like content
+            tables = soup.find_all("table")
+            for t in tables:
+                if "Impact Factor" in t.get_text() or "IF" in t.get_text():
+                    table = t
+                    break
+
+        if not table:
+            print("  No results table found — dumping page snippet for debug:")
+            print(r.text[:500])
             return None
 
-        # DEBUG: print first result structure so field names can be verified
-        print(f"  [DEBUG first hit keys: {list(hits[0].keys())}]")
+        rows = table.find_all("tr")
+        # First row is header
+        if len(rows) < 2:
+            print("  No journal rows in table.")
+            return None
 
-        # Pick the closest title match
-        nt = norm(journal_name)
-        best = None
-        best_score = 0
-        for hit in hits:
-            hit_title = norm(hit.get("name") or hit.get("title") or "")
-            # Simple word-overlap score
-            words_a = set(nt.split())
-            words_b = set(hit_title.split())
-            score = len(words_a & words_b) / max(len(words_a | words_b), 1)
+        # Parse header to find column indices
+        headers = [th.get_text(strip=True).lower() for th in rows[0].find_all(["th", "td"])]
+        print(f"  Table headers: {headers}")
+
+        def col(name_fragment):
+            for i, h in enumerate(headers):
+                if name_fragment in h:
+                    return i
+            return None
+
+        name_col  = col("name") or col("journal") or 0
+        if_col    = col("impact") or col("if") or col("factor")
+        quart_col = col("quart") or col("jcr")
+
+        best_row, best_score = None, 0.0
+        for row in rows[1:]:
+            cells = row.find_all("td")
+            if len(cells) <= max(filter(None, [name_col, if_col, quart_col]), default=0):
+                continue
+            row_name  = cells[name_col].get_text(strip=True) if name_col is not None else ""
+            score     = word_overlap(journal_name, row_name)
             if score > best_score:
-                best_score, best = score, hit
+                best_score, best_row = score, cells
 
-        if best is None or best_score < 0.5:
+        if best_row is None or best_score < 0.4:
             print(f"  No confident match (best score {best_score:.2f})")
             return None
 
-        print(f"  Matched: {best.get('name') or best.get('title')} (score {best_score:.2f})")
+        row_name = best_row[name_col].get_text(strip=True) if name_col is not None else ""
+        print(f"  Matched: {row_name} (score {best_score:.2f})")
 
-        # Extract Impact Factor — field name varies by API version
-        metrics = best.get("metrics") or best.get("jcrData") or {}
+        # Extract Impact Factor
         impact_factor = None
-        for key in ("impactFactor", "impact_factor", "twoYearImpactFactor"):
-            val = metrics.get(key)
-            if isinstance(val, dict):
-                val = val.get("value") or val.get("current")
-            if val is not None:
+        if if_col is not None and if_col < len(best_row):
+            raw = best_row[if_col].get_text(strip=True).replace(",", ".")
+            m = re.search(r"[\d]+\.[\d]+", raw)
+            if m:
                 try:
-                    impact_factor = float(val)
-                    break
-                except (TypeError, ValueError):
+                    impact_factor = float(m.group())
+                except ValueError:
                     pass
 
-        # Extract quartile — field name varies by API version
-        categories = (
-            best.get("categories") or
-            best.get("ranks") or
-            (metrics.get("categories") if isinstance(metrics, dict) else None) or
-            []
-        )
-        quartile = best_quartile(categories)
+        # Extract quartile(s) — may appear in one or multiple cells
+        quartiles = []
+        if quart_col is not None and quart_col < len(best_row):
+            text = best_row[quart_col].get_text(strip=True)
+            quartiles = re.findall(r"Q[1-4]", text)
+        # Also scan all cells for Qx tags in case quartile is embedded elsewhere
+        if not quartiles:
+            for cell in best_row:
+                found = re.findall(r"Q[1-4]", cell.get_text(strip=True))
+                quartiles.extend(found)
+
+        jcr_quartile = best_quartile(quartiles)
 
         return {
             "journal_name":  journal_name,
             "impact_factor": impact_factor,
-            "jcr_quartile":  quartile,
+            "jcr_quartile":  jcr_quartile,
         }
 
-    except SystemExit:
-        raise
     except Exception as e:
         print(f"  Error: {e}")
         return None
@@ -134,11 +158,6 @@ def main():
     qc_secret = sys.argv[2]
     doi_url   = "https://yarivitzkovich.org/papers-doi.json"
 
-    api_key = os.environ.get("CLARIVATE_API_KEY", "")
-    if not api_key:
-        sys.exit("ERROR: CLARIVATE_API_KEY environment variable is not set.\n"
-                 "Get your key at developer.clarivate.com under Web of Science Journals API.")
-
     print(f"Loading papers from {doi_url} …")
     try:
         r = requests.get(doi_url, timeout=15)
@@ -147,7 +166,7 @@ def main():
     except Exception as e:
         sys.exit(f"Failed to load papers-doi.json: {e}")
 
-    # Collect unique venues, skip empty / book-only entries
+    # Collect unique venues
     seen, venues = set(), {}
     for p in site_papers:
         v = (p.get("venue") or "").strip()
@@ -158,20 +177,20 @@ def main():
             seen.add(key)
             venues[key] = v
 
-    print(f"Found {len(venues)} unique venues to look up in JCR.")
+    print(f"Found {len(venues)} unique venues to look up on LetPub / JCR.")
 
     results = []
     for key, name in venues.items():
-        print(f"\nJCR lookup: {name[:70]}")
+        print(f"\nLooking up: {name[:70]}")
         time.sleep(DELAY)
-        metrics = fetch_jcr(name, api_key)
+        metrics = fetch_letpub(name)
         if metrics:
             results.append({"journal_key": key, **metrics})
-            q  = metrics.get("jcr_quartile") or "?"
+            q   = metrics.get("jcr_quartile") or "?"
             if_ = metrics.get("impact_factor")
             print(f"  → {q} | IF {if_:.3f}" if if_ else f"  → {q} | IF n/a")
         else:
-            print("  → Not found in JCR")
+            print("  → Not found")
 
     print(f"\nPOSTing {len(results)} journals to {api_url} …")
     try:
