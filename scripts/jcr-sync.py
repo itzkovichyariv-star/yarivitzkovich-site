@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
 Collects JCR Impact Factor, quartile, and percentile for every journal
-in the publications collection by automating jcr.clarivate.com using
-your existing Chrome login session.
+in the publications collection by automating jcr.clarivate.com.
+
+Uses undetected_chromedriver — a Selenium fork that patches Chrome at a
+deep level so JCR's bot-detection cannot see the WebDriver fingerprint.
 
 Requirements (one-time):
-  pip3 install selenium webdriver-manager
+  pip3 install undetected-chromedriver requests
 
 IMPORTANT: Quit Chrome completely before running this script.
-           Your JCR institutional login is picked up automatically
-           from your Chrome profile — no password needed.
 
 Usage:
   python3 scripts/jcr-sync.py <api_url> <qc_secret>
@@ -29,17 +29,14 @@ import time
 import requests
 
 try:
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
+    import undetected_chromedriver as uc
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.support.ui import WebDriverWait
-    from webdriver_manager.chrome import ChromeDriverManager
 except ImportError:
     sys.exit(
         "Missing packages. Run:\n"
-        "  pip3 install selenium webdriver-manager\n"
+        "  pip3 install undetected-chromedriver requests\n"
         "then try again."
     )
 
@@ -74,12 +71,10 @@ JOURNALS = [
     "Work",
 ]
 
-CHROME_PROFILE = os.path.expanduser(
-    "~/Library/Application Support/Google/Chrome"
-)
-JCR_BASE  = "https://jcr.clarivate.com"
-WAIT_SEC  = 12   # seconds to wait for page elements
-PAGE_DELAY = 4   # seconds between journals
+JCR_BASE   = "https://jcr.clarivate.com"
+WAIT_SEC   = 15   # seconds to wait for page elements
+PAGE_DELAY = 5    # seconds between journals
+PROGRESS_FILE = "/tmp/jcr-sync-progress.json"
 
 
 def norm(s):
@@ -91,29 +86,53 @@ def word_overlap(a, b):
     return len(wa & wb) / max(len(wa | wb), 1)
 
 
+def make_driver():
+    options = uc.ChromeOptions()
+    options.add_argument("--no-first-run")
+    options.add_argument("--no-default-browser-check")
+    options.add_argument("--window-size=1280,900")
+    driver = uc.Chrome(options=options, headless=False, use_subprocess=True)
+    return driver
+
+
 def extract_jcr_data(driver, journal_name):
     """Navigate to the JCR journal page and extract IF, quartile, percentile."""
     wait = WebDriverWait(driver, WAIT_SEC)
 
-    # Search for the journal
-    search_url = f"{JCR_BASE}/jcr/browse-journals?search={requests.utils.quote(journal_name)}"
-    driver.get(search_url)
+    search_url = (
+        f"{JCR_BASE}/jcr/browse-journals"
+        f"?search={requests.utils.quote(journal_name)}"
+    )
+    try:
+        driver.get(search_url)
+    except Exception as e:
+        print(f"  Navigation error: {e}")
+        return None
     time.sleep(PAGE_DELAY)
 
-    # Look for search results — JCR renders a list of matching journals
+    # Wait for result rows
     try:
-        # Wait for result rows to appear
         wait.until(EC.presence_of_element_located(
-            (By.CSS_SELECTOR, "app-journal-list-item, .journal-list-item, [class*='journal-row'], [class*='journal-item']")
+            (By.CSS_SELECTOR,
+             "app-journal-list-item, .journal-list-item, "
+             "[class*='journal-row'], [class*='journal-item']")
         ))
     except Exception:
         print(f"  No results page loaded for: {journal_name}")
+        # Save debug
+        try:
+            debug_file = f"/tmp/jcr-debug-{norm(journal_name)[:20]}.txt"
+            with open(debug_file, "w") as f:
+                f.write(driver.find_element(By.TAG_NAME, "body").text[:3000])
+            print(f"  Page text saved to {debug_file}")
+        except Exception:
+            pass
         return None
 
-    # Find all result rows and pick the best match
     rows = driver.find_elements(
         By.CSS_SELECTOR,
-        "app-journal-list-item, .journal-list-item, [class*='journal-row'], [class*='journal-item']"
+        "app-journal-list-item, .journal-list-item, "
+        "[class*='journal-row'], [class*='journal-item']"
     )
 
     best_row, best_score = None, 0.0
@@ -135,14 +154,17 @@ def extract_jcr_data(driver, journal_name):
         driver.execute_script("arguments[0].click();", best_row)
     time.sleep(PAGE_DELAY)
 
-    # Now on the journal detail page — extract metrics from the page text
-    page_text = driver.find_element(By.TAG_NAME, "body").text
+    # Extract metrics from page text
+    try:
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+    except Exception as e:
+        print(f"  Could not read page: {e}")
+        return None
 
     impact_factor = None
     jcr_quartile  = None
     percentile    = None
 
-    # Impact Factor — "2.345" or "Impact Factor: 2.345"
     m = re.search(r"(?:impact factor|jif)[^\d]*(\d[\d,]*\.?\d*)", page_text, re.I)
     if m:
         try:
@@ -150,12 +172,10 @@ def extract_jcr_data(driver, journal_name):
         except ValueError:
             pass
 
-    # JCR Quartile — "Q1", "Q2", etc.
     qs = re.findall(r"\bQ([1-4])\b", page_text)
     if qs:
         jcr_quartile = f"Q{min(int(q) for q in qs)}"
 
-    # Percentile — "Percentile: 87" or "87th percentile"
     m2 = re.search(r"(\d{1,3})(?:st|nd|rd|th)?\s*percentile", page_text, re.I)
     if not m2:
         m2 = re.search(r"percentile[^\d]*(\d{1,3})", page_text, re.I)
@@ -166,7 +186,6 @@ def extract_jcr_data(driver, journal_name):
             pass
 
     if not any([impact_factor, jcr_quartile, percentile]):
-        # Save page source for debugging
         debug_file = f"/tmp/jcr-debug-{norm(journal_name)[:20]}.txt"
         with open(debug_file, "w") as f:
             f.write(page_text[:3000])
@@ -180,6 +199,24 @@ def extract_jcr_data(driver, journal_name):
     }
 
 
+def load_progress():
+    """Load previously collected results so we can resume after a crash."""
+    if os.path.exists(PROGRESS_FILE):
+        try:
+            with open(PROGRESS_FILE) as f:
+                data = json.load(f)
+            print(f"  Resuming from saved progress ({len(data)} journals done).")
+            return data
+        except Exception:
+            pass
+    return []
+
+
+def save_progress(results):
+    with open(PROGRESS_FILE, "w") as f:
+        json.dump(results, f)
+
+
 def main():
     if len(sys.argv) < 3:
         sys.exit("Usage: python3 jcr-sync.py <api_url> <qc_secret>")
@@ -187,92 +224,97 @@ def main():
     api_url   = sys.argv[1]
     qc_secret = sys.argv[2]
 
-    print("Starting Chrome …\n")
+    # Resume support — skip already-collected journals
+    results     = load_progress()
+    done_keys   = {r["journal_key"] for r in results}
+    remaining   = [j for j in JOURNALS if norm(j) not in done_keys]
 
-    options = Options()
-    options.add_argument("--no-first-run")
-    options.add_argument("--no-default-browser-check")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-
-    try:
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=options,
-        )
-    except Exception as e:
-        sys.exit(f"Could not start Chrome: {e}")
-
-    driver.maximize_window()
-    # Hide WebDriver fingerprint so JCR doesn't detect automation
-    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-        "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-    })
-
-    # Navigate to JCR and wait for user to log in
-    print("Opening JCR login page …")
-    driver.get(f"{JCR_BASE}/jcr/home")
-    time.sleep(3)
-
-    if "login" in driver.current_url.lower() or "sign" in driver.current_url.lower() or "clarivate" not in driver.current_url.lower():
-        print("\n" + "="*60)
-        print("Please log in to JCR in the Chrome window that just opened.")
-        print("Use your Ariel University / institutional credentials.")
-        print("="*60)
-        input("\nOnce you are logged in and see the JCR home page, press Enter here to continue …")
-        time.sleep(2)
-
-    # Switch to the last open window (JCR may have opened new tabs/windows during login)
-    handles = driver.window_handles
-    if handles:
-        driver.switch_to.window(handles[-1])
-        time.sleep(1)
-
-    print(f"\nJCR loaded — starting journal collection …\n")
-
-    results = []
-    for i, journal in enumerate(JOURNALS):
-        print(f"[{i+1}/{len(JOURNALS)}] {journal}")
+    if not remaining:
+        print("All journals already collected — skipping to POST.")
+    else:
+        print(f"Starting Chrome (undetected) …  {len(remaining)} journals to collect.\n")
         try:
-            # Always switch to last window before each journal (handles popups/redirects)
-            handles = driver.window_handles
-            if handles:
-                driver.switch_to.window(handles[-1])
-            data = extract_jcr_data(driver, journal)
+            driver = make_driver()
         except Exception as e:
-            print(f"  Error: {e}")
-            data = None
+            sys.exit(f"Could not start Chrome: {e}")
 
-        if data:
-            q  = data.get("jcr_quartile") or "?"
-            IF = data.get("impact_factor")
-            pct = data.get("percentile")
-            print(f"  → {q} | IF {IF:.3f if IF else 'n/a'} | Percentile {pct if pct else 'n/a'}")
-            results.append({
-                "journal_key":    norm(journal),
-                "journal_name":   journal,
-                "impact_factor":  IF,
-                "jcr_quartile":   q if q != "?" else None,
-                "percentile":     pct,
-            })
-        else:
-            print(f"  → Not found / could not parse")
+        driver.maximize_window()
 
-        time.sleep(PAGE_DELAY)
+        # Navigate to JCR home and wait for login if needed
+        print("Opening JCR …")
+        driver.get(f"{JCR_BASE}/jcr/home")
+        time.sleep(4)
 
-    driver.quit()
-    print(f"\nCollected data for {len(results)} journals.")
+        url_now = driver.current_url.lower()
+        if ("login" in url_now or "sign" in url_now or
+                "clarivate" not in url_now):
+            print("\n" + "=" * 60)
+            print("Please log in to JCR in the Chrome window that just opened.")
+            print("Use your Ariel University institutional credentials.")
+            print("=" * 60)
+            input("\nOnce you see the JCR home page, press Enter to continue …")
+            time.sleep(2)
 
-    if not results:
+        print(f"\nJCR loaded — collecting {len(remaining)} journals …\n")
+
+        for i, journal in enumerate(remaining):
+            total_done = len(done_keys) + i + 1
+            print(f"[{total_done}/{len(JOURNALS)}] {journal}")
+
+            try:
+                # Switch to last window (handles any extra tabs)
+                handles = driver.window_handles
+                if handles:
+                    driver.switch_to.window(handles[-1])
+                data = extract_jcr_data(driver, journal)
+            except Exception as e:
+                print(f"  Error: {e}")
+                data = None
+
+            if data:
+                q   = data.get("jcr_quartile") or "?"
+                IF  = data.get("impact_factor")
+                pct = data.get("percentile")
+                print(f"  → {q} | IF {f'{IF:.3f}' if IF else 'n/a'} | "
+                      f"Percentile {pct if pct else 'n/a'}")
+                entry = {
+                    "journal_key":   norm(journal),
+                    "journal_name":  journal,
+                    "impact_factor": IF,
+                    "jcr_quartile":  q if q != "?" else None,
+                    "percentile":    pct,
+                }
+            else:
+                print(f"  → Not found / could not parse")
+                entry = {
+                    "journal_key":  norm(journal),
+                    "journal_name": journal,
+                    "impact_factor": None,
+                    "jcr_quartile":  None,
+                    "percentile":    None,
+                }
+
+            results.append(entry)
+            save_progress(results)   # save after every journal
+            done_keys.add(entry["journal_key"])
+
+            time.sleep(PAGE_DELAY)
+
+        driver.quit()
+
+    # Filter to only rows with at least one metric
+    postable = [r for r in results if any(
+        r.get(k) for k in ("impact_factor", "jcr_quartile", "percentile")
+    )]
+    print(f"\nCollected data for {len(postable)}/{len(JOURNALS)} journals.")
+
+    if not postable:
         sys.exit("No data collected — nothing to POST.")
 
-    # POST to /api/journal-sync
     print(f"POSTing to {api_url} …")
     r = requests.post(
         api_url,
-        json={"journals": results},
+        json={"journals": postable},
         headers={"x-qc-token": qc_secret, "content-type": "application/json"},
         timeout=30,
     )
@@ -280,10 +322,17 @@ def main():
     if not r.ok:
         sys.exit(1)
 
-    print(f"\nDone — {len(results)} journals stored in D1.")
+    # Clear progress file on success
+    if os.path.exists(PROGRESS_FILE):
+        os.remove(PROGRESS_FILE)
+
+    print(f"\nDone — {len(postable)} journals stored in D1.")
     print("\nSummary:")
-    for j in results:
-        print(f"  {j['journal_name'][:45]:45s}  {j.get('jcr_quartile','?'):3s}  IF {j.get('impact_factor') or 'n/a'}")
+    for j in postable:
+        q  = j.get("jcr_quartile") or "?"
+        IF = j.get("impact_factor")
+        print(f"  {j['journal_name'][:45]:45s}  {q:3s}  "
+              f"IF {f'{IF:.3f}' if IF else 'n/a'}")
 
 
 if __name__ == "__main__":
