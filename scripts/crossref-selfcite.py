@@ -123,10 +123,14 @@ def main():
     papers_with_doi = [p for p in site_papers if p.get("doi")]
     print(f"  {len(papers_with_doi)} papers have DOIs; others will be searched by title.\n")
 
-    # self_counts[slug] = how many of Yariv's OTHER papers cite this paper
-    # citing_map[slug]  = list of citing-paper descriptions
-    self_counts  = {p["slug"]: 0 for p in site_papers}
-    citing_map   = {p["slug"]: [] for p in site_papers}
+    # self_counts[slug]    = how many of Yariv's OTHER papers cite this paper
+    # citing_map[slug]     = list of citing-paper descriptions
+    # no_crossref_data     = slugs of Yariv's papers whose reference lists
+    #                        were NOT found in CrossRef (so their self-refs
+    #                        to other papers are invisible to us)
+    self_counts      = {p["slug"]: 0 for p in site_papers}
+    citing_map       = {p["slug"]: [] for p in site_papers}
+    no_crossref_data = []   # papers where we got 0 refs from CrossRef
 
     for i, paper in enumerate(site_papers):
         slug  = paper["slug"]
@@ -142,10 +146,12 @@ def main():
             found_doi, refs = search_crossref_by_title(title)
             if found_doi:
                 doi_to_slug[found_doi.strip().lower()] = slug
-            if not refs:
-                print(f"  Not found in CrossRef — skipping")
-                time.sleep(DELAY)
-                continue
+
+        if not refs:
+            print(f"  ⚠ No reference data in CrossRef — self-cites from this paper undetectable")
+            no_crossref_data.append(slug)
+            time.sleep(DELAY)
+            continue
 
         print(f"  {len(refs)} references in CrossRef", end="")
 
@@ -154,7 +160,6 @@ def main():
             ref_doi   = re.sub(r"https?://(dx\.)?doi\.org/", "", ref["doi"]).strip().lower()
             ref_title = ref["title"]
 
-            # Which Yariv paper is being cited by this paper?
             cited_slug = None
             if ref_doi and ref_doi in doi_to_slug and doi_to_slug[ref_doi] != slug:
                 cited_slug = doi_to_slug[ref_doi]
@@ -166,7 +171,6 @@ def main():
                         break
 
             if cited_slug:
-                # cited_slug is the paper BEING self-cited — increment its count
                 self_counts[cited_slug] += 1
                 citing_map[cited_slug].append({
                     "authors": f"Itzkovich Y et al. (in: {title[:55]})",
@@ -175,22 +179,54 @@ def main():
                 found += 1
 
         if found:
-            print(f"  — {found} self-ref(s) found (this paper cites {found} of your own papers)")
+            print(f"  — {found} self-ref(s) found")
         else:
             print()
 
         time.sleep(DELAY)
 
-    # Build results using inverted map: each paper gets count of times Yariv cited IT
-    results = []
+    # ── Summary ──────────────────────────────────────────────────────────────
+    print("\n" + "=" * 65)
+    print("SELF-CITATION SUMMARY")
+    print("=" * 65)
+
+    confirmed_zero = []
+    uncertain_zero = []
+
     for paper in site_papers:
         slug = paper["slug"]
         sc   = self_counts[slug]
-        if sc:
-            print(f"  ✓ {paper['title'][:60]}  → cited {sc}x by Yariv")
+        if sc > 0:
+            print(f"  ✓ {paper['title'][:55]:55s}  cited {sc}x")
+        else:
+            # Is this zero uncertain? — if any paper with no CrossRef data
+            # MIGHT have cited this paper, we can't be sure.
+            # (All papers without CrossRef data are potentially uncertain
+            #  for every other paper, but that's too broad. We flag it
+            #  as uncertain only when ≥1 paper has no CrossRef data at all.)
+            if no_crossref_data:
+                uncertain_zero.append(paper["title"])
+            else:
+                confirmed_zero.append(paper["title"])
+
+    if no_crossref_data:
+        print(f"\n⚠  {len(no_crossref_data)} of your papers had NO reference data in CrossRef:")
+        for s in no_crossref_data:
+            t = next((p["title"] for p in site_papers if p["slug"] == s), s)
+            print(f"    • {t[:65]}")
+        print(f"\n   Self-citations FROM these papers are not counted.")
+        print(f"   Papers showing 0 may have missed self-cites from the above.")
+
+    print(f"\nTotal self-citations detected: {sum(self_counts.values())}")
+    print("=" * 65)
+
+    # Build results
+    results = []
+    for paper in site_papers:
+        slug = paper["slug"]
         results.append({
             "slug":                slug,
-            "self_citation_count": sc,
+            "self_citation_count": self_counts[slug],
             "citing_papers":       citing_map[slug],
         })
 
