@@ -29,6 +29,7 @@ export const onRequestPost = async ({ request, env }) => {
 
   const { metrics, papers } = body;
   if (!Array.isArray(papers)) return json({ ok: false, error: 'no_papers' }, 400);
+  const isCrossRef = body.source === 'crossref_selfcite';
 
   const nowTs = Math.floor(Date.now() / 1000);
 
@@ -59,10 +60,20 @@ export const onRequestPost = async ({ request, env }) => {
     const selfCount = hasCiting ? (p.self_citation_count ?? 0)
                                 : null; // null = preserve existing
 
-    if (hasCiting) {
-      // selfcite-sync script provided full citing data — write it all.
-      // citation_count is preserved if the incoming value is null/0 (crossref path).
-      const newCount = p.citation_count || null;
+    if (isCrossRef) {
+      // CrossRef self-citation path — only update self_citation_count, touch nothing else
+      await env.DB
+        .prepare(
+          `INSERT INTO citation_cache (paper_slug, citation_count, self_citation_count, citing_papers_json, fetched_at)
+           VALUES (?, 0, ?, '[]', ?)
+           ON CONFLICT(paper_slug) DO UPDATE SET
+             self_citation_count = excluded.self_citation_count,
+             fetched_at          = excluded.fetched_at`
+        )
+        .bind(p.slug, p.self_citation_count ?? 0, nowTs)
+        .run();
+    } else if (hasCiting) {
+      // selfcite-sync script provided full citing data — write it all
       await env.DB
         .prepare(
           `INSERT INTO citation_cache
@@ -71,16 +82,15 @@ export const onRequestPost = async ({ request, env }) => {
              ?,
              (SELECT doi FROM citation_cache WHERE paper_slug = ?),
              (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
-             COALESCE(?, (SELECT citation_count FROM citation_cache WHERE paper_slug = ?), 0),
-             ?, ?, ?
+             ?, ?, ?, ?
            )
            ON CONFLICT(paper_slug) DO UPDATE SET
-             citation_count      = COALESCE(excluded.citation_count, citation_cache.citation_count),
+             citation_count      = excluded.citation_count,
              self_citation_count = excluded.self_citation_count,
              citing_papers_json  = excluded.citing_papers_json,
              fetched_at          = excluded.fetched_at`
         )
-        .bind(p.slug, p.slug, p.slug, newCount, p.slug, selfCount, JSON.stringify(p.citing_papers), nowTs)
+        .bind(p.slug, p.slug, p.slug, p.citation_count, selfCount, JSON.stringify(p.citing_papers), nowTs)
         .run();
     } else {
       // Regular GS count-only sync — preserve existing citing-paper data from S2/selfcite

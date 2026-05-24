@@ -100,7 +100,7 @@ def main():
 
     for i, paper in enumerate(site_papers):
         slug  = paper["slug"]
-        doi   = paper.get("doi", "").strip()
+        doi   = (paper.get("doi") or "").strip()
         title = paper["title"]
 
         if not doi:
@@ -164,7 +164,7 @@ def main():
 
     r = requests.post(
         api_url,
-        json={"source": "google_scholar_selfcite", "papers": results},
+        json={"source": "crossref_selfcite", "papers": results},
         headers={"x-qc-token": qc_secret, "content-type": "application/json"},
         timeout=30,
     )
