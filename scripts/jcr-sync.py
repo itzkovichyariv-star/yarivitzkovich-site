@@ -187,14 +187,15 @@ def main():
     api_url   = sys.argv[1]
     qc_secret = sys.argv[2]
 
-    print("Starting Chrome with your existing profile …")
-    print("(Make sure Chrome is fully closed before running this script)\n")
+    print("Starting Chrome …\n")
 
     options = Options()
-    options.add_argument(f"--user-data-dir={CHROME_PROFILE}")
-    options.add_argument("--profile-directory=Default")
     options.add_argument("--no-first-run")
     options.add_argument("--no-default-browser-check")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
 
     try:
         driver = webdriver.Chrome(
@@ -202,31 +203,43 @@ def main():
             options=options,
         )
     except Exception as e:
-        sys.exit(
-            f"Could not start Chrome: {e}\n\n"
-            "Make sure Chrome is fully closed (Cmd+Q, not just the window)."
-        )
+        sys.exit(f"Could not start Chrome: {e}")
 
     driver.maximize_window()
+    # Hide WebDriver fingerprint so JCR doesn't detect automation
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+    })
 
-    # Check JCR is accessible (user should be logged in via profile)
-    print("Opening JCR …")
+    # Navigate to JCR and wait for user to log in
+    print("Opening JCR login page …")
     driver.get(f"{JCR_BASE}/jcr/home")
-    time.sleep(5)
+    time.sleep(3)
 
-    if "login" in driver.current_url.lower() or "sign" in driver.current_url.lower():
-        driver.quit()
-        sys.exit(
-            "JCR redirected to login — your session may have expired.\n"
-            "Log in via Chrome first, then run this script again."
-        )
+    if "login" in driver.current_url.lower() or "sign" in driver.current_url.lower() or "clarivate" not in driver.current_url.lower():
+        print("\n" + "="*60)
+        print("Please log in to JCR in the Chrome window that just opened.")
+        print("Use your Ariel University / institutional credentials.")
+        print("="*60)
+        input("\nOnce you are logged in and see the JCR home page, press Enter here to continue …")
+        time.sleep(2)
 
-    print(f"JCR loaded: {driver.current_url}\n")
+    # Switch to the last open window (JCR may have opened new tabs/windows during login)
+    handles = driver.window_handles
+    if handles:
+        driver.switch_to.window(handles[-1])
+        time.sleep(1)
+
+    print(f"\nJCR loaded — starting journal collection …\n")
 
     results = []
     for i, journal in enumerate(JOURNALS):
         print(f"[{i+1}/{len(JOURNALS)}] {journal}")
         try:
+            # Always switch to last window before each journal (handles popups/redirects)
+            handles = driver.window_handles
+            if handles:
+                driver.switch_to.window(handles[-1])
             data = extract_jcr_data(driver, journal)
         except Exception as e:
             print(f"  Error: {e}")

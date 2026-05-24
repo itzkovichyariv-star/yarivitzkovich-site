@@ -113,7 +113,24 @@ def main():
                 bib     = citing.get("bib", {})
                 c_title = bib.get("title", "")
                 c_year  = bib.get("pub_year", "") or bib.get("year", "")
-                authors = bib.get("author", "") or ""  # "Smith, J and Jones, K"
+
+                # scholarly may store authors as a string ("A, B and C, D")
+                # or as a list — handle both, also check top-level keys
+                raw_authors = (
+                    bib.get("author") or
+                    bib.get("authors") or
+                    citing.get("author") or
+                    citing.get("authors") or
+                    ""
+                )
+                if isinstance(raw_authors, list):
+                    authors = " ".join(str(a) for a in raw_authors)
+                else:
+                    authors = str(raw_authors)
+
+                # Debug: print first 3 citing papers per paper so we can verify
+                if page_count < 3:
+                    print(f"    DEBUG bib keys={list(bib.keys())} author={repr(authors[:80])}")
 
                 is_self = OWNER_FRAGMENT in authors.lower()
                 if is_self:
