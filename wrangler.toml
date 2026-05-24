@@ -20,4 +20,4 @@ OWNER_CITIES = "Kfar Saba,Jerusalem,Tel Aviv,Petah Tiqva,Ariel,Hadera,Netanya"
 # device on that wifi (script reads your current IP, appends it here,
 # commits + redeploys). Mobile data IPs aren't reliable for this since
 # carriers rotate them — those devices use the cookie path instead.
-OWNER_IPS = "2a00:a041:e62b:c600:de8:faef:988c:3824,2a00:a041:e62b:c600:5d67:f337:2217:8f38,2a00:a041:e62b:c600:b90d:f108:9890:87c0,2a00:a041:e62b:c600:995a:f4c5:6812:a975,2a00:a041:e62b:c600:5d5c:49bd:24a9:181c,2a00:a041:e62b:c600:3dbc:1670:32a3:5d03"
+OWNER_IPS = "2a00:a041:e62b:c600:de8:faef:988c:3824,2a00:a041:e62b:c600:5d67:f337:2217:8f38,2a00:a041:e62b:c600:b90d:f108:9890:87c0,2a00:a041:e62b:c600:995a:f4c5:6812:a975,2a00:a041:e62b:c600:5d5c:49bd:24a9:181c,2a00:a041:e62b:c600:3dbc:1670:32a3:5d03,2a00:a041:e62b:c600:2522:66ba:20a1:491f"
