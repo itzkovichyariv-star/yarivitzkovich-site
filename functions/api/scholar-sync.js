@@ -60,7 +60,9 @@ export const onRequestPost = async ({ request, env }) => {
                                 : null; // null = preserve existing
 
     if (hasCiting) {
-      // selfcite-sync script provided full citing data — write it all
+      // selfcite-sync script provided full citing data — write it all.
+      // citation_count is preserved if the incoming value is null/0 (crossref path).
+      const newCount = p.citation_count || null;
       await env.DB
         .prepare(
           `INSERT INTO citation_cache
@@ -69,15 +71,16 @@ export const onRequestPost = async ({ request, env }) => {
              ?,
              (SELECT doi FROM citation_cache WHERE paper_slug = ?),
              (SELECT semantic_scholar_id FROM citation_cache WHERE paper_slug = ?),
-             ?, ?, ?, ?
+             COALESCE(?, (SELECT citation_count FROM citation_cache WHERE paper_slug = ?), 0),
+             ?, ?, ?
            )
            ON CONFLICT(paper_slug) DO UPDATE SET
-             citation_count      = excluded.citation_count,
+             citation_count      = COALESCE(excluded.citation_count, citation_cache.citation_count),
              self_citation_count = excluded.self_citation_count,
              citing_papers_json  = excluded.citing_papers_json,
              fetched_at          = excluded.fetched_at`
         )
-        .bind(p.slug, p.slug, p.slug, p.citation_count, selfCount, JSON.stringify(p.citing_papers), nowTs)
+        .bind(p.slug, p.slug, p.slug, newCount, p.slug, selfCount, JSON.stringify(p.citing_papers), nowTs)
         .run();
     } else {
       // Regular GS count-only sync — preserve existing citing-paper data from S2/selfcite
