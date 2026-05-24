@@ -292,15 +292,23 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         ].join('');
       }
 
-      function showTimeline(papers) {
-        // Aggregate citing papers by year across all papers
+      function showTimeline(papers, gsTimeline) {
+        // Prefer Google Scholar cites_per_year (accurate, full history).
+        // Fall back to counting citing papers from S2 (limited social-science coverage).
         var byYear = {};
-        papers.forEach(function (p) {
-          (p.citing_papers || []).forEach(function (c) {
-            var y = parseInt(c.year || c.pub_year || '', 10);
-            if (y >= 2000 && y <= 2030) byYear[y] = (byYear[y] || 0) + 1;
+        if (gsTimeline && Object.keys(gsTimeline).length > 0) {
+          Object.keys(gsTimeline).forEach(function (y) {
+            var yr = parseInt(y, 10);
+            if (yr >= 2000 && yr <= 2030) byYear[yr] = gsTimeline[y];
           });
-        });
+        } else {
+          papers.forEach(function (p) {
+            (p.citing_papers || []).forEach(function (c) {
+              var y = parseInt(c.year || c.pub_year || '', 10);
+              if (y >= 2000 && y <= 2030) byYear[y] = (byYear[y] || 0) + 1;
+            });
+          });
+        }
         var years = Object.keys(byYear).map(Number).sort(function (a, b) { return b - a; });
         if (years.length === 0) return;
 
@@ -371,7 +379,7 @@ const withoutDoi = allPapers.filter((p) => !p.doi).length;
         var papers = data.papers || [];
         if (papers.length === 0) { empty.style.display = ''; return; }
 
-        showTimeline(papers);
+        showTimeline(papers, gs.timeline || null);
 
         papersList.innerHTML = papers.map(function (p) {
           return '<div class="border rounded-lg p-5" style="border-color: var(--divider)">' + renderPaper(p) + '</div>';

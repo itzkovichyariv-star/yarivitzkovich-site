@@ -32,14 +32,15 @@ export const onRequestPost = async ({ request, env }) => {
 
   const nowTs = Math.floor(Date.now() / 1000);
 
-  // Persist GS-level metrics in site_meta (h-index, i10, totals + since-2021)
+  // Persist GS-level metrics in site_meta (h-index, i10, totals + since-2021 + timeline)
   if (metrics) {
+    const timeline = body.timeline || null;
     await env.DB
       .prepare(
         `INSERT INTO site_meta (key, value) VALUES ('gs_metrics', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
       )
-      .bind(JSON.stringify({ ...metrics, fetched_at: nowTs }))
+      .bind(JSON.stringify({ ...metrics, fetched_at: nowTs, ...(timeline ? { timeline } : {}) }))
       .run();
   }
 

@@ -58,7 +58,7 @@ def main():
     qc_secret = sys.argv[2]
     doi_url   = "https://yarivitzkovich.org/papers-doi.json"
 
-    # Optional: use ScraperAPI as proxy (set SCRAPER_API_KEY secret in GitHub)
+    # Proxy selection: ScraperAPI (paid) > free rotating proxies > direct
     scraper_key = os.environ.get("SCRAPER_API_KEY", "")
     if scraper_key:
         print("Using ScraperAPI proxy …")
@@ -66,7 +66,14 @@ def main():
         pg.ScraperAPI(scraper_key)
         scholarly.use_proxy(pg)
     else:
-        print("No proxy configured — relying on scholarly defaults.")
+        print("No paid proxy — trying free rotating proxies …")
+        try:
+            pg = ProxyGenerator()
+            pg.FreeProxies()
+            scholarly.use_proxy(pg)
+            print("Free proxy rotation active.")
+        except Exception as proxy_err:
+            print(f"Free proxy setup failed ({proxy_err}) — falling back to direct.")
 
     # Load slug map from the live site
     print(f"Loading paper list from {doi_url} …")
@@ -109,9 +116,19 @@ def main():
     )
 
     matched, unmatched = [], []
+    timeline = {}   # year (int) → total citations that year, aggregated across all papers
     for pub in author.get("publications", []):
         title      = pub.get("bib", {}).get("title", "")
         cite_count = pub.get("num_citations", 0) or 0
+
+        # Aggregate cites_per_year for the citation timeline chart.
+        # scholarly returns this from the author profile page — no extra requests.
+        for yr_str, yr_count in (pub.get("cites_per_year") or {}).items():
+            try:
+                yr = int(yr_str)
+                timeline[yr] = timeline.get(yr, 0) + int(yr_count)
+            except (ValueError, TypeError):
+                pass
 
         slug = match_slug(title, slug_map)
         if not slug:
@@ -127,8 +144,10 @@ def main():
             "citation_count": cite_count,
         })
 
+    print(f"  Timeline years found: {sorted(timeline.keys())}")
+
     # POST to API
-    payload = {"source": "google_scholar", "metrics": metrics, "papers": matched}
+    payload = {"source": "google_scholar", "metrics": metrics, "papers": matched, "timeline": timeline}
     print(f"\nPOSTing {len(matched)} papers to {api_url} …")
     try:
         r = requests.post(
