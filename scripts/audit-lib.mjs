@@ -40,11 +40,12 @@ export async function fetchStatus(url, { redirect = 'follow' } = {}) {
 
 // ─── The Audit class ─────────────────────────────────────────────────
 export class Audit {
-  constructor({ name, baseUrl = BASE_URL, slowMo = 150, viewport = { width: 1400, height: 900 } }) {
+  constructor({ name, baseUrl = BASE_URL, slowMo = 150, viewport = { width: 1400, height: 900 }, noBrowser = false }) {
     this.name = name;
     this.baseUrl = baseUrl;
     this.slowMo = slowMo;
     this.viewport = viewport;
+    this.noBrowser = noBrowser;
     this.ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     this.out = `/tmp/yariv-site-audit-${name}-${this.ts}`;
     this.cells = [];
@@ -64,6 +65,28 @@ export class Audit {
     mkdirSync(this.out, { recursive: true });
     this.log(`OUT = ${this.out}`);
     this.log(`BASE = ${this.baseUrl}`);
+
+    // Detect substrate by probing /api/me. Cloudflare Pages Functions
+    // run under `wrangler pages dev` (200) but not under plain
+    // `astro dev` (404). This controls whether we apply dev-only 404
+    // filters below. Manual override via AUDIT_SUBSTRATE env.
+    const override = process.env.AUDIT_SUBSTRATE;
+    if (override === 'wrangler' || override === 'astro' || override === 'prod') {
+      this.substrate = override;
+    } else {
+      try {
+        const r = await fetch(`${this.baseUrl}/api/me`, { signal: AbortSignal.timeout(3000) });
+        this.substrate = r.status === 200 ? 'wrangler' : r.status === 404 ? 'astro' : 'astro';
+      } catch {
+        this.substrate = 'astro';
+      }
+    }
+    this.log(`SUBSTRATE = ${this.substrate} (Pages Functions ${this.substrate === 'astro' ? 'NOT' : ''} executing)`);
+
+    if (this.noBrowser) {
+      this.log('HTTP-only mode (no browser launched)');
+      return;
+    }
     this.log('Launching headed Chromium...');
     this.browser = await chromium.launch({ headless: false, slowMo: this.slowMo });
     this.ctx = await this.browser.newContext({
@@ -111,26 +134,25 @@ export class Audit {
       if (status < 400) return;
       const url = resp.url();
       if (/favicon\.ico|\.map$/.test(url)) return;
-      // Owner-only /api/me returns 401 in prod (Cloudflare Pages Function
-      // says "not the owner") and 404 under plain `astro dev` (Pages
-      // Functions don't run in vite dev mode). Either is expected for a
-      // non-owner audit run.
-      if (/\/api\/me\b/.test(url) && status >= 400 && status < 500) return;
-      // Cloudflare Pages Functions under /functions/ never run in plain
-      // `astro dev`. The dev-only 404s on /live/events, /live/totals,
-      // /api/* etc are an environment artifact, not a code regression.
-      // Prod fidelity requires `wrangler pages dev` — we don't gate on
-      // that here so contributors aren't blocked by missing wrangler.
-      const isPagesFn = /\/(api|live)\//.test(new URL(url).pathname);
-      if (isPagesFn && status === 404) return;
+      // Substrate-aware filtering. Under `astro dev`, Cloudflare Pages
+      // Functions don't execute, so /api/* and /live/* 404. That's an
+      // environment artifact, not a code bug, so we drop it. Under
+      // `wrangler pages dev` (or prod), those routes execute; ANY 4xx
+      // or 5xx from them is a real failure and surfaces here.
+      if (this.substrate === 'astro') {
+        const pathname = new URL(url).pathname;
+        if (/^\/(api|live)\//.test(pathname) && status === 404) return;
+      }
       this._badResponses.push(`${status} ${resp.request().method()} ${url}`);
     });
   }
 
   async teardown() {
     await this.writeReport();
-    await this.ctx.close().catch(() => {});
-    await this.browser.close().catch(() => {});
+    if (!this.noBrowser) {
+      await this.ctx?.close().catch(() => {});
+      await this.browser?.close().catch(() => {});
+    }
     const pass = this.cells.filter((c) => c.pass === true).length;
     const total = this.cells.length;
     this.log(`Report: ${this.out}/report.html  (${pass}/${total} pass)`);

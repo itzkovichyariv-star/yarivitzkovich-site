@@ -2,51 +2,70 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v0.1)
+## Current state (v0.2)
 
 | Cell file | Cells | Pass | Notes |
 |---|---|---|---|
-| `01-home-page.mjs` | HOME-no-errors, HOME-nav | 2/2 | Catches console/page/network errors and broken nav links |
-| `02-static-pages.mjs` | STATIC-{about,research,teaching,conferences,publications,subscribe,live} | 7/7 | One cell per top-level public page |
-| `03-subscribe.mjs` | SUB-empty-blocked, SUB-valid-success, SUB-server-error | 3/3 | Mocks `/api/subscribe` — no D1 writes, no real emails |
+| `01-home-page.mjs` | HOME-no-errors, HOME-nav | 2/2 | Catches console / page / network errors and broken nav links |
+| `02-static-pages.mjs` | STATIC-{about, research, teaching, conferences, publications, subscribe, live} | 7/7 | One cell per top-level public page |
+| `03-subscribe.mjs` | SUB-empty-blocked, SUB-valid-success, SUB-server-error | 3/3 | Mocks `/api/subscribe` via `page.route()` — no D1 writes, no real emails |
 | `04-hebrew.mjs` | HE-home, HE-teaching, HE-nav-toggle | 3/3 | Verifies `lang=he`, `dir=rtl`, locale toggle |
+| `05-prod-smoke.mjs` | PROD-{home, publications, hebrew, api-me, live-totals, live-events} | 6/6 | HTTP-only probes against `https://yarivitzkovich.org`. Strict GET — no side effects |
 
-**Total: 15 cells across 4 files. All green at v0.1.**
+**Total: 21 cells across 5 suites. All green at v0.2.**
 
-## How to run
+## Two substrates
+
+The audit can run against either dev substrate. The gate auto-detects
+which one is up on the local port and applies appropriate filters.
+
+### Preferred: `wrangler pages dev` (port 4324)
+
+**Pages Functions execute.** `/api/me`, `/live/totals`, `/live/events`
+all return real JSON. Closest to production. Required before any
+production deploy.
 
 ```bash
 cd ~/Code/yarivitzkovich-site
-npm run dev                       # http://localhost:4321
-node scripts/deploy-gate.mjs      # run every cell
-node scripts/deploy-gate.mjs --only 01      # just the homepage suite
-node scripts/deploy-gate.mjs --port 4322    # if Astro picked a different port
+npm run build                        # build dist/
+# One-time: apply D1 migrations to the local store
+npx wrangler d1 migrations apply yarivitzkovich-events --local \
+  --persist-to /tmp/wrangler-yariv-state
+# Boot the substrate
+npx wrangler pages dev dist --port 4324 --local \
+  --persist-to /tmp/wrangler-yariv-state
+# In another terminal:
+node scripts/deploy-gate.mjs
 ```
 
-When green: `npm run build` then `wrangler pages deploy dist`.
+### Fallback: `astro dev` (port 4321)
 
-The gate **must pass** before any production deploy. This is the same
-rule as the family-tasks and practicum-v2 projects (see
-`~/.claude/projects/-Users-yarivitzkovich-Downloads/memory/skill_visual_deploy_audit.md`).
+**Pages Functions do NOT execute** — `/api/*` and `/live/*` 404. The
+audit library filters those as environment artifacts so the dev cells
+still go green, but `05-prod-smoke.mjs` doesn't touch local at all so
+it's unaffected. Use this when iterating on Astro pages and you don't
+need Pages Function fidelity.
 
-## Known dev/prod gaps
+```bash
+cd ~/Code/yarivitzkovich-site
+npm run dev                          # http://localhost:4321
+node scripts/deploy-gate.mjs
+```
 
-The audit runs against `astro dev` (vite), not `wrangler pages dev`.
-This means **Cloudflare Pages Functions don't execute in dev** and any
-request to `/api/*` or `/live/*` returns 404. `audit-lib.mjs` filters
-these 404s as dev-environment artifacts so the gate isn't permanently
-red. Consequences:
+### Gate flags
 
-- `/api/me` 404 is filtered. Owner-only nav links stay hidden — fine.
-- `/live/events?range=7d` and `/live/totals` 404 are filtered. The
-  globe page renders without live data — the cell still verifies the
-  page loads and React renders without errors.
-- Subscribe form 03-subscribe is **mocked** end-to-end with
-  `page.route()` — the audit never POSTs to a real `/api/subscribe`.
+```bash
+node scripts/deploy-gate.mjs                    # auto-detect substrate
+node scripts/deploy-gate.mjs --only 01          # one suite
+node scripts/deploy-gate.mjs --port 4322        # explicit port
+node scripts/deploy-gate.mjs --skip-build       # don't probe dev server
+SKIP_PROD_SMOKE=1 node scripts/deploy-gate.mjs  # offline iteration
+AUDIT_SUBSTRATE=astro node scripts/deploy-gate.mjs  # force substrate
+```
 
-If you want full Pages Function fidelity, you'd need to switch the gate
-to probe a `wrangler pages dev` server instead. Pinned for a future
-revision; not blocking v0.1.
+When all green: `npm run build` and `wrangler pages deploy dist`. Per
+`~/.claude/projects/-Users-yarivitzkovich-Downloads/memory/skill_visual_deploy_audit.md`,
+the gate **must pass** before any production deploy.
 
 ## Bugs fixed for v0.1
 
@@ -58,9 +77,15 @@ revision; not blocking v0.1.
    article's id to `itzkovich2017-incivility-intrapreneurship`. Caught
    by `STATIC-publications`.
 
+## Bugs fixed for v0.2
+
+(none — v0.2 was substrate hardening, not bug fixes. Adds wrangler
+support + prod smoke.)
+
 ## How to build the next cell (recipe)
 
-Each new cell follows `01-home-page.mjs` as the template:
+Each new cell follows `01-home-page.mjs` (browser-driven) or
+`05-prod-smoke.mjs` (HTTP-only) as the template.
 
 1. **Decide the flow.** What does the user click? What table changes?
    What visible state changes?
@@ -68,8 +93,7 @@ Each new cell follows `01-home-page.mjs` as the template:
    "something happens" — exact text, exact route, exact attribute.
 3. **`observerMark()`** before the click.
 4. **Click + wait.** Use Playwright locators by visible role/text.
-5. **Read the visible state.** If the cell touches state (a form,
-   the URL, the DOM), assert on the rendered string — not on a
+5. **Read the visible state.** Assert on the rendered string — not on a
    network response or a console line.
 6. **`observerSnapshot()`** after; assert no console / page errors
    and no unfiltered 4xx/5xx subresources.
@@ -77,57 +101,57 @@ Each new cell follows `01-home-page.mjs` as the template:
    failure mode.** The next session reading the report should
    understand the bug in one line.
 
+For prod smoke cells, use `new Audit({ noBrowser: true })` and plain
+`fetch()` with `redirect: 'follow'`. Strictly GET — never POST against
+production.
+
 ## Cells still to build (priority order)
 
-These are the obvious surfaces that v0.1 doesn't cover. Pick one when a
-new bug surfaces or when adding new functionality:
-
-### 05-publication-detail.mjs
+### 06-publication-detail.mjs
 
 A single publication detail page (`/publications/<slug>`) should load
 cleanly, render title + authors + abstract, and have a working "Cite"
 copy-to-clipboard. Currently uncovered — `STATIC-publications` only
 hits the index.
 
-### 06-topics.mjs
+### 07-topics.mjs
 
 `/topics/<id>` pages and `/topics` index. Same shape as publication
 detail but for topic taxonomy.
 
-### 07-search.mjs
+### 08-search.mjs
 
 The `Search` overlay opens, accepts input, returns results (Pagefind
-index built at `npm run build` time). Skip unless `dist/` exists or
-build is in scope.
+index built at `npm run build` time). Needs `dist/` to exist — best
+run under wrangler substrate.
 
-### 08-contact.mjs
+### 09-contact.mjs
 
 The `#contact` anchor on `/` reveals contact info; verify the section
 renders + email link copies to clipboard. Low priority — static markup.
 
-### 09-citations.mjs
+### 10-citations.mjs
 
 When the citations system is deployed (see
 `project_citations_system.md` memory), add cells for:
 - `/api/citations` returning the right metric for a known paper id
 - `/manage/citations` admin UI loading without errors
 
-Needs `wrangler pages dev` so the D1 binding + ANTHROPIC_API_KEY work.
+Needs `wrangler pages dev` so the D1 binding + secrets work.
 
-### 10-book.mjs
+### 11-book.mjs
 
 When the *Uneconomic Relations* book page goes live (per
-`book_uneconomic_relations.md` memory), cover-art route + reader
-flow.
+`book_uneconomic_relations.md` memory), cover-art route + reader flow.
 
 ## Rollback
 
-The `v0.1` git tag points at this baseline state. If a future change
+The `v0.2` git tag points at this baseline state. If a future change
 regresses the audit, return to the known-good:
 
 ```bash
 cd ~/Code/yarivitzkovich-site
-git checkout v0.1
+git checkout v0.2
 ```
 
 Then re-deploy or branch off to fix.
@@ -137,9 +161,9 @@ Then re-deploy or branch off to fix.
 1. Open Claude Code in `~/Code/yarivitzkovich-site`. Memory files load
    automatically.
 2. Say: "continue the audit work — read scripts/audit/README.md".
-3. Pick a cell to build from the priority list, or write a new cell that
-   reproduces the bug you're chasing.
+3. Pick a cell to build from the priority list, or write a new cell
+   that reproduces the bug you're chasing.
 4. Build it. Run `node scripts/deploy-gate.mjs --only <prefix>`. Fix
    until green. Commit.
 5. When you have meaningful new cells passing, bump the git tag:
-   `git tag v0.2 -m "..."`.
+   `git tag v0.3 -m "..."`.

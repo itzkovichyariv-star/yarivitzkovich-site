@@ -22,20 +22,32 @@ const args = process.argv.slice(2);
 const onlyPrefix = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const skipBuildProbe = args.includes('--skip-build');
 const portArg = args.includes('--port') ? args[args.indexOf('--port') + 1] : null;
-const PORT = Number(portArg || process.env.AUDIT_PORT || 4321);
+// Default port preference:
+//   1. --port arg                  (explicit override)
+//   2. AUDIT_PORT env               (set by caller)
+//   3. 4324 if reachable            (wrangler pages dev — preferred substrate)
+//   4. 4321                         (astro dev fallback)
+const explicitPort = Number(portArg || process.env.AUDIT_PORT || 0);
+function probePort(p) {
+  try { execSync(`curl -sf -o /dev/null -m 2 http://localhost:${p}`, { stdio: 'ignore' }); return true; }
+  catch { return false; }
+}
+const PORT = explicitPort || (probePort(4324) ? 4324 : 4321);
 const DEV_URL = `http://localhost:${PORT}`;
 
 // 1. Confirm the dev server is reachable.
 if (!skipBuildProbe) {
-  try {
-    execSync(`curl -sf -o /dev/null -m 3 ${DEV_URL}`, { stdio: 'ignore' });
-    console.log(`OK dev server reachable at ${DEV_URL}`);
-  } catch {
+  if (!probePort(PORT)) {
     console.error(`FAIL dev server NOT reachable at ${DEV_URL}.
-   Start it first: cd ${ROOT} && npm run dev
-   If Astro picked a different port, pass --port <n>.`);
+   For preferred wrangler mode (full Pages Function fidelity):
+     cd ${ROOT} && npm run build
+     npx wrangler pages dev dist --port 4324 --local --persist-to /tmp/wrangler-yariv-state
+   Or for astro-dev fallback (faster iteration, no Pages Functions):
+     cd ${ROOT} && npm run dev
+   Then re-run this gate.`);
     process.exit(2);
   }
+  console.log(`OK dev server reachable at ${DEV_URL}`);
 }
 
 // 2. Run each audit file in sequence. Headed browsers compete for focus
