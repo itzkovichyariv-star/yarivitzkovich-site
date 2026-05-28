@@ -2,7 +2,7 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v0.2)
+## Current state (v0.3)
 
 | Cell file | Cells | Pass | Notes |
 |---|---|---|---|
@@ -11,8 +11,12 @@ Handoff doc for the audit workstream. Read this first whenever you (or a new Cla
 | `03-subscribe.mjs` | SUB-empty-blocked, SUB-valid-success, SUB-server-error | 3/3 | Mocks `/api/subscribe` via `page.route()` — no D1 writes, no real emails |
 | `04-hebrew.mjs` | HE-home, HE-teaching, HE-nav-toggle | 3/3 | Verifies `lang=he`, `dir=rtl`, locale toggle |
 | `05-prod-smoke.mjs` | PROD-{home, publications, hebrew, api-me, live-totals, live-events} | 6/6 | HTTP-only probes against `https://yarivitzkovich.org`. Strict GET — no side effects |
+| `06-publication-detail.mjs` | PUB-detail-loads, PUB-detail-content | 2/2 | Sentinel slug `incivility-inhibit-intrapreneurship` loads + title/author render |
+| `07-topics.mjs` | TOPIC-index, TOPIC-detail-loads, TOPIC-detail-content | 3/3 | `/topics` lists Incivility; `/topics/incivility` renders papers |
+| `08-search.mjs` | SEARCH-pagefind-loads, SEARCH-overlay-opens, SEARCH-returns-result | 3/3 | Overlay opens, Pagefind index reachable, query returns results. Auto-skips under astro substrate (no `/pagefind/` path) |
+| `09-contact.mjs` | CONTACT-anchor-resolves, CONTACT-channels-present | 2/2 | `#contact` exists; email + WhatsApp + ORCID links present |
 
-**Total: 21 cells across 5 suites. All green at v0.2.**
+**Total: 31 cells across 9 suites. All green at v0.3.**
 
 ## Two substrates
 
@@ -82,6 +86,22 @@ the gate **must pass** before any production deploy.
 (none — v0.2 was substrate hardening, not bug fixes. Adds wrangler
 support + prod smoke.)
 
+## Filters added for v0.3
+
+- `/api/citations?slug=X` returning **404** is documented behavior
+  (paper has no cached citation data — see `functions/api/citations.js`
+  line ~140). Filtered globally in `audit-lib.mjs`. A 500 from that
+  endpoint still surfaces as a real failure.
+- `06-publication-detail.mjs` uses `waitUntil: 'domcontentloaded'`
+  instead of `networkidle` because the page legitimately fetches
+  `/api/citations` and that fetch can take >20s on a cold local D1.
+
+## Bugs fixed for v0.3
+
+(none — v0.3 was coverage expansion. Found one limitation worth
+remembering: `/publications/<slug>` triggers a `/api/citations` fetch
+that hangs networkidle when citation_cache is empty. Documented above.)
+
 ## How to build the next cell (recipe)
 
 Each new cell follows `01-home-page.mjs` (browser-driven) or
@@ -107,51 +127,49 @@ production.
 
 ## Cells still to build (priority order)
 
-### 06-publication-detail.mjs
-
-A single publication detail page (`/publications/<slug>`) should load
-cleanly, render title + authors + abstract, and have a working "Cite"
-copy-to-clipboard. Currently uncovered — `STATIC-publications` only
-hits the index.
-
-### 07-topics.mjs
-
-`/topics/<id>` pages and `/topics` index. Same shape as publication
-detail but for topic taxonomy.
-
-### 08-search.mjs
-
-The `Search` overlay opens, accepts input, returns results (Pagefind
-index built at `npm run build` time). Needs `dist/` to exist — best
-run under wrangler substrate.
-
-### 09-contact.mjs
-
-The `#contact` anchor on `/` reveals contact info; verify the section
-renders + email link copies to clipboard. Low priority — static markup.
-
 ### 10-citations.mjs
 
 When the citations system is deployed (see
 `project_citations_system.md` memory), add cells for:
-- `/api/citations` returning the right metric for a known paper id
-- `/manage/citations` admin UI loading without errors
+- `/api/citations?slug=X` for a known paper id with cached data
+  returning 200 with `{ ok: true, citation_count: number }`
+- `/api/citations` (no slug) requires owner auth → 401 for anon
+- `/manage/citations` admin UI loading without errors (owner cookie)
 
-Needs `wrangler pages dev` so the D1 binding + secrets work.
+Needs `wrangler pages dev` so the D1 binding + secrets work, plus a
+seeded `citation_cache` row to assert on.
 
 ### 11-book.mjs
 
 When the *Uneconomic Relations* book page goes live (per
 `book_uneconomic_relations.md` memory), cover-art route + reader flow.
 
+### 12-cite-clipboard.mjs
+
+The publication detail page has citation copy-to-clipboard buttons
+(BibTeX, APA, etc — see `PublicationsBrowser.tsx` around line 980).
+A cell that clicks one and asserts the clipboard contents would catch
+"copy is silently broken" regressions. Playwright supports the
+clipboard API via `permissions: ['clipboard-read', 'clipboard-write']`
+on the context.
+
+### 13-cite-counter.mjs
+
+Currently the publication detail page sends `/api/citations?slug=X`
+and that 404 is filtered in audit-lib. When the citations system is
+deployed and that endpoint returns 200 for known slugs, a cell that
+asserts the "Cited by N" badge actually renders would catch the
+"endpoint works but badge never appears" class of bug.
+
 ## Rollback
 
-The `v0.2` git tag points at this baseline state. If a future change
-regresses the audit, return to the known-good:
+The `v0.3` git tag points at this baseline state (v0.1 and v0.2 are
+also available for older rollback points). If a future change regresses
+the audit, return to the known-good:
 
 ```bash
 cd ~/Code/yarivitzkovich-site
-git checkout v0.2
+git checkout v0.3
 ```
 
 Then re-deploy or branch off to fix.
@@ -166,4 +184,4 @@ Then re-deploy or branch off to fix.
 4. Build it. Run `node scripts/deploy-gate.mjs --only <prefix>`. Fix
    until green. Commit.
 5. When you have meaningful new cells passing, bump the git tag:
-   `git tag v0.3 -m "..."`.
+   `git tag v0.4 -m "..."`.

@@ -143,6 +143,14 @@ export class Audit {
         const pathname = new URL(url).pathname;
         if (/^\/(api|live)\//.test(pathname) && status === 404) return;
       }
+      // /api/citations?slug=X returns 404 by design when the paper
+      // has no cached citation data (citation_cache table empty for
+      // that slug). Local D1 starts empty; on prod most papers also
+      // don't have a row until the sync job runs. This is documented
+      // behavior — see functions/api/citations.js line ~140. A real
+      // failure would be a 500 from this endpoint.
+      const u = new URL(url);
+      if (u.pathname === '/api/citations' && status === 404) return;
       this._badResponses.push(`${status} ${resp.request().method()} ${url}`);
     });
   }
