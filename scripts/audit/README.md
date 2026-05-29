@@ -2,7 +2,7 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v1.3)
+## Current state (v1.4)
 
 | Cell file | Cells | Pass | Notes |
 |---|---|---|---|
@@ -15,15 +15,15 @@ Handoff doc for the audit workstream. Read this first whenever you (or a new Cla
 | `07-topics.mjs` | TOPIC-index, TOPIC-detail-loads, TOPIC-detail-content | 3/3 | `/topics` lists Incivility; `/topics/incivility` renders papers |
 | `08-search.mjs` | SEARCH-pagefind-loads, SEARCH-overlay-opens, SEARCH-returns-result | 3/3 | Overlay opens, Pagefind index reachable, query returns results. Auto-skips under astro substrate (no `/pagefind/` path) |
 | `09-contact.mjs` | CONTACT-anchor-resolves, CONTACT-channels-present | 2/2 | `#contact` exists; email + WhatsApp + ORCID links present |
-| `10-version-stamp.mjs` | STAMP-present-home, STAMP-format-correct, STAMP-present-other | 3/3 | Build-time `v1.YYYY.MM.DD-<sha>` stamp lives in `BaseLayout.astro` and renders on every page |
+| `10-version-stamp.mjs` | STAMP-present-home, STAMP-format-correct, STAMP-present-other, STAMP-theme-adaptive | 4/4 | Build-time `v1.YYYY.MM.DD-<sha>` stamp in `BaseLayout.astro` renders on every page; `STAMP-theme-adaptive` proves the color flips light↔dark (catches the v1.3→v1.4 legibility regression) |
 
-**Total: 34 cells across 10 suites. All green at v1.3.**
+**Total: 35 cells across 10 suites. All green at v1.4.**
 
 ## Versioning convention
 
 Two distinct versions:
 
-- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate). Rollback points.
+- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp), `v1.4` (stamp legibility fix). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate, fixes). Rollback points.
 - **Website version stamp** — `v1.YYYY.MM.DD-<short-sha>` rendered fixed bottom-left of every page (see `src/layouts/BaseLayout.astro`). The `1.` prefix is hardcoded as the major-version anchor (bump to `2.` only on a breaking-change-class rebuild). The date and SHA derive automatically at `npm run build` time — zero manual edits.
 
 Earlier `v0.x` tags were rebased to `v1.x` on 2026-05-29 to match the "start at 1" convention. The original commits are unchanged.
