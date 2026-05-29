@@ -1,5 +1,6 @@
 ---
 import { site } from '../data/site';
+import ContactQR from './ContactQR.astro';
 
 interface Props {
   lang?: 'en' | 'he';
@@ -85,6 +86,13 @@ const copy = {
             {copy.whatsapp}
           </a>
         </div>
+      </div>
+
+      {/* vCard QR — right column on desktop, centered below the buttons on
+          mobile. Scanning it saves Yariv's contact details. See
+          ContactQR.astro for the payload + design rationale. */}
+      <div class="col-span-12 md:col-span-4 mt-10 md:mt-0 flex justify-center md:justify-end items-start">
+        <ContactQR lang={lang} />
       </div>
     </div>
     <div class="mt-20">

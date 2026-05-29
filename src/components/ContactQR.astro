@@ -1,0 +1,146 @@
+---
+// ContactQR.astro — a build-time-generated vCard QR code for the contact zone.
+//
+// What it does: encodes Yariv's contact details as a vCard 3.0 string and
+// renders it as an inline SVG QR code. When someone scans it with a phone
+// camera (in person, over a video call, or from a forwarded WhatsApp image),
+// their phone offers "Add to Contacts" prefilled with the details below.
+//
+// Design choices:
+//   • Generated at `npm run build` time via the `qrcode` lib → inline SVG.
+//     No third-party QR API, no external image, no runtime JS, no tracking.
+//   • Rendered as a cream tile with maroon modules in BOTH themes. The
+//     #contact footer is maroon in light AND dark mode, so a fixed cream
+//     tile contrasts reliably either way — and dark-on-light is the
+//     orientation every scanner reads most reliably (inverted codes are
+//     hit-or-miss on older cameras).
+//   • Error-correction level H (30%) so the center "Y" monogram can sit on
+//     top without breaking scannability.
+//   • Everything encoded here is ALREADY public on the site (email +
+//     WhatsApp are live mailto:/wa.me links in the footer; ORCID is a
+//     public profile). The QR adds convenience, not new exposure.
+import QRCode from 'qrcode';
+import { site } from '../data/site';
+
+interface Props {
+  lang?: 'en' | 'he';
+}
+const { lang = 'en' } = Astro.props;
+
+// WhatsApp number used elsewhere in the footer (wa.me/972523975027).
+const phoneE164 = '+972523975027';
+
+// vCard 3.0. Spec wants CRLF between properties; most parsers accept LF,
+// but CRLF is safest across iOS/Android contact importers.
+//
+// Kept deliberately lean: every extra character makes the QR denser (more
+// modules), which shrinks each module and hurts scannability at this tile
+// size. We drop optional TYPE params and the long department string, but
+// keep the fields that matter for a contact card (name, org, title, email,
+// mobile, website, ORCID).
+const VCARD = [
+  'BEGIN:VCARD',
+  'VERSION:3.0',
+  'N:Itzkovich;Yariv;;;',
+  'FN:Yariv Itzkovich',
+  'ORG:Ariel University',
+  'TITLE:Associate Editor, Journal of Managerial Psychology',
+  `EMAIL:${site.email}`,
+  `TEL;TYPE=CELL:${phoneE164}`,
+  'URL:https://yarivitzkovich.org',
+  `URL:${site.profiles.orcid}`,
+  'END:VCARD',
+].join('\r\n');
+
+// Generate the QR as an SVG string. We theme it on-brand: maroon modules
+// (#7A1E2B = --color-accent) on a cream field (#F4EFE6 = --color-bg).
+//
+// Error-correction level M (15%): the center monogram covers only ~3% of
+// the code's area, so M's redundancy is more than enough to read through
+// it — and M keeps the module count low so each module stays big enough to
+// scan reliably at this tile size. (Level H tripled the data overhead and
+// produced a grid too fine to decode — caught by 11-contact-qr.mjs.)
+// margin:1 because the cream CSS padding around the SVG already provides
+// the bulk of the quiet zone scanners need.
+let qrSvg = '';
+try {
+  qrSvg = await QRCode.toString(VCARD, {
+    type: 'svg',
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    color: { dark: '#7A1E2BFF', light: '#F4EFE6FF' },
+  });
+  // Make the SVG fluid: drop the fixed width/height the lib emits and let
+  // the container size it via CSS (viewBox is preserved for aspect ratio).
+  qrSvg = qrSvg.replace(/<svg([^>]*?)\s(width|height)="[^"]*"/g, '<svg$1');
+} catch (e) {
+  // If generation ever fails, render nothing rather than break the page.
+  qrSvg = '';
+}
+
+const copy = {
+  en: { caption: 'Scan to save my details', aria: 'QR code — scan to save Yariv Itzkovich’s contact details' },
+  he: { caption: 'סרקו לשמירת פרטי הקשר שלי', aria: 'קוד QR — סריקה לשמירת פרטי הקשר של יריב איצקוביץ׳' },
+}[lang];
+---
+{qrSvg && (
+  <figure class="qr" aria-label={copy.aria} data-contact-qr data-vcard-len={VCARD.length}>
+    <div class="qr-tile">
+      <div class="qr-svg" set:html={qrSvg} />
+      <span class="qr-monogram" aria-hidden="true">Y</span>
+    </div>
+    <figcaption class="qr-caption">{copy.caption}</figcaption>
+  </figure>
+)}
+
+<style>
+  .qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+  }
+  .qr-tile {
+    position: relative;
+    width: 100%;
+    max-width: 240px;              /* bigger tile = bigger modules = reliable scan */
+    aspect-ratio: 1 / 1;
+    background: #F4EFE6;            /* cream tile — fixed in both themes for scan reliability */
+    border-radius: 16px;
+    padding: 16px;                 /* cream padding doubles as the QR quiet zone */
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  }
+  .qr-svg { width: 100%; height: 100%; display: block; }
+  .qr-svg :global(svg) { width: 100%; height: 100%; display: block; }
+  /* Center monogram: a small cream disc with the maroon "Y", sitting in the
+     QR's reserved center (safe because error-correction level H tolerates a
+     ~30% obstruction). */
+  .qr-monogram {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18%;
+    height: 18%;
+    display: grid;
+    place-items: center;
+    background: #F4EFE6;
+    border-radius: 50%;
+    color: #7A1E2B;
+    font-family: var(--font-display, Georgia, serif);
+    font-weight: 600;
+    font-size: clamp(0.85rem, 4.2vw, 1.15rem);
+    line-height: 1;
+    box-shadow: 0 0 0 3px #F4EFE6;  /* a clean cream halo so modules don't crowd the letter */
+    user-select: none;
+  }
+  .qr-caption {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    text-align: center;
+  }
+</style>

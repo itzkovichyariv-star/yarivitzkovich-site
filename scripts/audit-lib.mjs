@@ -40,12 +40,16 @@ export async function fetchStatus(url, { redirect = 'follow' } = {}) {
 
 // ─── The Audit class ─────────────────────────────────────────────────
 export class Audit {
-  constructor({ name, baseUrl = BASE_URL, slowMo = 150, viewport = { width: 1400, height: 900 }, noBrowser = false }) {
+  constructor({ name, baseUrl = BASE_URL, slowMo = 150, viewport = { width: 1400, height: 900 }, noBrowser = false, deviceScaleFactor = 1 }) {
     this.name = name;
     this.baseUrl = baseUrl;
     this.slowMo = slowMo;
     this.viewport = viewport;
     this.noBrowser = noBrowser;
+    // Retina-like rendering when a cell needs sharp pixels (e.g. decoding
+    // a QR screenshot — at dpr 1 a dense code aliases away). Phones are
+    // dpr 2-3, so a higher factor here matches what a real camera sees.
+    this.deviceScaleFactor = deviceScaleFactor;
     this.ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     this.out = `/tmp/yariv-site-audit-${name}-${this.ts}`;
     this.cells = [];
@@ -91,6 +95,7 @@ export class Audit {
     this.browser = await chromium.launch({ headless: false, slowMo: this.slowMo });
     this.ctx = await this.browser.newContext({
       viewport: this.viewport,
+      deviceScaleFactor: this.deviceScaleFactor,
       locale: 'en-US',
       timezoneId: 'Asia/Jerusalem',
     });
