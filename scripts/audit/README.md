@@ -2,7 +2,7 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v0.3)
+## Current state (v1.3)
 
 | Cell file | Cells | Pass | Notes |
 |---|---|---|---|
@@ -15,8 +15,18 @@ Handoff doc for the audit workstream. Read this first whenever you (or a new Cla
 | `07-topics.mjs` | TOPIC-index, TOPIC-detail-loads, TOPIC-detail-content | 3/3 | `/topics` lists Incivility; `/topics/incivility` renders papers |
 | `08-search.mjs` | SEARCH-pagefind-loads, SEARCH-overlay-opens, SEARCH-returns-result | 3/3 | Overlay opens, Pagefind index reachable, query returns results. Auto-skips under astro substrate (no `/pagefind/` path) |
 | `09-contact.mjs` | CONTACT-anchor-resolves, CONTACT-channels-present | 2/2 | `#contact` exists; email + WhatsApp + ORCID links present |
+| `10-version-stamp.mjs` | STAMP-present-home, STAMP-format-correct, STAMP-present-other | 3/3 | Build-time `v1.YYYY.MM.DD-<sha>` stamp lives in `BaseLayout.astro` and renders on every page |
 
-**Total: 31 cells across 9 suites. All green at v0.3.**
+**Total: 34 cells across 10 suites. All green at v1.3.**
+
+## Versioning convention
+
+Two distinct versions:
+
+- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate). Rollback points.
+- **Website version stamp** — `v1.YYYY.MM.DD-<short-sha>` rendered fixed bottom-left of every page (see `src/layouts/BaseLayout.astro`). The `1.` prefix is hardcoded as the major-version anchor (bump to `2.` only on a breaking-change-class rebuild). The date and SHA derive automatically at `npm run build` time — zero manual edits.
+
+Earlier `v0.x` tags were rebased to `v1.x` on 2026-05-29 to match the "start at 1" convention. The original commits are unchanged.
 
 ## Two substrates
 
@@ -102,6 +112,12 @@ support + prod smoke.)
 remembering: `/publications/<slug>` triggers a `/api/citations` fetch
 that hangs networkidle when citation_cache is empty. Documented above.)
 
+## Bugs fixed for v1.3
+
+(none — v1.3 added the build-time version stamp and rebased v0.x tags
+to v1.x. No regressions caught; the new `10-version-stamp.mjs` suite
+enforces stamp presence and format on every future build.)
+
 ## How to build the next cell (recipe)
 
 Each new cell follows `01-home-page.mjs` (browser-driven) or
@@ -163,13 +179,13 @@ asserts the "Cited by N" badge actually renders would catch the
 
 ## Rollback
 
-The `v0.3` git tag points at this baseline state (v0.1 and v0.2 are
-also available for older rollback points). If a future change regresses
-the audit, return to the known-good:
+The `v1.3` git tag points at this baseline state (v1.0 / v1.1 / v1.2
+are also available for older rollback points). If a future change
+regresses the audit, return to the known-good:
 
 ```bash
 cd ~/Code/yarivitzkovich-site
-git checkout v0.3
+git checkout v1.3
 ```
 
 Then re-deploy or branch off to fix.
@@ -184,4 +200,4 @@ Then re-deploy or branch off to fix.
 4. Build it. Run `node scripts/deploy-gate.mjs --only <prefix>`. Fix
    until green. Commit.
 5. When you have meaningful new cells passing, bump the git tag:
-   `git tag v0.4 -m "..."`.
+   `git tag v1.4 -m "..."`.

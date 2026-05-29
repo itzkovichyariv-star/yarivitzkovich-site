@@ -29,6 +29,23 @@ const {
 const dir = lang === 'he' ? 'rtl' : 'ltr';
 const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? 'https://yarivitzkovich.org').href;
 const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://yarivitzkovich.org').href;
+
+// ─── Build-time version stamp ────────────────────────────────────────
+// Format: v1.YYYY.MM.DD-<short-sha>
+// "1." is the hardcoded major version — site has been live and stable;
+//      bump to "2." only on a breaking-change-class rebuild.
+// YYYY.MM.DD is the build date (auto from `new Date()`).
+// short-sha is the current HEAD commit (auto via git rev-parse). If git
+// isn't available (rare — usually only inside a CI container without a
+// .git folder), the suffix falls back to "nogit" so the stamp still
+// renders.
+const buildDate = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+let shortSha = 'nogit';
+try {
+  const { execSync } = await import('node:child_process');
+  shortSha = execSync('git rev-parse --short HEAD', { cwd: import.meta.dirname }).toString().trim();
+} catch { /* leave shortSha = 'nogit' */ }
+const SITE_VERSION = `v1.${buildDate}-${shortSha}`;
 ---
 <!doctype html>
 <html lang={lang} dir={dir}>
@@ -270,5 +287,15 @@ const ogImage = new URL('/images/signature-banner.png', Astro.site ?? 'https://y
         when "Enable RUM with automatic snippet injection" is on for this
         domain in the Web Analytics dashboard. No manual <script> needed
         here — keeping one would duplicate the beacon. */}
+
+    {/* Build-time version stamp (bottom-left, low-opacity monospace).
+        Lets the owner glance at any page and confirm which build is live —
+        catches "I deployed but the change isn't showing" mismatches.
+        Same pattern as practicum-v2's stamp. */}
+    <div
+      id="version-stamp"
+      style="position:fixed; bottom:4px; left:8px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; color:rgba(0,0,0,0.25); pointer-events:none; z-index:1; user-select:none;"
+      aria-hidden="true"
+    >{SITE_VERSION}</div>
   </body>
 </html>
