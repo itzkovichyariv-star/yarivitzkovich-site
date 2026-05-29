@@ -17,8 +17,15 @@ name: Daily citations
 #   Semantic Scholar rate limit and make the refresh significantly faster.
 
 on:
-  schedule:
-    - cron: '0 5 * * *'
+  # DAILY SCHEDULE DISABLED (2026-05-29). Semantic Scholar's per-paper counts
+  # are LOWER than Google Scholar's and its self-citation detection uses a
+  # different citation graph. Running this daily overwrote the authoritative
+  # Google Scholar numbers from the manual console script
+  # (scripts/scholar-console.js → /api/scholar-sync). Google Scholar is now
+  # the source of truth for per-paper counts + self-citations; this S2 job is
+  # kept manual-only. To re-enable, restore the schedule block below.
+  # schedule:
+  #   - cron: '0 5 * * *'
   workflow_dispatch:
 
 jobs:

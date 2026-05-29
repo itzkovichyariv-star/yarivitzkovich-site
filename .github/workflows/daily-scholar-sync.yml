@@ -11,8 +11,15 @@ name: Daily Scholar sync
 # Required secret: QC_SECRET (same token used by daily-qc and daily-citations)
 
 on:
-  schedule:
-    - cron: '0 6 * * *'
+  # DAILY SCHEDULE DISABLED (2026-05-29). Google Scholar blocks server-side
+  # scraping, so scholar-sync.py fails almost every run from a GitHub runner
+  # (no residential proxy) — it was red daily and generated noise.
+  # Authoritative Google Scholar numbers now come from the MANUAL browser
+  # console script (scripts/scholar-console.js), which runs in a logged-in
+  # browser and isn't blocked. Kept manual-only; re-enable by restoring the
+  # schedule block below if a working SCRAPER_API_KEY is ever configured.
+  # schedule:
+  #   - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
