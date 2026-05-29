@@ -14,6 +14,31 @@ const QC_TOKEN = "494fc30488a603d7e8c7c9ce5ae27298f61420f47a9723ecb08cf46b57c076
 const OWNER    = "itzkovich";
 const PAGE_SIZE = 10;
 
+// ── On-page progress overlay ─────────────────────────────────────────────────
+// A fixed box in the top-right corner so you can SEE what's happening without
+// opening the console. Green = done, red = problem.
+const UI = (() => {
+  let box, msgEl, barEl;
+  function ensure() {
+    if (box) return;
+    box = document.createElement("div");
+    box.style.cssText = "position:fixed;top:16px;right:16px;z-index:2147483647;width:300px;background:#7A1E2B;color:#F4EFE6;font:14px/1.5 -apple-system,system-ui,sans-serif;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);padding:16px 18px;";
+    box.innerHTML =
+      '<div style="font-weight:600;font-size:15px;margin-bottom:6px">📊 Scholar Sync</div>' +
+      '<div class="ss-msg" style="opacity:.92">Starting…</div>' +
+      '<div style="height:5px;background:rgba(244,239,230,.25);border-radius:3px;margin-top:12px;overflow:hidden">' +
+      '<div class="ss-bar" style="height:100%;width:0;background:#F4EFE6;transition:width .3s"></div></div>';
+    (document.body || document.documentElement).appendChild(box);
+    msgEl = box.querySelector(".ss-msg");
+    barEl = box.querySelector(".ss-bar");
+  }
+  return {
+    status(m, pct) { ensure(); msgEl.textContent = m; if (pct != null) barEl.style.width = Math.max(0, Math.min(100, pct)) + "%"; },
+    done(m) { ensure(); box.style.background = "#1f6f3f"; msgEl.textContent = m; barEl.style.width = "100%"; },
+    fail(m) { ensure(); box.style.background = "#8a1f1f"; msgEl.textContent = m; },
+  };
+})();
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function randDelay(lo = 1500, hi = 3500) {
   return sleep(Math.floor(Math.random() * (hi - lo) + lo));
@@ -110,11 +135,13 @@ async function getCitingAuthors(cites_id, total) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 (async () => {
   if (!location.href.includes("scholar.google.com/citations")) {
-    console.error("❌ Go to your Scholar profile page first, then paste this script.");
+    UI.fail("Open your Google Scholar profile page first, then click the button again.");
+    console.error("❌ Go to your Scholar profile page first, then run this.");
     return;
   }
 
   // Load slug map
+  UI.status("Loading your paper list…", 3);
   console.log("📦 Loading paper list from site …");
   let slugMap = {};
   try {
@@ -123,14 +150,17 @@ async function getCitingAuthors(cites_id, total) {
     for (const p of data.papers) slugMap[norm(p.title)] = p.slug;
     console.log(`  ${Object.keys(slugMap).length} slugs loaded.`);
   } catch (e) {
+    UI.fail("Couldn't load your paper list. Check your connection and try again.");
     console.error("❌ Could not load papers-doi.json:", e); return;
   }
 
+  UI.status("Reading your Scholar profile…", 6);
   const papers  = await getProfilePapers();
   const results = [];
 
   for (let i = 0; i < papers.length; i++) {
     const paper = papers[i];
+    UI.status(`Reading paper ${i + 1} of ${papers.length}…`, 8 + (i / papers.length) * 82);
     const slug  = matchSlug(paper.title, slugMap);
 
     if (!slug) {
@@ -159,7 +189,11 @@ async function getCitingAuthors(cites_id, total) {
     await randDelay(1000, 2000);
   }
 
+  const totalSelf  = results.reduce((s,p) => s + p.self_citation_count, 0);
+  const totalCites = results.reduce((s,p) => s + p.citation_count, 0);
+
   // POST
+  UI.status("Saving to your site…", 95);
   console.log(`\n📤 POSTing ${results.length} papers …`);
   try {
     const resp = await fetch(API_URL, {
@@ -169,11 +203,17 @@ async function getCitingAuthors(cites_id, total) {
     });
     const txt = await resp.text();
     console.log(`Response ${resp.status}: ${txt.slice(0, 300)}`);
-    if (resp.ok) console.log("✅ Done! Self-citation data saved.");
-    else console.error("❌ API error.");
-  } catch (e) { console.error("❌ POST failed:", e); }
+    if (resp.ok) {
+      UI.done(`✅ Done — ${results.length} papers · ${totalCites} citations · ${totalSelf} self`);
+      console.log("✅ Done! Self-citation data saved.");
+    } else {
+      UI.fail(`Saved request failed (${resp.status}). Check the console.`);
+      console.error("❌ API error.");
+    }
+  } catch (e) {
+    UI.fail("Couldn't reach your site to save. Check the console.");
+    console.error("❌ POST failed:", e);
+  }
 
-  const totalSelf  = results.reduce((s,p) => s + p.self_citation_count, 0);
-  const totalCites = results.reduce((s,p) => s + p.citation_count, 0);
   console.log(`\nSummary: ${totalSelf} self out of ${totalCites} total (${totalCites ? Math.round(totalSelf/totalCites*100) : 0}%)`);
 })();
