@@ -288,13 +288,22 @@ const SITE_VERSION = `v1.${buildDate}-${shortSha}`;
         domain in the Web Analytics dashboard. No manual <script> needed
         here — keeping one would duplicate the beacon. */}
 
-    {/* Build-time version stamp (bottom-left, low-opacity monospace).
+    {/* Build-time version stamp (bottom-left, subtle monospace chip).
         Lets the owner glance at any page and confirm which build is live —
         catches "I deployed but the change isn't showing" mismatches.
-        Same pattern as practicum-v2's stamp. */}
+
+        Legibility notes (fixed 2026-05-29 after a "cellular/cut" report):
+        - color uses var(--text-soft) so it flips dark↔light with the theme.
+          Hardcoded black was invisible in dark mode (surface #0F0D0A) and
+          unreadable over the maroon footer.
+        - a faint surface-tinted chip (color-mix) keeps it readable over ANY
+          section it floats above — cream body, dark surface, or maroon footer —
+          since it's position:fixed and the backdrop changes as you scroll.
+        - bottom uses env(safe-area-inset-bottom) so a mobile browser toolbar
+          can't clip it. */}
     <div
       id="version-stamp"
-      style="position:fixed; bottom:4px; left:8px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; color:rgba(0,0,0,0.25); pointer-events:none; z-index:1; user-select:none;"
+      style="position:fixed; bottom:max(4px, env(safe-area-inset-bottom, 4px)); left:8px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; line-height:1; color:var(--text-soft); background:color-mix(in srgb, var(--surface) 62%, transparent); padding:2px 6px; border-radius:4px; pointer-events:none; z-index:40; user-select:none; backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);"
       aria-hidden="true"
     >{SITE_VERSION}</div>
   </body>

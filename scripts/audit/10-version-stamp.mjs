@@ -88,5 +88,59 @@ audit.log('STAMP-present-other: a non-home page also has the stamp');
   });
 }
 
+// ─── STAMP-theme-adaptive ──────────────────────────────────────────
+// Regression guard added 2026-05-29 after the stamp shipped with a
+// hardcoded `color: rgba(0,0,0,0.25)` that was invisible in dark mode
+// (surface #0F0D0A) and unreadable over the maroon footer. The fix
+// switched it to `var(--text-soft)`, which flips dark↔light with the
+// theme. This cell proves the color is theme-adaptive: it reads the
+// computed color in light mode, toggles `.dark` on <html>, reads it
+// again, and asserts the two DIFFER. A hardcoded color would be
+// identical in both modes → fail. It also asserts the dark-mode color
+// is light-ish (high channel values) so it's legible on a dark bg.
+audit.log('STAMP-theme-adaptive: stamp color flips between light and dark mode');
+{
+  await audit.page.goto(`${audit.baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  await audit.page.waitForTimeout(300);
+
+  const readColor = () => audit.page.evaluate(() => {
+    const el = document.getElementById('version-stamp');
+    return el ? getComputedStyle(el).color : null;
+  });
+  // Parse "rgb(a)(r, g, b[, a])" → [r,g,b].
+  const rgb = (s) => (s || '').match(/\d+(\.\d+)?/g)?.slice(0, 3).map(Number) ?? [];
+
+  // Light mode (ensure .dark is OFF first).
+  await audit.page.evaluate(() => document.documentElement.classList.remove('dark'));
+  await audit.page.waitForTimeout(100);
+  const lightColor = await readColor();
+
+  // Dark mode.
+  await audit.page.evaluate(() => document.documentElement.classList.add('dark'));
+  await audit.page.waitForTimeout(100);
+  const darkColor = await readColor();
+  const after = await audit.shot('STAMP-theme-adaptive-dark');
+
+  // Reset to light so the run leaves a clean state.
+  await audit.page.evaluate(() => document.documentElement.classList.remove('dark'));
+
+  const differs = !!lightColor && !!darkColor && lightColor !== darkColor;
+  // In dark mode the text must be light to be legible on #0F0D0A.
+  // --text-soft dark value is rgba(244,239,230,0.5) → all channels > 200.
+  const [dr, dg, db] = rgb(darkColor);
+  const darkIsLight = dr > 180 && dg > 180 && db > 180;
+
+  audit.recordCell({
+    id: 'STAMP-theme-adaptive',
+    tableRef: '#version-stamp color flips with theme',
+    expected: 'computed color differs light vs dark; dark-mode color is light-ish (legible on #0F0D0A)',
+    observed: `light=${lightColor}, dark=${darkColor}, differs=${differs}, darkIsLight=${darkIsLight}`,
+    pass: differs && darkIsLight,
+    after,
+    notes: !differs ? 'Stamp color is identical in light and dark mode — likely hardcoded again (regression). Use var(--text-soft).' :
+           !darkIsLight ? `Dark-mode color ${darkColor} is too dark to read on the #0F0D0A surface.` : '',
+  });
+}
+
 await audit.teardown();
 process.exit(audit.cells.some((c) => c.pass === false) ? 1 : 0);
