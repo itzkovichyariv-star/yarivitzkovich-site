@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ARC_COLORS } from '../lib/globePalette';
+import { resolvePaperTitle } from '../lib/paperTitle';
 
 interface DetailEvent {
   id: number;
@@ -850,7 +851,9 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
     for (const e of events) {
       if (e.is_bot || e.kind !== 'download' || !e.paper_slug) continue;
       const slug = e.paper_slug;
-      const title = e.paper_title || slug.replace(/-/g, ' ');
+      // Prefer the curated .mdx title; fall back to the event row's title, then
+      // a sentence-cased slug. Never the raw lowercase slug.
+      const title = resolvePaperTitle(slug, e.paper_title) || slug;
       if (!bySlug.has(slug)) bySlug.set(slug, { title, count: 0, countries: new Map() });
       const entry = bySlug.get(slug)!;
       entry.count++;

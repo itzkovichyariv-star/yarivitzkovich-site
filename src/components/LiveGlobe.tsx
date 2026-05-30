@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { PIN_STYLES, withAlpha, ARC_COLORS, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
+import { sentenceCaseSlug } from '../lib/paperTitle';
 // BreakdownDrawer used to be embedded on /live as a modal. The drawer
 // content now lives at /manage/events as a full page; the Manage link
 // in the filter row takes the owner there.
@@ -1433,7 +1434,7 @@ export default function LiveGlobe({ papers }: Props) {
           >
             <option value="">All activity</option>
             {Array.from(new Set(events.map((e) => e.paper_slug).filter(Boolean) as string[]))
-              .map((slug) => papers.find((p) => p.slug === slug) || { slug, title: slug.replace(/-/g, ' ') })
+              .map((slug) => papers.find((p) => p.slug === slug) || { slug, title: sentenceCaseSlug(slug) })
               .sort((a, b) => a.title.localeCompare(b.title))
               .map((p) => (
                 <option key={p.slug} value={p.slug}>
@@ -1552,13 +1553,13 @@ function PinCard({
   onPin: () => void;
   onClose: () => void;
 }) {
-  // Fallback: if the event row has paper_slug but null paper_title (legacy
-  // PDF events from before P1 stored titles at write time), look up the
-  // title from the publications list passed in from the page.
+  // Prefer the curated publications title (authoritative, properly
+  // capitalized) over whatever the event row stored, then fall back to a
+  // sentence-cased slug — never the raw lowercase slug.
   const resolvedTitle =
-    event.paper_title ||
     (event.paper_slug ? papers.find((p) => p.slug === event.paper_slug)?.title : null) ||
-    null;
+    event.paper_title ||
+    (event.paper_slug ? sentenceCaseSlug(event.paper_slug) : null);
   const place = [event.city, event.country_name, event.continent_name].filter(Boolean).join(' · ');
   const isDownload = event.kind === 'download';
   const isReturning = event.visitor_class === 'returning';

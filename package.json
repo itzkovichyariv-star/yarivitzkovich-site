@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
+    "build": "node scripts/gen-paper-titles.mjs && astro build && pagefind --site dist",
     "preview": "astro preview",
     "astro": "astro",
     "backup": "bash scripts/backup-to-onedrive.sh",

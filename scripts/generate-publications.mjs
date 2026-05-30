@@ -11,8 +11,27 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const OUT_DIR = join(ROOT, 'src/content/publications');
 
-// Hard-keeps (already curated with covers / abstracts). Script will NOT overwrite.
-const KEEP = new Set(['challenges-academic-incivility', 'kilkalat-yehasim']);
+// Hard-keeps: entries curated by hand in the .mdx (covers/abstracts, and APA 7
+// sentence-case titles normalized in 2026-05). This script will NOT overwrite
+// or delete them — the .mdx is the source of truth for these. The PUBS title
+// strings below may be stale Title-Case copies; KEEP makes them inert.
+const KEEP = new Set([
+  'challenges-academic-incivility', 'kilkalat-yehasim',
+  // titles normalized to APA 7 sentence case — do not regenerate from PUBS
+  'academic-incivility', 'adhd-employability-psychological-resources',
+  'an-introduction-to-the-dark-side-of-organizations', 'beyond-investment-thesis-sustainability',
+  'bullying-harassment-higher-ed-scoping', 'emotional-intelligence-as-a-remedy-for-academic-incivility',
+  'incivility-trickle-down-compensatory', 'interpersonal-mistreatment-definitions-of-offensive-behavior',
+  'learning-environments-as-precursors-of-academic-incivility', 'personal-precursors-of-academic-incivility',
+  'preschool-teachers-revenge', 'tackling-academic-incivility-by-shifting-the-focus-to-studen',
+  'ultimate-bystander-ai-incivility', 'will-they-strike-back-incivility-bullying',
+  'adult-bullying-voluntary-organizations', 'bystanders-health-risk-behaviors',
+  'cultivating-safer-climate', 'dark-side-teachers-behavior-framework',
+  'drivers-of-intrapreneurship-aet', 'incivility-empathy-ethical-climate-hospital',
+  'incivility-hierarchical-status-manager-damage', 'perpetrated-incivility-aom-2021',
+  'social-identity-public-hospital', 'tit-for-tat-horizontal-solidarity',
+  'victim-perspective-incivility-negative-affectivity',
+]);
 
 // All publications — manually curated from CV sections F1–F8.
 // Each entry carries: slug, year, type, status, authors, title, venue, doi, topics, methods, featured.
