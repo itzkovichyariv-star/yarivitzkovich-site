@@ -9,12 +9,28 @@
 import { isOwner } from '../_lib/auth.js';
 import { notifyOwner, escapeHtml } from '../_lib/email.js';
 
+// CORS: the manual Scholar collector (scripts/scholar-console.js) runs ON
+// scholar.google.com and POSTs here cross-origin, so the browser issues a
+// preflight and needs Access-Control-Allow-* on the response. Safe to allow
+// any origin because this is a WRITE endpoint gated by the x-qc-token secret
+// (or owner cookie) — CORS only restricts browsers, never server clients, so
+// '*' adds no new exposure beyond what the token already controls.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'content-type, x-qc-token',
+  'Access-Control-Max-Age': '86400',
+};
+
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store, private' },
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store, private', ...CORS_HEADERS },
   });
 }
+
+// Preflight handler for the cross-origin POST from scholar.google.com.
+export const onRequestOptions = () => new Response(null, { status: 204, headers: CORS_HEADERS });
 
 export const onRequestPost = async ({ request, env }) => {
   const provided = request.headers.get('x-qc-token');
