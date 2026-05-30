@@ -461,6 +461,7 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
           <>
             <GrowthCharts events={events} range={range} />
             <PaperBreakdown events={events} />
+            <CountryBreakdown events={events} />
           </>
         )}
 
@@ -918,6 +919,74 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
                 ))}
               </div>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Visits aggregated by country: how many entries (visits) each country
+// produced, and how many of those were returning visitors. Downloads are
+// excluded here — those live in the "Downloads · by paper" section above.
+function CountryBreakdown({ events }: { events: DetailEvent[] }) {
+  const rows = useMemo(() => {
+    const byCountry = new Map<string, { entries: number; returning: number }>();
+    for (const e of events) {
+      if (e.is_bot || e.kind === 'download') continue; // visits only
+      const country = e.country_name || e.continent_name || 'Unknown';
+      if (!byCountry.has(country)) byCountry.set(country, { entries: 0, returning: 0 });
+      const r = byCountry.get(country)!;
+      r.entries++;
+      if (e.visitor_class === 'returning') r.returning++;
+    }
+    return Array.from(byCountry.entries())
+      .map(([country, { entries, returning }]) => ({ country, entries, returning }))
+      .sort((a, b) => b.entries - a.entries || a.country.localeCompare(b.country));
+  }, [events]);
+
+  if (rows.length === 0) return null;
+
+  const totalEntries = rows.reduce((s, r) => s + r.entries, 0);
+  const totalReturning = rows.reduce((s, r) => s + r.returning, 0);
+
+  return (
+    <div
+      className="mt-8 pt-6"
+      style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
+    >
+      <div className="flex items-baseline justify-between gap-4 mb-5">
+        <div className="font-mono text-[10px] uppercase tracking-widest opacity-50">
+          Visits · by country
+        </div>
+        <div
+          className="font-mono text-[10px] uppercase tracking-widest opacity-40 whitespace-nowrap"
+          style={{ fontVariantNumeric: 'tabular-nums' }}
+        >
+          {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'}
+          {totalReturning > 0 && <> · {totalReturning} returning</>}
+        </div>
+      </div>
+      <div className="space-y-2.5">
+        {rows.map((r) => (
+          <div
+            key={r.country}
+            className="flex items-baseline justify-between gap-4 font-mono text-xs uppercase tracking-widest"
+          >
+            <span className="opacity-90 leading-snug">{r.country}</span>
+            <span
+              className="shrink-0 whitespace-nowrap"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
+            >
+              <span style={{ color: VISITS_COLOR }}>
+                {r.entries} {r.entries === 1 ? 'entry' : 'entries'}
+              </span>
+              {r.returning > 0 && (
+                <span style={{ color: CLASS_COLORS.returning, opacity: 0.95 }}>
+                  {' · '}{r.returning} returning
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>
