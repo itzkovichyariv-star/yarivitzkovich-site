@@ -191,7 +191,7 @@ export default function LiveGlobe({ papers }: Props) {
 
   const [events, setEvents] = useState<EventRow[]>([]);
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
-  const [range, setRange] = useState<RangeKey>('7d');
+  const [range, setRange] = useState<RangeKey>('all'); // default to All time
   const [paper, setPaper] = useState<string>(''); // '' = all papers
   const [loading, setLoading] = useState(true);
   const [reduced, setReduced] = useState(false);

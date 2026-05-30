@@ -221,7 +221,7 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
   // no close action, since the page itself is the container.
   const isInline = mode === 'inline';
   const isOpen = isInline ? true : open;
-  const [range, setRange] = useState<RangeKey>('7d');
+  const [range, setRange] = useState<RangeKey>('all'); // default to All time across all breakdown levels
   const [events, setEvents] = useState<DetailEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
