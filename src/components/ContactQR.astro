@@ -75,10 +75,7 @@ try {
   const dark = (r, c) => (r >= 0 && c >= 0 && r < size && c < size ? data[r * size + c] : 0);
   const M    = 1;                       // quiet-zone margin (modules) — thin, even cream frame
   const dim  = size + M * 2;
-  // Frameless / inverted: cream code on the footer's maroon (var --color-accent),
-  // so there's no white card border at all — the QR sits directly on the wine
-  // background. BG matches the footer exactly, so the quiet zone is seamless.
-  const FG   = '#F4EFE6', BG = 'var(--color-accent)';
+  const FG   = '#7A1E2B', BG = '#F4EFE6';
   const inFinder = (r, c) =>
     (r < 7 && c < 7) || (r < 7 && c >= size - 7) || (r >= size - 7 && c < 7);
   const finder = (x, y) =>
@@ -131,10 +128,13 @@ const copy = {
     width: 100%;
     max-width: 168px;              /* compact, to sit quietly in the clean footer */
     aspect-ratio: 1 / 1;
-    /* Frameless: no cream card, no padding, no shadow. The cream code sits
-       directly on the footer's maroon (the SVG's quiet zone IS the maroon),
-       so there is no white border to look uneven. */
-    background: transparent;
+    background: #F4EFE6;            /* cream tile — fixed in both themes for scan reliability */
+    border-radius: 10px;
+    /* Thin, uniform cream border. The QR's own 1-module quiet zone is baked
+       into the SVG (qrcode margin:1), so this padding only needs to be a
+       hair more — no thick white frame. */
+    padding: 4px;
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
   }
   /* On phones (below Tailwind's md breakpoint, where the footer stacks) the
      QR is a secondary element — shrink it so it doesn't dominate. It stays
@@ -158,14 +158,14 @@ const copy = {
     height: 18%;
     display: grid;
     place-items: center;
-    background: var(--color-accent);  /* maroon disc (matches the footer) clears the cream modules */
+    background: #F4EFE6;
     border-radius: 50%;
-    color: #F4EFE6;                   /* cream "Y" */
+    color: #7A1E2B;
     font-family: var(--font-display, Georgia, serif);
     font-weight: 600;
     font-size: clamp(0.85rem, 4.2vw, 1.15rem);
     line-height: 1;
-    box-shadow: 0 0 0 3px var(--color-accent);  /* maroon halo so cream modules don't crowd the letter */
+    box-shadow: 0 0 0 3px #F4EFE6;  /* a clean cream halo so modules don't crowd the letter */
     user-select: none;
   }
   .qr-caption {
