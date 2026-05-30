@@ -846,6 +846,14 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
   );
 }
 
+// "Tel Aviv, Israel" when a city is known; falls back to country, then
+// continent. Shared by the per-paper and per-visit breakdowns so both render
+// at the same city-level granularity.
+function placeLabel(e: DetailEvent): string {
+  const parts = [e.city, e.country_name].filter(Boolean);
+  return parts.length ? parts.join(', ') : (e.continent_name || 'Unknown');
+}
+
 function PaperBreakdown({ events }: { events: DetailEvent[] }) {
   const breakdown = useMemo(() => {
     const bySlug = new Map<string, { title: string; count: number; countries: Map<string, number> }>();
@@ -858,7 +866,7 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
       if (!bySlug.has(slug)) bySlug.set(slug, { title, count: 0, countries: new Map() });
       const entry = bySlug.get(slug)!;
       entry.count++;
-      const loc = e.country_name || e.continent_name || 'Unknown';
+      const loc = placeLabel(e);
       entry.countries.set(loc, (entry.countries.get(loc) ?? 0) + 1);
     }
     return Array.from(bySlug.entries())
@@ -926,19 +934,19 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
   );
 }
 
-// Visits by country, in the same shape as "Downloads · by paper": two groups —
+// Visits by city, in the same shape as "Downloads · by paper": two groups —
 // First-time (new entries) and Returning — each showing how many visits came
-// from which place (country chips). Downloads are excluded (they're broken out
-// per paper above).
+// from which place ("City, Country" chips). Downloads are excluded (they're
+// broken out per paper above).
 function CountryBreakdown({ events }: { events: DetailEvent[] }) {
   const groups = useMemo(() => {
     const firstTime = new Map<string, number>();
     const returning = new Map<string, number>();
     for (const e of events) {
       if (e.is_bot || e.kind === 'download') continue; // visits only
-      const country = e.country_name || e.continent_name || 'Unknown';
+      const place = placeLabel(e);
       const m = e.visitor_class === 'returning' ? returning : firstTime;
-      m.set(country, (m.get(country) ?? 0) + 1);
+      m.set(place, (m.get(place) ?? 0) + 1);
     }
     const toLocations = (m: Map<string, number>) =>
       Array.from(m.entries())
@@ -960,7 +968,7 @@ function CountryBreakdown({ events }: { events: DetailEvent[] }) {
       style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
     >
       <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
-        Visits · by country
+        Visits · by city
       </div>
       <div className="space-y-5">
         {groups.map((g) => (
