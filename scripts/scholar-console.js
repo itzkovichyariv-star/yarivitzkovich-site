@@ -118,8 +118,29 @@ async function getCitingAuthors(cites_id, total) {
 
     // Parse the fetched HTML
     const doc   = new DOMParser().parseFromString(html, "text/html");
-    const items = doc.querySelectorAll(".gs_r.gs_or.gs_scl");
-    if (!items.length) break;
+    let items = doc.querySelectorAll(".gs_r.gs_or.gs_scl");
+    // Fallback selectors in case Scholar changed its result markup.
+    if (!items.length) items = doc.querySelectorAll(".gs_r .gs_ri");
+    if (!items.length) items = doc.querySelectorAll("[data-cid]");
+    if (!items.length) {
+      // One-time diagnostic so we can see WHY no citing rows were found
+      // (CAPTCHA/robot page vs. a changed layout vs. empty).
+      if (!window.__ssDiag) {
+        window.__ssDiag = true;
+        const low = html.toLowerCase();
+        const blocked = /captcha|not a robot|unusual traffic|\/sorry\/|enablejs|id="gs_captcha"/i.test(low);
+        console.warn("🔎 CITING-PAGE DIAGNOSTIC (first paper with citations):");
+        console.warn("   url:", url);
+        console.warn("   html length:", html.length, "| has 'gs_r':", html.includes("gs_r"), "| has 'gs_a':", html.includes("gs_a"));
+        console.warn("   looks blocked (captcha/robot):", blocked);
+        console.warn("   title:", (doc.querySelector("title") || {}).textContent);
+        console.warn("   first 300 chars:", html.slice(0, 300).replace(/\s+/g, " "));
+        UI.fail(blocked
+          ? "Google blocked the citing-list read (CAPTCHA). See console diagnostic."
+          : "Couldn't read citing lists (layout?). See console diagnostic.");
+      }
+      break;
+    }
 
     for (const r of items) {
       const aEl = r.querySelector(".gs_a");
