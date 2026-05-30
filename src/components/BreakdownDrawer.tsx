@@ -926,67 +926,74 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
   );
 }
 
-// Visits aggregated by country: how many entries (visits) each country
-// produced, and how many of those were returning visitors. Downloads are
-// excluded here — those live in the "Downloads · by paper" section above.
+// Visits by country, in the same shape as "Downloads · by paper": two groups —
+// First-time (new entries) and Returning — each showing how many visits came
+// from which place (country chips). Downloads are excluded (they're broken out
+// per paper above).
 function CountryBreakdown({ events }: { events: DetailEvent[] }) {
-  const rows = useMemo(() => {
-    const byCountry = new Map<string, { entries: number; returning: number }>();
+  const groups = useMemo(() => {
+    const firstTime = new Map<string, number>();
+    const returning = new Map<string, number>();
     for (const e of events) {
       if (e.is_bot || e.kind === 'download') continue; // visits only
       const country = e.country_name || e.continent_name || 'Unknown';
-      if (!byCountry.has(country)) byCountry.set(country, { entries: 0, returning: 0 });
-      const r = byCountry.get(country)!;
-      r.entries++;
-      if (e.visitor_class === 'returning') r.returning++;
+      const m = e.visitor_class === 'returning' ? returning : firstTime;
+      m.set(country, (m.get(country) ?? 0) + 1);
     }
-    return Array.from(byCountry.entries())
-      .map(([country, { entries, returning }]) => ({ country, entries, returning }))
-      .sort((a, b) => b.entries - a.entries || a.country.localeCompare(b.country));
+    const toLocations = (m: Map<string, number>) =>
+      Array.from(m.entries())
+        .sort(([, a], [, b]) => b - a)
+        .map(([label, n]) => ({ label, n }));
+    const total = (m: Map<string, number>) =>
+      Array.from(m.values()).reduce((s, v) => s + v, 0);
+    return [
+      { key: 'first_time', label: 'First-time', color: CLASS_COLORS.first_time, total: total(firstTime), locations: toLocations(firstTime) },
+      { key: 'returning',  label: 'Returning',  color: CLASS_COLORS.returning,  total: total(returning), locations: toLocations(returning) },
+    ].filter((g) => g.total > 0);
   }, [events]);
 
-  if (rows.length === 0) return null;
-
-  const totalEntries = rows.reduce((s, r) => s + r.entries, 0);
-  const totalReturning = rows.reduce((s, r) => s + r.returning, 0);
+  if (groups.length === 0) return null;
 
   return (
     <div
       className="mt-8 pt-6"
       style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
     >
-      <div className="flex items-baseline justify-between gap-4 mb-5">
-        <div className="font-mono text-[10px] uppercase tracking-widest opacity-50">
-          Visits · by country
-        </div>
-        <div
-          className="font-mono text-[10px] uppercase tracking-widest opacity-40 whitespace-nowrap"
-          style={{ fontVariantNumeric: 'tabular-nums' }}
-        >
-          {totalEntries} {totalEntries === 1 ? 'entry' : 'entries'}
-          {totalReturning > 0 && <> · {totalReturning} returning</>}
-        </div>
+      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
+        Visits · by country
       </div>
-      <div className="space-y-2.5">
-        {rows.map((r) => (
-          <div
-            key={r.country}
-            className="flex items-baseline justify-between gap-4 font-mono text-xs uppercase tracking-widest"
-          >
-            <span className="opacity-90 leading-snug">{r.country}</span>
-            <span
-              className="shrink-0 whitespace-nowrap"
-              style={{ fontVariantNumeric: 'tabular-nums' }}
-            >
-              <span style={{ color: VISITS_COLOR }}>
-                {r.entries} {r.entries === 1 ? 'entry' : 'entries'}
+      <div className="space-y-5">
+        {groups.map((g) => (
+          <div key={g.key}>
+            <div className="flex items-start justify-between gap-4">
+              <span
+                className="font-mono text-xs uppercase tracking-widest inline-flex items-center gap-2"
+                style={{ color: g.color }}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block"
+                  style={{ width: '8px', height: '8px', borderRadius: '50%', background: g.color, boxShadow: `0 0 4px ${g.color}` }}
+                />
+                {g.label}
               </span>
-              {r.returning > 0 && (
-                <span style={{ color: CLASS_COLORS.returning, opacity: 0.95 }}>
-                  {' · '}{r.returning} returning
-                </span>
-              )}
-            </span>
+              <span
+                className="font-mono text-xs whitespace-nowrap shrink-0"
+                style={{ color: g.color, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {g.total}
+              </span>
+            </div>
+            {g.locations.length > 0 && (
+              <div
+                className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-widest"
+                style={{ opacity: 0.45 }}
+              >
+                {g.locations.map((loc) => (
+                  <span key={loc.label}>{loc.label} {loc.n}</span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
