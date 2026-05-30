@@ -25,6 +25,9 @@ const publications = defineCollection({
     authors: z.array(authorSchema),
     year: z.number(),
     type: z.enum(['article', 'chapter', 'editorial', 'conference', 'preprint', 'thesis', 'book', 'edited-book']),
+    // For chapters: the slug of the parent book, so the publications UI can
+    // group a book's chapters under it (and show "Part of" on each chapter).
+    partOf: z.string().optional(),
     isbn: z.string().optional(),
     publisher: z.string().optional(),
     status: z.enum(['published', 'under-review', 'in-press', 'working-paper', 'pending-review', 'draft']),
