@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * 13-title-casing.mjs — publication titles render in APA 7 sentence case.
+ * 13-title-casing.mjs — publication titles render in APA 7 sentence case,
+ * everywhere on the detail page (visible title AND the hidden BibTeX export).
  *
- * Guards the 2026-05 normalization: ~27 titles were converted from Title Case
- * to sentence case (capitalize first word + first word after a colon + proper
- * nouns only). A regression would most likely come from re-running
- * scripts/generate-publications.mjs (which still holds stale Title-Case strings
- * in its PUBS array) — KEEP is supposed to make those inert. This cell catches
- * it if that protection ever breaks.
+ * Guards the 2026-05 normalization: ~27 titles + their stored BibTeX blocks
+ * were converted from Title Case to sentence case. Two regression sources:
+ *   1. re-running generate-publications.mjs (stale Title-Case PUBS array) —
+ *      KEEP is supposed to make that inert.
+ *   2. a hand-edited bibtex `title = {...}` drifting back to Title Case.
  *
- * Strategy: load a couple of detail pages (deterministic — each always renders
- * its own title) and assert the sentence-case form is present and the old
- * Title-Case form is absent.
+ * Strategy: load a few detail pages (deterministic) and assert the sentence-
+ * case form is the VISIBLE title, and the old Title-Case form appears NOWHERE
+ * in the page HTML (innerText would miss a collapsed "copy BibTeX" block, so we
+ * scan page.content()). Includes slugs that carried a stored BibTeX title.
  */
 import { Audit } from '../audit-lib.mjs';
 
@@ -22,9 +23,16 @@ const CASES = [
     bad: 'Emotional Intelligence as a Remedy for Academic Incivility',
   },
   {
-    slug: 'learning-environments-as-precursors-of-academic-incivility',
-    good: 'Learning environments as precursors of academic incivility',
-    bad: 'Learning Environments as Precursors of Academic Incivility',
+    // had a stored BibTeX title in Title Case — guards the bibtex sync
+    slug: 'ultimate-bystander-ai-incivility',
+    good: 'The ultimate bystander: A theoretical framework for trust-based AI intervention in workplace incivility',
+    bad: 'The Ultimate Bystander: A Theoretical Framework for Trust-Based AI Intervention in Workplace Incivility',
+  },
+  {
+    // had a stored BibTeX title in Title Case
+    slug: 'bullying-harassment-higher-ed-scoping',
+    good: 'Workplace bullying and harassment in higher education institutions: A scoping review',
+    bad: 'Workplace Bullying and Harassment in Higher Education Institutions: A Scoping Review',
   },
 ];
 
@@ -42,19 +50,20 @@ for (const c of CASES) {
   const after = await audit.shot(`TITLE-${c.slug}`);
   const obs = audit.observerSnapshot();
 
-  const body = await audit.page.locator('body').innerText().catch(() => '');
-  const hasGood = body.includes(c.good);
-  const hasBad = body.includes(c.bad);
+  const innerText = await audit.page.locator('body').innerText().catch(() => '');
+  const html = await audit.page.content().catch(() => '');
+  const goodVisible = innerText.includes(c.good); // visible sentence-case title
+  const badAnywhere = html.includes(c.bad);       // Title-Case nowhere (incl. bibtex)
 
   audit.recordCell({
     id: `TITLE-sentence-case:${c.slug}`,
-    tableRef: `/publications/${c.slug} title casing`,
-    expected: `body contains sentence-case "${c.good}" and NOT Title-Case "${c.bad}"; no page errors`,
-    observed: `hasGood=${hasGood}, hasBad=${hasBad}, pageErrors=${obs.pageErrors.length}`,
-    pass: hasGood && !hasBad && obs.pageErrors.length === 0,
+    tableRef: `/publications/${c.slug} title casing (visible + bibtex)`,
+    expected: `visible title is sentence-case "${c.good.slice(0, 40)}…"; Title-Case form absent from page HTML; no page errors`,
+    observed: `goodVisible=${goodVisible}, badAnywhere=${badAnywhere}, pageErrors=${obs.pageErrors.length}`,
+    pass: goodVisible && !badAnywhere && obs.pageErrors.length === 0,
     after,
-    notes: !hasGood ? `Sentence-case title missing — title field may have reverted to Title Case (check generate-publications.mjs KEEP).` :
-           hasBad ? `Old Title-Case title is present — normalization reverted.` :
+    notes: !goodVisible ? `Sentence-case title not visible — title may have reverted (check generate-publications.mjs KEEP).` :
+           badAnywhere ? `Title-Case form present in HTML — likely a stale bibtex title (run scripts/sync-bibtex-titles.mjs).` :
            obs.pageErrors.length ? `Page errors: ${obs.pageErrors.slice(0, 2).join(' | ')}` : '',
   });
 }
