@@ -128,5 +128,42 @@ let decoded = null;
   });
 }
 
+// ─── QR-decodes-mobile ──────────────────────────────────────────────
+// The QR shrinks on phones (132px vs 168px) so it doesn't dominate the
+// stacked footer. Smaller = denser = a scannability risk, so prove the
+// mobile size still decodes at a retina scale (the context is already
+// deviceScaleFactor 3). Resize to a phone width and re-decode.
+{
+  await audit.page.setViewportSize({ width: 390, height: 844 });
+  await audit.page.goto(`${audit.baseUrl}/`, { waitUntil: 'networkidle' });
+  await audit.page.addScriptTag({ path: JSQR_PATH }); // re-inject: the goto wiped the earlier one
+  await audit.page.evaluate(() => document.getElementById('contact')?.scrollIntoView());
+  await audit.page.waitForTimeout(400);
+
+  const tileW = await audit.page.locator('#contact [data-contact-qr] .qr-tile')
+    .evaluate((el) => el.getBoundingClientRect().width).catch(() => 0);
+  const png = await audit.page.locator('#contact [data-contact-qr] .qr-tile').screenshot();
+  const decodedM = await audit.page.evaluate(async (b64) => {
+    const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+    const N = Math.max(img.naturalWidth, 512);
+    const cv = document.createElement('canvas'); cv.width = N; cv.height = N;
+    const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, N, N); x.drawImage(img, 0, 0, N, N);
+    const code = window.jsQR(x.getImageData(0, 0, N, N).data, N, N);
+    return code ? code.data : null;
+  }, png.toString('base64'));
+
+  const shrunk = tileW > 0 && tileW < 150;            // confirms the mobile media query applied
+  const decodes = !!decodedM && decodedM.startsWith('BEGIN:VCARD');
+  audit.recordCell({
+    id: 'QR-decodes-mobile',
+    tableRef: 'mobile (390px) QR tile -> jsQR decode',
+    expected: 'QR shrinks below 150px on phones AND still decodes to a vCard',
+    observed: `tileWidth=${Math.round(tileW)}px, decodes=${decodes}`,
+    pass: shrunk && decodes,
+    notes: !shrunk ? `Mobile tile is ${Math.round(tileW)}px — expected <150px (the @media shrink didn't apply).` :
+           !decodes ? 'Mobile QR too small/dense to scan — bump the mobile max-width back up.' : '',
+  });
+}
+
 await audit.teardown();
 process.exit(audit.cells.some((c) => c.pass === false) ? 1 : 0);
