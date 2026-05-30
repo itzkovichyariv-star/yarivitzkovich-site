@@ -91,8 +91,11 @@ export class Audit {
       this.log('HTTP-only mode (no browser launched)');
       return;
     }
-    this.log('Launching headed Chromium...');
-    this.browser = await chromium.launch({ headless: false, slowMo: this.slowMo });
+    // Headless by default so audit runs don't steal window focus / pop up windows.
+    // Opt into a visible browser with AUDIT_HEADED=1 when you want to watch.
+    const headed = process.env.AUDIT_HEADED === '1';
+    this.log(headed ? 'Launching headed Chromium...' : 'Launching headless Chromium (set AUDIT_HEADED=1 to watch)...');
+    this.browser = await chromium.launch({ headless: !headed, slowMo: headed ? this.slowMo : 0 });
     this.ctx = await this.browser.newContext({
       viewport: this.viewport,
       deviceScaleFactor: this.deviceScaleFactor,
