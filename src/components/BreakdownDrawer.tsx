@@ -934,29 +934,30 @@ function PaperBreakdown({ events }: { events: DetailEvent[] }) {
   );
 }
 
-// Visits by city, in the same shape as "Downloads · by paper": two groups —
-// First-time (new entries) and Returning — each showing how many visits came
-// from which place ("City, Country" chips). Downloads are excluded (they're
-// broken out per paper above).
+// Visits by city, styled like "Downloads · by paper": two groups — First-time
+// (new entries) and Returning. Each lists its cities as rows that mirror the
+// paper rows — city in white, country in gray, and a red "↓ N" count.
 function CountryBreakdown({ events }: { events: DetailEvent[] }) {
   const groups = useMemo(() => {
-    const firstTime = new Map<string, number>();
-    const returning = new Map<string, number>();
+    type Loc = { city: string | null; country: string | null; n: number };
+    const bucket = () => new Map<string, Loc>();
+    const firstTime = bucket();
+    const returning = bucket();
     for (const e of events) {
       if (e.is_bot || e.kind === 'download') continue; // visits only
-      const place = placeLabel(e);
+      const city = e.city || null;
+      const country = e.country_name || e.continent_name || null;
+      const key = `${city ?? ''}|${country ?? ''}`;
       const m = e.visitor_class === 'returning' ? returning : firstTime;
-      m.set(place, (m.get(place) ?? 0) + 1);
+      const row = m.get(key) ?? { city, country, n: 0 };
+      row.n += 1;
+      m.set(key, row);
     }
-    const toLocations = (m: Map<string, number>) =>
-      Array.from(m.entries())
-        .sort(([, a], [, b]) => b - a)
-        .map(([label, n]) => ({ label, n }));
-    const total = (m: Map<string, number>) =>
-      Array.from(m.values()).reduce((s, v) => s + v, 0);
+    const toRows = (m: Map<string, Loc>) => Array.from(m.values()).sort((a, b) => b.n - a.n);
+    const total = (m: Map<string, Loc>) => Array.from(m.values()).reduce((s, r) => s + r.n, 0);
     return [
-      { key: 'first_time', label: 'First-time', color: CLASS_COLORS.first_time, total: total(firstTime), locations: toLocations(firstTime) },
-      { key: 'returning',  label: 'Returning',  color: CLASS_COLORS.returning,  total: total(returning), locations: toLocations(returning) },
+      { key: 'first_time', label: 'First-time', color: CLASS_COLORS.first_time, total: total(firstTime), rows: toRows(firstTime) },
+      { key: 'returning',  label: 'Returning',  color: CLASS_COLORS.returning,  total: total(returning), rows: toRows(returning) },
     ].filter((g) => g.total > 0);
   }, [events]);
 
@@ -970,12 +971,13 @@ function CountryBreakdown({ events }: { events: DetailEvent[] }) {
       <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
         Visits · by city
       </div>
-      <div className="space-y-5">
+      <div className="space-y-6">
         {groups.map((g) => (
           <div key={g.key}>
-            <div className="flex items-start justify-between gap-4">
+            {/* Group header: class dot + label + muted subtotal */}
+            <div className="flex items-baseline justify-between gap-4 mb-2.5">
               <span
-                className="font-mono text-xs uppercase tracking-widest inline-flex items-center gap-2"
+                className="font-mono text-[11px] uppercase tracking-widest inline-flex items-center gap-2"
                 style={{ color: g.color }}
               >
                 <span
@@ -986,22 +988,34 @@ function CountryBreakdown({ events }: { events: DetailEvent[] }) {
                 {g.label}
               </span>
               <span
-                className="font-mono text-xs whitespace-nowrap shrink-0"
-                style={{ color: g.color, fontVariantNumeric: 'tabular-nums' }}
+                className="font-mono text-[10px] uppercase tracking-widest opacity-40 whitespace-nowrap"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
               >
-                {g.total}
+                {g.total} total
               </span>
             </div>
-            {g.locations.length > 0 && (
-              <div
-                className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-widest"
-                style={{ opacity: 0.45 }}
-              >
-                {g.locations.map((loc) => (
-                  <span key={loc.label}>{loc.label} {loc.n}</span>
-                ))}
-              </div>
-            )}
+            {/* City rows: white city · gray country · red ↓ count (like paper rows) */}
+            <div className="space-y-1.5">
+              {g.rows.map((loc, i) => (
+                <div
+                  key={`${loc.city ?? ''}|${loc.country ?? ''}|${i}`}
+                  className="flex items-baseline justify-between gap-4 font-mono text-xs uppercase tracking-widest"
+                >
+                  <span className="leading-snug">
+                    <span style={{ color: 'var(--text)' }}>{loc.city || loc.country || 'Unknown'}</span>
+                    {loc.city && loc.country && (
+                      <span style={{ opacity: 0.45 }}>, {loc.country}</span>
+                    )}
+                  </span>
+                  <span
+                    className="whitespace-nowrap shrink-0"
+                    style={{ color: CLASS_COLORS.download, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    ↓ {loc.n}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>
