@@ -365,6 +365,10 @@ export default function PublicationsBrowser({
           related={publications.filter(
             (p) => p.id !== selected.id && p.topics.some((t) => selected.topics.includes(t)),
           ).slice(0, 3)}
+          chapters={publications
+            .filter((p) => p.partOf === selected.slug)
+            .sort((a, b) => a.year - b.year)}
+          bookOf={publications.find((p) => p.slug === selected.partOf) || null}
           topicLabel={topicLabel}
           onClose={() => setSelected(null)}
           onSelect={setSelected}
@@ -655,6 +659,8 @@ function Drawer({
   pub,
   paperNumber,
   related,
+  chapters,
+  bookOf,
   topicLabel,
   onClose,
   onSelect,
@@ -667,6 +673,8 @@ function Drawer({
   pub: Publication;
   paperNumber: string;
   related: Publication[];
+  chapters: Publication[];
+  bookOf: Publication | null;
   topicLabel: (id: string) => string;
   onClose: () => void;
   onSelect: (p: Publication) => void;
@@ -922,6 +930,51 @@ function Drawer({
                 copied={copied}
                 onCopy={() => onCopy(activeCitation)}
               />
+
+              {/* For a chapter: link up to its parent book. */}
+              {bookOf && (
+                <div className="mt-8">
+                  <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">
+                    Part of
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(bookOf)}
+                    className="block w-full text-left py-3 border-t hover:opacity-60 transition-opacity"
+                    style={{ borderColor: 'var(--divider)' }}
+                  >
+                    <div className="font-mono text-xs text-soft">{bookOf.year} · Book</div>
+                    <div className="font-display text-base" style={{ fontWeight: 400 }}>
+                      {bookOf.title}
+                    </div>
+                  </button>
+                </div>
+              )}
+
+              {/* For a book: list its chapters. */}
+              {chapters.length > 0 && (
+                <div className="mt-8">
+                  <div className="font-mono text-xs uppercase tracking-widest text-muted mb-3">
+                    Chapters in this book ({chapters.length})
+                  </div>
+                  <div>
+                    {chapters.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => onSelect(p)}
+                        className="block w-full text-left py-3 border-t hover:opacity-60 transition-opacity"
+                        style={{ borderColor: 'var(--divider)' }}
+                      >
+                        <div className="font-mono text-xs text-soft">{p.year}</div>
+                        <div className="font-display text-base" style={{ fontWeight: 400 }}>
+                          {p.title}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {related.length > 0 && (
                 <div className="mt-8">

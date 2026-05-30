@@ -30,6 +30,7 @@ export interface Publication {
   authors: PublicationAuthor[];
   year: number;
   type: PublicationType;
+  partOf?: string | null;
   status: PublicationStatus;
   venue?: string | null;
   venueShort?: string | null;
