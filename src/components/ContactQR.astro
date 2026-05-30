@@ -73,7 +73,7 @@ try {
   const size = qr.modules.size;
   const data = qr.modules.data;
   const dark = (r, c) => (r >= 0 && c >= 0 && r < size && c < size ? data[r * size + c] : 0);
-  const M    = 2;                       // quiet-zone margin (modules)
+  const M    = 1;                       // quiet-zone margin (modules) — thin, even cream frame
   const dim  = size + M * 2;
   const FG   = '#7A1E2B', BG = '#F4EFE6';
   const inFinder = (r, c) =>
@@ -133,7 +133,7 @@ const copy = {
     /* Thin, uniform cream border. The QR's own 1-module quiet zone is baked
        into the SVG (qrcode margin:1), so this padding only needs to be a
        hair more — no thick white frame. */
-    padding: 6px;
+    padding: 4px;
     box-shadow: 0 5px 18px rgba(0, 0, 0, 0.15);
   }
   /* On phones (below Tailwind's md breakpoint, where the footer stacks) the
