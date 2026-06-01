@@ -17,7 +17,7 @@ Usage:
 Example:
   python3 scripts/jcr-sync.py \
     "https://yarivitzkovich.org/api/journal-sync" \
-    494fc30488a603d7e8c7c9ce5ae27298f61420f47a9723ecb08cf46b57c076c1
+    "<your-sync-token>"
 """
 
 import json

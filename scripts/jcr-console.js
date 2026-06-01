@@ -14,7 +14,16 @@
  */
 
 const API_URL  = "https://yarivitzkovich.org/api/journal-sync";
-const QC_TOKEN = "494fc30488a603d7e8c7c9ce5ae27298f61420f47a9723ecb08cf46b57c076c1";
+// Sync token — NOT hardcoded (this file lives in a PUBLIC repo). Provide it at
+// run time, either of two ways:
+//   • once per browser:  localStorage.setItem("QC_SYNC_TOKEN", "<your token>")
+//   • or just paste it when prompted below.
+// If the old token was ever committed, rotate it on the provider side first.
+const QC_TOKEN =
+  (typeof localStorage !== "undefined" && localStorage.getItem("QC_SYNC_TOKEN")) ||
+  (typeof prompt === "function" ? prompt("Paste your sync token (used for this run only):") : "") ||
+  "";
+if (!QC_TOKEN) throw new Error("No sync token provided — set QC_SYNC_TOKEN in localStorage or paste it when prompted.");
 
 const JOURNALS = [
   "Current Psychology",

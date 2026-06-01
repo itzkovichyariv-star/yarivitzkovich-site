@@ -14,7 +14,7 @@ Usage:
 Example:
   python3 scripts/crossref-selfcite.py \
     "https://yarivitzkovich.org/api/scholar-sync" \
-    494fc30488a603d7e8c7c9ce5ae27298f61420f47a9723ecb08cf46b57c076c1
+    "<your-sync-token>"
 """
 
 import re
