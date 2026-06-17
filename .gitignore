@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # Wrangler local state (wrangler pages dev --persist / temp)
 .wrangler/
+
+# Session-handoff PreCompact marker (runtime alarm timestamp, not source)
+docs/.last-precompact
