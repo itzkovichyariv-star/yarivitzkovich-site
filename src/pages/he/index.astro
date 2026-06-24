@@ -46,6 +46,8 @@ const nowItems = nowData.items.map((item) => ({
   label: item.labelHe ?? item.label,
   title: item.titleHe ?? item.title,
   note: item.noteHe ?? item.note,
+  audio: item.audio ?? null,
+  link: item.link ? { href: item.link.href, label: item.link.labelHe ?? item.link.label } : null,
 }));
 // Auto-resolves to build time in Hebrew. Matches the English mirror's
 // month + year granularity. The site rebuilds on every push so this
@@ -161,6 +163,17 @@ const nowUpdated = new Date().toLocaleDateString('he-IL', { month: 'long', year:
                 <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
                 <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
                 <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
+                {item.audio && (
+                  <audio controls preload="none" src={item.audio} class="w-full mt-3" style="margin-top: 12px"></audio>
+                )}
+                {item.link && (
+                  <a href={item.link.href} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm mt-3 group">
+                    <span class="border-b" style="border-color: currentColor">{item.link.label}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+                      <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                    </svg>
+                  </a>
+                )}
               </div>
             ))}
           </div>
