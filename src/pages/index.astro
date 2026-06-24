@@ -74,7 +74,7 @@ const nowUpdated = new Date().toLocaleDateString('en-US', { month: 'long', year:
             {START_HERE.length >= 3 && (
               <p class="mt-6 text-base leading-relaxed text-muted max-w-xl fade-up" style="animation-delay: 0.7s">
                 <span class="font-mono text-xs uppercase tracking-widest text-soft mr-2">Start here</span>
-                If you're new to the work, three good entry points:
+                If you're new to the work, here are three good entry points:
                 <a href={`/publications/${START_HERE[0].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[0].label}</a> ({START_HERE[0].reason});
                 <a href={`/publications/${START_HERE[1].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[1].label}</a> ({START_HERE[1].reason}); and
                 <a href={`/publications/${START_HERE[2].slug}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{START_HERE[2].label}</a> ({START_HERE[2].reason}).
