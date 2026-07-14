@@ -460,8 +460,7 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
         ) : (
           <>
             <GrowthCharts events={events} range={range} />
-            <PaperBreakdown events={events} />
-            <CountryBreakdown events={events} />
+            <BreakdownMatrix events={events} />
           </>
         )}
 
@@ -846,179 +845,193 @@ function GrowthCharts({ events, range, periodFrom, periodTo, compact }: {
   );
 }
 
-// "Tel Aviv, Israel" when a city is known; falls back to country, then
-// continent. Shared by the per-paper and per-visit breakdowns so both render
-// at the same city-level granularity.
-function placeLabel(e: DetailEvent): string {
-  const parts = [e.city, e.country_name].filter(Boolean);
-  return parts.length ? parts.join(', ') : (e.continent_name || 'Unknown');
+// ── Unified geographic / paper breakdown matrix ───────────────────────────
+// Replaces the older single-purpose "Downloads · by paper" and "Visits · by
+// city" sections. A dimension switcher (City / Country / Paper) reslices FOUR
+// metric columns — Visits, First-time, Returning, Downloads — so every
+// metric × dimension combination is one tap away without a wall of tables.
+//   • Visits      = all non-download events (first-time + returning)
+//   • First-time  = visits from new visitors
+//   • Returning   = visits from repeat visitors
+//   • Downloads   = PDF downloads
+// "By paper" only counts events carrying a paper_slug (publication-page visits
+// + all downloads); home/about visits simply don't appear under that dimension.
+
+type Dimension = 'city' | 'country' | 'paper';
+
+const DIMENSIONS: Array<{ key: Dimension; label: string }> = [
+  { key: 'city',    label: 'City' },
+  { key: 'country', label: 'Country' },
+  { key: 'paper',   label: 'Paper' },
+];
+
+type MetricKey = 'visits' | 'first_time' | 'returning' | 'downloads';
+
+const METRICS: Array<{ key: MetricKey; label: string; color: string }> = [
+  { key: 'visits',     label: 'Visits',     color: VISITS_COLOR },
+  { key: 'first_time', label: 'First-time', color: CLASS_COLORS.first_time },
+  { key: 'returning',  label: 'Returning',  color: CLASS_COLORS.returning },
+  { key: 'downloads',  label: 'Downloads',  color: CLASS_COLORS.download },
+];
+
+function eventMatchesMetric(e: DetailEvent, m: MetricKey): boolean {
+  if (m === 'downloads') return e.kind === 'download';
+  if (e.kind === 'download') return false;    // the other three metrics are visits only
+  if (m === 'visits') return true;            // all non-download events
+  if (m === 'returning') return e.visitor_class === 'returning';
+  return e.visitor_class !== 'returning';     // first_time
 }
 
-function PaperBreakdown({ events }: { events: DetailEvent[] }) {
-  const breakdown = useMemo(() => {
-    const bySlug = new Map<string, { title: string; count: number; countries: Map<string, number> }>();
-    for (const e of events) {
-      if (e.is_bot || e.kind !== 'download' || !e.paper_slug) continue;
-      const slug = e.paper_slug;
-      // Prefer the curated .mdx title; fall back to the event row's title, then
-      // a sentence-cased slug. Never the raw lowercase slug.
-      const title = resolvePaperTitle(slug, e.paper_title) || slug;
-      if (!bySlug.has(slug)) bySlug.set(slug, { title, count: 0, countries: new Map() });
-      const entry = bySlug.get(slug)!;
-      entry.count++;
-      const loc = placeLabel(e);
-      entry.countries.set(loc, (entry.countries.get(loc) ?? 0) + 1);
-    }
-    return Array.from(bySlug.entries())
-      .map(([slug, { title, count, countries }]) => ({
-        slug,
-        title,
-        count,
-        locations: Array.from(countries.entries())
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, 6)
-          .map(([label, n]) => ({ label, n })),
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [events]);
+interface BreakRow { key: string; label: string; sublabel?: string; slug?: string; n: number; }
 
-  if (breakdown.length === 0) return null;
+// Map one event to its bucket key + display label for the active dimension.
+// Returns null when the event can't be placed in this dimension (e.g. a visit
+// with no paper_slug under the "paper" dimension).
+function bucketForDimension(e: DetailEvent, dim: Dimension): Omit<BreakRow, 'n'> | null {
+  if (dim === 'paper') {
+    if (!e.paper_slug) return null;
+    return {
+      key: e.paper_slug,
+      label: resolvePaperTitle(e.paper_slug, e.paper_title) || e.paper_slug,
+      slug: e.paper_slug,
+    };
+  }
+  if (dim === 'country') {
+    const c = e.country_name || e.continent_name || 'Unknown';
+    return { key: c, label: c };
+  }
+  // city — group by city, keep country as the gray secondary label
+  const city = e.city || null;
+  const country = e.country_name || e.continent_name || null;
+  const key = `${city ?? ''}|${country ?? ''}`;
+  if (!city) return { key, label: country || 'Unknown' };
+  return { key, label: city, sublabel: country || undefined };
+}
 
-  return (
-    <div
-      className="mt-8 pt-6"
-      style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
-    >
-      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
-        Downloads · by paper
-      </div>
-      <div className="space-y-5">
-        {breakdown.map((p) => (
-          <div key={p.slug}>
-            <div className="flex items-start justify-between gap-4">
-              <a
-                href={`/publications/${p.slug}`}
-                className="font-display text-sm leading-snug opacity-90 hover:opacity-100 transition-opacity"
-                style={{
-                  color: 'var(--text)',
-                  textDecoration: 'underline',
-                  textDecorationColor: 'transparent',
-                  textUnderlineOffset: '3px',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.textDecorationColor = 'currentColor')}
-                onMouseLeave={(e) => (e.currentTarget.style.textDecorationColor = 'transparent')}
-              >
-                {p.title}
-              </a>
-              <span
-                className="font-mono text-xs whitespace-nowrap shrink-0"
-                style={{ color: CLASS_COLORS.download, fontVariantNumeric: 'tabular-nums' }}
-              >
-                ↓ {p.count}
-              </span>
-            </div>
-            {p.locations.length > 0 && (
-              <div
-                className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono text-[10px] uppercase tracking-widest"
-                style={{ opacity: 0.45 }}
-              >
-                {p.locations.map((loc) => (
-                  <span key={loc.label}>{loc.label} {loc.n}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+const BREAKDOWN_TOP_N = 25;
+
+function BreakdownMatrix({ events }: { events: DetailEvent[] }) {
+  const [dimension, setDimension] = useState<Dimension>('city');
+
+  const columns = useMemo(
+    () =>
+      METRICS.map((metric) => {
+        const map = new Map<string, BreakRow>();
+        for (const e of events) {
+          if (e.is_bot) continue;
+          if (!eventMatchesMetric(e, metric.key)) continue;
+          const bucket = bucketForDimension(e, dimension);
+          if (!bucket) continue;
+          const cur = map.get(bucket.key);
+          if (cur) cur.n += 1;
+          else map.set(bucket.key, { ...bucket, n: 1 });
+        }
+        const rows = Array.from(map.values()).sort((a, b) => b.n - a.n);
+        return { metric, rows, total: rows.reduce((s, r) => s + r.n, 0) };
+      }),
+    [events, dimension],
   );
-}
 
-// Visits by city, styled like "Downloads · by paper": two groups — First-time
-// (new entries) and Returning. Each lists its cities as rows that mirror the
-// paper rows — city in white, country in gray, and a red "↓ N" count.
-function CountryBreakdown({ events }: { events: DetailEvent[] }) {
-  const groups = useMemo(() => {
-    type Loc = { city: string | null; country: string | null; n: number };
-    const bucket = () => new Map<string, Loc>();
-    const firstTime = bucket();
-    const returning = bucket();
-    for (const e of events) {
-      if (e.is_bot || e.kind === 'download') continue; // visits only
-      const city = e.city || null;
-      const country = e.country_name || e.continent_name || null;
-      const key = `${city ?? ''}|${country ?? ''}`;
-      const m = e.visitor_class === 'returning' ? returning : firstTime;
-      const row = m.get(key) ?? { city, country, n: 0 };
-      row.n += 1;
-      m.set(key, row);
-    }
-    const toRows = (m: Map<string, Loc>) => Array.from(m.values()).sort((a, b) => b.n - a.n);
-    const total = (m: Map<string, Loc>) => Array.from(m.values()).reduce((s, r) => s + r.n, 0);
-    return [
-      { key: 'first_time', label: 'First-time', color: CLASS_COLORS.first_time, total: total(firstTime), rows: toRows(firstTime) },
-      { key: 'returning',  label: 'Returning',  color: CLASS_COLORS.returning,  total: total(returning), rows: toRows(returning) },
-    ].filter((g) => g.total > 0);
-  }, [events]);
-
-  if (groups.length === 0) return null;
+  const anyData = columns.some((c) => c.total > 0);
 
   return (
     <div
       className="mt-8 pt-6"
       style={{ borderTop: '1px solid color-mix(in srgb, var(--text) 10%, transparent)' }}
     >
-      <div className="font-mono text-[10px] uppercase tracking-widest opacity-50 mb-5">
-        Visits · by city
-      </div>
-      <div className="space-y-6">
-        {groups.map((g) => (
-          <div key={g.key}>
-            {/* Group header: class dot + label + muted subtotal */}
-            <div className="flex items-baseline justify-between gap-4 mb-2.5">
-              <span
-                className="font-mono text-[11px] uppercase tracking-widest inline-flex items-center gap-2"
-                style={{ color: g.color }}
-              >
-                <span
-                  aria-hidden="true"
-                  className="inline-block"
-                  style={{ width: '8px', height: '8px', borderRadius: '50%', background: g.color, boxShadow: `0 0 4px ${g.color}` }}
-                />
-                {g.label}
-              </span>
-              <span
-                className="font-mono text-[10px] uppercase tracking-widest opacity-40 whitespace-nowrap"
-                style={{ fontVariantNumeric: 'tabular-nums' }}
-              >
-                {g.total} total
-              </span>
-            </div>
-            {/* City rows: white city · gray country · red ↓ count (like paper rows) */}
-            <div className="space-y-1.5">
-              {g.rows.map((loc, i) => (
-                <div
-                  key={`${loc.city ?? ''}|${loc.country ?? ''}|${i}`}
-                  className="flex items-baseline justify-between gap-4 font-mono text-xs uppercase tracking-widest"
-                >
-                  <span className="leading-snug">
-                    <span style={{ color: 'var(--text)' }}>{loc.city || loc.country || 'Unknown'}</span>
-                    {loc.city && loc.country && (
-                      <span style={{ opacity: 0.45 }}>, {loc.country}</span>
-                    )}
-                  </span>
-                  <span
-                    className="whitespace-nowrap shrink-0"
-                    style={{ color: CLASS_COLORS.download, fontVariantNumeric: 'tabular-nums' }}
-                  >
-                    ↓ {loc.n}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Dimension switcher — mirrors the Range tab row at the top of the drawer */}
+      <div className="flex items-center gap-4 flex-wrap font-mono text-[10px] uppercase tracking-widest mb-6">
+        <span className="opacity-35" style={{ userSelect: 'none' }}>Breakdown ·</span>
+        {DIMENSIONS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setDimension(key)}
+            className="hover:opacity-100 transition-opacity"
+            style={{
+              opacity: dimension === key ? 1 : 0.5,
+              borderBottom: dimension === key ? '1px solid currentColor' : '1px solid transparent',
+              paddingBottom: '2px',
+            }}
+          >
+            {label}
+          </button>
         ))}
       </div>
+
+      {!anyData ? (
+        <div className="font-mono text-xs opacity-40">No activity in this range.</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+          {columns.map(({ metric, rows, total }) => (
+            <div key={metric.key}>
+              {/* Column header: metric dot + label + muted subtotal */}
+              <div className="flex items-baseline justify-between gap-2 mb-3">
+                <span
+                  className="font-mono text-[11px] uppercase tracking-widest inline-flex items-center gap-2"
+                  style={{ color: metric.color }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-block"
+                    style={{ width: '8px', height: '8px', borderRadius: '50%', background: metric.color, boxShadow: `0 0 4px ${metric.color}` }}
+                  />
+                  {metric.label}
+                </span>
+                <span
+                  className="font-mono text-[10px] uppercase tracking-widest opacity-40 whitespace-nowrap"
+                  style={{ fontVariantNumeric: 'tabular-nums' }}
+                >
+                  {total} total
+                </span>
+              </div>
+
+              {rows.length === 0 ? (
+                <div className="font-mono text-[11px] opacity-30">—</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {rows.slice(0, BREAKDOWN_TOP_N).map((r, i) => (
+                    <div key={`${r.key}|${i}`} className="flex items-baseline justify-between gap-3">
+                      {dimension === 'paper' && r.slug ? (
+                        <a
+                          href={`/publications/${r.slug}`}
+                          className="font-display text-sm leading-snug min-w-0"
+                          style={{
+                            color: 'var(--text)',
+                            textDecoration: 'underline',
+                            textDecorationColor: 'transparent',
+                            textUnderlineOffset: '3px',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.textDecorationColor = 'currentColor')}
+                          onMouseLeave={(e) => (e.currentTarget.style.textDecorationColor = 'transparent')}
+                        >
+                          {r.label}
+                        </a>
+                      ) : (
+                        <span className="font-mono text-xs uppercase tracking-widest leading-snug min-w-0">
+                          <span style={{ color: 'var(--text)' }}>{r.label}</span>
+                          {r.sublabel && <span style={{ opacity: 0.45 }}>, {r.sublabel}</span>}
+                        </span>
+                      )}
+                      <span
+                        className="font-mono text-xs whitespace-nowrap shrink-0"
+                        style={{ color: metric.color, fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        {r.n}
+                      </span>
+                    </div>
+                  ))}
+                  {rows.length > BREAKDOWN_TOP_N && (
+                    <div className="font-mono text-[10px] opacity-30 pt-0.5">
+                      +{rows.length - BREAKDOWN_TOP_N} more
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
