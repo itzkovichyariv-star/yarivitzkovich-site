@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ARC_COLORS } from '../lib/globePalette';
 import { resolvePaperTitle } from '../lib/paperTitle';
+import PeriodNavigator from './PeriodNavigator';
+// Aliased: this file already has a LOCAL getPeriodBounds (day/week/month/…)
+// used by Compare mode. The shared one (month/year/all) drives the new
+// single-period navigator in the main view.
+import { getPeriodBounds as periodBounds, isCurrentPeriod, DEFAULT_PERIOD, type PeriodValue } from '../lib/period';
 
 interface DetailEvent {
   id: number;
@@ -29,15 +34,6 @@ interface Props {
 }
 
 type RangeKey = '24h' | '7d' | '30d' | '90d' | '1y' | 'all';
-
-const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
-  { key: '24h', label: 'Day' },
-  { key: '7d', label: 'Week' },
-  { key: '30d', label: 'Month' },
-  { key: '90d', label: 'Quarter' },
-  { key: '1y', label: 'Year' },
-  { key: 'all', label: 'All time' },
-];
 
 type PeriodType = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -221,7 +217,8 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
   // no close action, since the page itself is the container.
   const isInline = mode === 'inline';
   const isOpen = isInline ? true : open;
-  const [range, setRange] = useState<RangeKey>('all'); // default to All time across all breakdown levels
+  const [period, setPeriod] = useState<PeriodValue>(DEFAULT_PERIOD); // default: All time
+  const mainPeriodBounds = useMemo(() => periodBounds(period), [period.type, period.offset]);
   const [events, setEvents] = useState<DetailEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,7 +246,10 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
         const { from, to } = getPeriodBounds(periodTypeA, offsetA);
         url = `/live/details?from=${from}&to=${to}`;
       } else {
-        url = `/live/details?range=${range}`;
+        const { from, to } = periodBounds(period);
+        url = (from == null || to == null)
+          ? `/live/details?range=all`
+          : `/live/details?from=${from}&to=${to}`;
       }
       fetch(url, { credentials: 'same-origin' })
         .then((r) => {
@@ -272,13 +272,18 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
     };
 
     load(true);
-    const id = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      load(false);
-    }, 30_000);
+    // Only poll a LIVE window — a past month/year never changes, so refreshing
+    // it every 30s is pure waste (and would re-fetch on every tab focus).
+    const live = compareMode || isCurrentPeriod(period);
+    const id = live
+      ? window.setInterval(() => {
+          if (typeof document !== 'undefined' && document.hidden) return;
+          load(false);
+        }, 30_000)
+      : undefined;
 
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, [isOpen, range, compareMode, periodTypeA, offsetA]);
+    return () => { cancelled = true; if (id) window.clearInterval(id); };
+  }, [isOpen, period.type, period.offset, compareMode, periodTypeA, offsetA]);
 
   // Fetch comparison panel B using the period picker bounds.
   useEffect(() => {
@@ -383,24 +388,7 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
         <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
           <div className="flex items-center gap-4 flex-wrap font-mono text-xs uppercase tracking-widest">
             {!compareMode && (
-              <>
-                <span className="opacity-35" style={{ cursor: 'default', userSelect: 'none' }}>Range ·</span>
-                {RANGE_OPTIONS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setRange(key)}
-                    className="hover:opacity-100 transition-opacity"
-                    style={{
-                      opacity: range === key ? 1 : 0.55,
-                      borderBottom: range === key ? '1px solid currentColor' : '1px solid transparent',
-                      paddingBottom: '2px',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </>
+              <PeriodNavigator value={period} onChange={setPeriod} labelPrefix="View" />
             )}
             {loading && <span className="opacity-50">Loading…</span>}
             {error === 'unauthorized' && <span className="opacity-70">Sign in as owner first.</span>}
@@ -459,7 +447,9 @@ export default function BreakdownDrawer({ open, onClose, mode = 'modal' }: Props
           </div>
         ) : (
           <>
-            <GrowthCharts events={events} range={range} />
+            {mainPeriodBounds.from == null || mainPeriodBounds.to == null
+              ? <GrowthCharts events={events} range="all" />
+              : <GrowthCharts events={events} periodFrom={mainPeriodBounds.from} periodTo={mainPeriodBounds.to} />}
             <BreakdownMatrix events={events} />
           </>
         )}

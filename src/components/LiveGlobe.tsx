@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { PIN_STYLES, withAlpha, ARC_COLORS, type VisitorClass } from '../lib/globePalette';
 import GlobeHUD from './GlobeHUD';
+import PeriodNavigator from './PeriodNavigator';
+import PeriodSummary from './PeriodSummary';
+import { getPeriodBounds, isCurrentPeriod, DEFAULT_PERIOD, type PeriodValue } from '../lib/period';
 import { sentenceCaseSlug } from '../lib/paperTitle';
 // BreakdownDrawer used to be embedded on /live as a modal. The drawer
 // content now lives at /manage/events as a full page; the Manage link
@@ -56,15 +59,6 @@ interface PaperOption {
 interface Props {
   papers: PaperOption[];
 }
-
-type RangeKey = '24h' | '7d' | '30d' | 'all';
-
-const RANGE_LABELS: Array<{ key: RangeKey; label: string }> = [
-  { key: '24h', label: '24h' },
-  { key: '7d', label: '7d' },
-  { key: '30d', label: '30d' },
-  { key: 'all', label: 'All' },
-];
 
 const COUNTRIES_URL =
   'https://cdn.jsdelivr.net/gh/vasturiano/globe.gl/example/datasets/ne_110m_admin_0_countries.geojson';
@@ -191,7 +185,7 @@ export default function LiveGlobe({ papers }: Props) {
 
   const [events, setEvents] = useState<EventRow[]>([]);
   const [totals, setTotals] = useState<TotalsResponse | null>(null);
-  const [range, setRange] = useState<RangeKey>('all'); // default to All time
+  const [period, setPeriod] = useState<PeriodValue>(DEFAULT_PERIOD); // default: All time
   const [paper, setPaper] = useState<string>(''); // '' = all papers
   const [loading, setLoading] = useState(true);
   const [reduced, setReduced] = useState(false);
@@ -338,7 +332,13 @@ export default function LiveGlobe({ papers }: Props) {
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams();
-    params.set('range', range);
+    const { from, to } = getPeriodBounds(period);
+    if (from == null || to == null) {
+      params.set('range', 'all');
+    } else {
+      params.set('from', String(from));
+      params.set('to', String(to));
+    }
     if (paper) params.set('paper', paper);
     const url = `/live/events?${params.toString()}`;
 
@@ -360,17 +360,20 @@ export default function LiveGlobe({ papers }: Props) {
     };
 
     load(true);
-    // Background refresh — silent, no spinner. Skips if tab is hidden.
-    const id = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      load(false);
-    }, 15_000);
+    // Background refresh — silent, no spinner. Only a LIVE window (current
+    // month/year or All time) keeps polling; a past period never changes.
+    const id = isCurrentPeriod(period)
+      ? window.setInterval(() => {
+          if (typeof document !== 'undefined' && document.hidden) return;
+          load(false);
+        }, 15_000)
+      : undefined;
 
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      if (id) window.clearInterval(id);
     };
-  }, [range, paper]);
+  }, [period.type, period.offset, paper]);
 
   // Fetch totals once on mount, then refresh every 30s
   useEffect(() => {
@@ -1398,23 +1401,7 @@ export default function LiveGlobe({ papers }: Props) {
           Filter row with Details right-aligned), single row on ≥sm. Tap
           targets bumped to ~36px tall via py-1.5/px-2 for WCAG 44px. */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-y-3 sm:gap-y-3 sm:gap-x-6 mb-8 font-mono text-xs uppercase tracking-widest text-soft">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="opacity-60">Range</span>
-          {RANGE_LABELS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setRange(key)}
-              className="hover:opacity-100 transition-opacity py-1.5 px-2 -mx-1"
-              style={{
-                opacity: range === key ? 1 : 0.55,
-                borderBottom: range === key ? '2px solid currentColor' : '2px solid transparent',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <PeriodNavigator value={period} onChange={setPeriod} loading={loading} labelPrefix="View" />
         <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
           <span className="opacity-60">Filter</span>
           <select
@@ -1442,7 +1429,6 @@ export default function LiveGlobe({ papers }: Props) {
                 </option>
               ))}
           </select>
-          {loading && <span className="opacity-50">Loading…</span>}
           {isOwner && (
             <a
               href="/manage"
@@ -1482,8 +1468,12 @@ export default function LiveGlobe({ papers }: Props) {
         />
       </div>
 
-      {/* HUD */}
-      <GlobeHUD totals={totals} activity={activity} events={events} range={range} />
+      {/* HUD — the full live dashboard for All time; a compact, period-scoped
+          summary (computed from the same events) when a month/year is picked,
+          so the numbers always match the arcs and cities on the globe. */}
+      {period.type === 'all'
+        ? <GlobeHUD totals={totals} activity={activity} events={events} range="all" />
+        : <PeriodSummary events={events} label={getPeriodBounds(period).label} />}
 
       {/* Click-pin card */}
       {selected && (

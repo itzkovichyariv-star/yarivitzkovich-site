@@ -19,20 +19,39 @@ export const onRequestGet = async ({ request, env }) => {
   }
 
   const url = new URL(request.url);
-  const rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
   const paperSlug = url.searchParams.get('paper');
 
-  if (!(rangeKey in RANGE_SECONDS)) {
-    return jsonError(400, 'invalid_range');
-  }
+  // Accept either explicit calendar bounds (?from=<unix>&to=<unix>) for the
+  // period navigator (specific month / year), or the legacy relative ?range=
+  // key. Bounds take precedence when both are present.
+  const fromParam = url.searchParams.get('from');
+  const toParam = url.searchParams.get('to');
+  let sinceTs;
+  let untilTs = null;
 
-  const sinceTs = RANGE_SECONDS[rangeKey] === null
-    ? 0
-    : Math.floor(Date.now() / 1000) - RANGE_SECONDS[rangeKey];
+  if (fromParam && toParam) {
+    sinceTs = parseInt(fromParam, 10);
+    untilTs = parseInt(toParam, 10);
+    if (isNaN(sinceTs) || isNaN(untilTs) || sinceTs >= untilTs) {
+      return jsonError(400, 'invalid_range');
+    }
+  } else {
+    const rangeKey = (url.searchParams.get('range') || '7d').toLowerCase();
+    if (!(rangeKey in RANGE_SECONDS)) {
+      return jsonError(400, 'invalid_range');
+    }
+    sinceTs = RANGE_SECONDS[rangeKey] === null
+      ? 0
+      : Math.floor(Date.now() / 1000) - RANGE_SECONDS[rangeKey];
+  }
 
   // Build the query incrementally so we only bind values we actually use.
   let where = 'is_bot = 0 AND ts >= ?';
   const params = [sinceTs];
+  if (untilTs != null) {
+    where += ' AND ts <= ?';
+    params.push(untilTs);
+  }
   if (paperSlug) {
     where += ' AND paper_slug = ?';
     params.push(paperSlug);
@@ -56,7 +75,8 @@ export const onRequestGet = async ({ request, env }) => {
 
   return new Response(
     JSON.stringify({
-      range: rangeKey,
+      from: sinceTs,
+      to: untilTs,
       paper: paperSlug,
       count: events.length,
       events,
