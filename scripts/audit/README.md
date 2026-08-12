@@ -2,7 +2,19 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v1.5)
+## Current state (v1.6)
+
+### Pre-gate: `scripts/check-local-migrations.mjs`
+
+Runs FIRST, before any browser cell, whenever the substrate is wrangler (`:4324`). It replays every `CREATE TABLE` in `db/migrations/*.sql` and asserts each table exists in the local D1; if any are missing the gate exits 1 **without running a single cell**.
+
+Why it exists (2026-08-12): the local D1 at the persist path had never been migrated, so `/api/citations` 500'd with `no such table: citation_cache` and `/live/*` 500'd the same way. Two of the gate's three reds traced to that — the harness reporting its own broken state as if the site were broken, while production was fine throughout. A gate that cries wolf is worse than no gate.
+
+- **Persist path matters.** This repo runs its substrate with `--persist-to /tmp/wrangler-yariv-state`, *not* wrangler's default `.wrangler/state`. The preflight passes the same flag; without it it would inspect a different, empty DB and report a cheerful green. Override with `WRANGLER_PERSIST_TO`.
+- **Fix:** `node scripts/check-local-migrations.mjs --fix` (or the printed `wrangler d1 migrations apply` line), then restart the substrate so miniflare re-opens the DB.
+- **Bypass:** `node scripts/deploy-gate.mjs --skip-migrations`. Skipped automatically on the astro-dev fallback, which never runs Pages Functions or touches D1.
+
+### Cells
 
 | Cell file | Cells | Pass | Notes |
 |---|---|---|---|
@@ -17,14 +29,16 @@ Handoff doc for the audit workstream. Read this first whenever you (or a new Cla
 | `09-contact.mjs` | CONTACT-anchor-resolves, CONTACT-channels-present | 2/2 | `#contact` exists; email + WhatsApp + ORCID links present |
 | `10-version-stamp.mjs` | STAMP-present-home, STAMP-format-correct, STAMP-present-other, STAMP-theme-adaptive | 4/4 | Build-time `v1.YYYY.MM.DD-<sha>` stamp in `BaseLayout.astro` renders on every page; `STAMP-theme-adaptive` proves the color flips light↔dark (catches the v1.3→v1.4 legibility regression) |
 | `11-contact-qr.mjs` | QR-present, QR-decodes, QR-no-secrets | 3/3 | vCard QR in the `#contact` footer (`ContactQR.astro`). `QR-decodes` screenshots the rendered tile (incl. monogram) and decodes it with jsQR — proves it actually SCANS. `QR-no-secrets` fails if the payload ever carries a token/login link. Runs at deviceScaleFactor 3 (retina phone). |
+| `12-book-chapters.mjs` | BOOK-lists-chapters | 1/1 | Opens the book and asserts it lists its 7 chapters |
+| `13-title-casing.mjs` | TITLE-sentence-case ×3 | 3/3 | Three sentinel publication slugs render sentence-case titles, with the bad casing absent anywhere in the DOM |
 
-**Total: 38 cells across 11 suites. All green at v1.5.**
+**Total: 42 cells across 13 suites, plus the local-D1 pre-gate. All green at v1.6.**
 
 ## Versioning convention
 
 Two distinct versions:
 
-- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp), `v1.4` (stamp legibility fix), `v1.5` (contact-zone vCard QR). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate, fixes). Rollback points.
+- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp), `v1.4` (stamp legibility fix), `v1.5` (contact-zone vCard QR), `v1.6` (local-D1 pre-gate + suites 12/13 documented). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate, fixes). Rollback points.
 - **Website version stamp** — `v1.YYYY.MM.DD-<short-sha>` rendered fixed bottom-left of every page (see `src/layouts/BaseLayout.astro`). The `1.` prefix is hardcoded as the major-version anchor (bump to `2.` only on a breaking-change-class rebuild). The date and SHA derive automatically at `npm run build` time — zero manual edits.
 
 Earlier `v0.x` tags were rebased to `v1.x` on 2026-05-29 to match the "start at 1" convention. The original commits are unchanged.
