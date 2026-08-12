@@ -67,9 +67,16 @@ const COUNTRIES_URL =
 // hosted by the three-globe ecosystem on unpkg. The day texture is used in
 // light mode; the night texture (lit cities) is used in dark mode and reads
 // as the editorial "ink in water" version of the same earth.
-const EARTH_DAY_URL = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
-const EARTH_NIGHT_URL = '//unpkg.com/three-globe/example/img/earth-night.jpg';
-const EARTH_BUMP_URL = '//unpkg.com/three-globe/example/img/earth-topology.png';
+// Pinned to https rather than protocol-relative (`//unpkg.com/...`): the
+// textures are fetched as CORS requests, and over a plain-http dev server
+// the protocol-relative form resolves to http://unpkg.com, whose 301 to
+// https carries no Access-Control-Allow-Origin header — Chromium blocks
+// the redirect and the globe loads untextured. Production (https) was
+// always fine, so this changes nothing live; it just stops local dev and
+// the deploy gate from seeing phantom CORS errors on /live.
+const EARTH_DAY_URL = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+const EARTH_NIGHT_URL = 'https://unpkg.com/three-globe/example/img/earth-night.jpg';
+const EARTH_BUMP_URL = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
 
 // Origin point for arcs — Yariv's affiliation. Every download draws an arc
 // from here to the reader's city.
