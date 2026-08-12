@@ -159,15 +159,24 @@ async function probe(path, { wantJson = false, timeoutMs = 10_000 } = {}) {
   audit.log('PROD-live-events: GET /live/events?range=24h -> JSON with events array');
   const r = await probe('/live/events?range=24h', { wantJson: true });
   const hasEvents = r.json && Array.isArray(r.json.events);
-  const hasRange = r.json && r.json.range === '24h';
+  // The endpoint stopped echoing `range` when the period navigator landed
+  // (2026-07-15): every request now resolves to explicit bounds and the
+  // body returns { from, to }. A legacy relative ?range= leaves `to` null
+  // and sets `from` to now-24h, so assert the window it actually resolved
+  // to — that still proves the legacy param is honoured, which is the
+  // thing this cell exists to catch.
+  const nowTs = Math.floor(Date.now() / 1000);
+  const from = r.json?.from;
+  const agoSec = typeof from === 'number' ? nowTs - from : null;
+  const windowOk = agoSec !== null && Math.abs(agoSec - 86400) <= 300;
   audit.recordCell({
     id: 'PROD-live-events',
     tableRef: 'GET /live/events?range=24h',
-    expected: '200; json with { range: "24h", events: [...] }',
-    observed: `status=${r.status}, range=${r.json?.range}, eventsLen=${r.json?.events?.length}`,
-    pass: !!r.ok && hasEvents && hasRange,
+    expected: '200; json with { from: ~now-24h, to: null, events: [...] }',
+    observed: `status=${r.status}, from=${from} (${agoSec ?? '—'}s ago), to=${r.json?.to}, eventsLen=${r.json?.events?.length}`,
+    pass: !!r.ok && hasEvents && windowOk,
     notes: !r.ok ? `Status ${r.status} ${r.error || ''}` :
-           !hasRange ? `Echoed range mismatched (got "${r.json?.range}").` :
+           !windowOk ? `24h window not honoured — from is ${agoSec ?? 'absent'}s ago, expected ~86400s.` :
            !hasEvents ? `events not an array. Body: ${r.bodyHead.slice(0, 120)}` : '',
   });
 }
