@@ -9,11 +9,17 @@
  *   node scripts/deploy-gate.mjs --only 01          # one suite by prefix
  *   node scripts/deploy-gate.mjs --skip-build       # skip dev-server probe
  *   node scripts/deploy-gate.mjs --port 4323        # if Astro picked a non-default port
+ *   node scripts/deploy-gate.mjs --skip-migrations  # skip the local-D1 preflight
+ *
+ * On the wrangler substrate (:4324) the gate first runs
+ * scripts/check-local-migrations.mjs. A local D1 missing its tables makes
+ * /api/citations and /live/* return 500 and turns the browser cells into
+ * phantom reds, so that preflight has to pass before any cell is trusted.
  *
  * The dev server must be running BEFORE this script. Start it in another
  * terminal with `npm run dev` and note the port Astro reports.
  */
-import { execSync, spawn } from 'node:child_process';
+import { execSync, spawn, spawnSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -21,6 +27,7 @@ const ROOT = '/Users/yarivitzkovich/Code/yarivitzkovich-site';
 const args = process.argv.slice(2);
 const onlyPrefix = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const skipBuildProbe = args.includes('--skip-build');
+const skipMigrationCheck = args.includes('--skip-migrations');
 const portArg = args.includes('--port') ? args[args.indexOf('--port') + 1] : null;
 // Default port preference:
 //   1. --port arg                  (explicit override)
@@ -48,6 +55,24 @@ if (!skipBuildProbe) {
     process.exit(2);
   }
   console.log(`OK dev server reachable at ${DEV_URL}`);
+}
+
+// 1b. Pre-gate: local D1 must have every migration-defined table.
+// A missing local table makes /api/citations and /live/* return 500, and the
+// browser cells then report phantom reds that read like site bugs (2026-08-12:
+// this sat the gate at 10/13 with two of the three reds tracing to it). Only
+// meaningful on the wrangler substrate — the astro-dev fallback doesn't run
+// Pages Functions, so D1 is never touched there.
+if (!skipMigrationCheck && PORT === 4324) {
+  console.log('\n──── pre-gate: check-local-migrations ────');
+  const mig = spawnSync('node', ['scripts/check-local-migrations.mjs'], { stdio: 'inherit', cwd: ROOT });
+  if (mig.status !== 0) {
+    console.log('\n  ❌ local D1 is missing migrations — the gate cannot be trusted until this passes.');
+    console.log('     (Bypass with --skip-migrations if you know the cells you are running never touch D1.)');
+    process.exit(1);
+  }
+} else if (!skipMigrationCheck) {
+  console.log(`\n  (skipping check-local-migrations — substrate is astro-dev on :${PORT}, no Pages Functions/D1)`);
 }
 
 // 2. Run each audit file in sequence. Headed browsers compete for focus
