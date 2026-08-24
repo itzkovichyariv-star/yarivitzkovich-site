@@ -161,7 +161,11 @@ const nowUpdated = new Date().toLocaleDateString('he-IL', { month: 'long', year:
             {nowItems.map((item) => (
               <div>
                 <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
-                <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
+                {/* h3, not p — mirrors the English homepage: each item
+                    is a subsection of "כעת.", and the section needs
+                    children for the heading outline to be complete.
+                    Same classes, so it renders identically. */}
+                <h3 class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</h3>
                 <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
                 {item.audio && (
                   <audio controls preload="none" src={item.audio} class="w-full mt-3" style="margin-top: 12px"></audio>

@@ -1,0 +1,129 @@
+---
+// /privacy — what this site records, and what it deliberately does not.
+//
+// Written from the code rather than from a template: every claim below
+// maps to something in functions/_lib/ or functions/api/. If the data
+// handling changes, this page has to change with it.
+//   • hashed, never-stored IPs        → functions/_lib/dedup.js
+//   • coarse Cloudflare geolocation   → functions/_lib/geo.js
+//   • double opt-in mailing list      → functions/api/subscribe.js
+//   • owner-only session cookie       → functions/_lib/auth.js
+//   • visit beacon                    → src/layouts/BaseLayout.astro
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { site } from '../data/site';
+
+const LAST_REVIEWED = 'August 2026';
+
+const sections = [
+  {
+    key: 'Analytics',
+    heading: 'Visits and downloads',
+    paragraphs: [
+      'When you open a page, the site records one event: whether you are a first-time or returning reader, which page you opened, and — for a paper page — which paper. Downloading a PDF records a download event the same way. These events are what draws the globe on the Live page.',
+      'Your IP address is never stored. It is combined with the current UTC date, the kind of event, and the paper it relates to, then run through SHA-256, and only that hash is written down. Because the date is part of the input, the same reader produces a different hash tomorrow, so the events cannot be joined into a profile that follows you across days. Repeat events from the same hash within 24 hours are discarded rather than counted twice.',
+      'Alongside each event, the site stores the approximate location Cloudflare attaches to the request — city, country, continent, and the coordinates of that city. This is the coarse, network-level estimate every site behind Cloudflare receives; it is not GPS, and it is used only in aggregate to place an arc on the globe. Traffic identified as automated is recorded separately and excluded from the public view.',
+      'Some traffic is discarded before anything is written at all. Requests coming from the locations the site owner habitually works from are dropped, so that his own reading does not inflate the counts. A genuine reader in one of those places is dropped along with him — the counts on the Live page are therefore an undercount, never an overcount.',
+    ],
+  },
+  {
+    key: 'Storage',
+    heading: 'What is kept in your browser',
+    paragraphs: [
+      'Two values are written to your browser’s local storage, and neither is sent to a server. One records that you have visited before, so a return visit is not counted as a first visit. The other remembers a manual light/dark choice until the next automatic switch at 07:00 or 19:00.',
+      'The site sets no advertising cookies, no analytics cookies, and no third-party cookies. A single cookie exists on this domain — an HttpOnly, signed session token — and it is issued only to the site owner after authenticating against a server-side secret. Ordinary visitors never receive it.',
+    ],
+  },
+  {
+    key: 'Email',
+    heading: 'The mailing list',
+    paragraphs: [
+      'If you subscribe to hear about new papers, your email address is stored so the notification can be sent. Subscription is double opt-in: submitting the form only creates a pending record and sends you one confirmation email, and nothing further is sent unless you click the link in it. Every notification carries a one-click unsubscribe link.',
+      'The list is used for one purpose — telling you when a paper is published. It is never sold, rented, or shared, and it is not used for anything else. Ask and your address will be deleted outright rather than merely marked unsubscribed.',
+    ],
+  },
+  {
+    key: 'Third\nparties',
+    heading: 'Third parties',
+    paragraphs: [
+      'The site runs on Cloudflare, which processes requests and provides the aggregate traffic counts shown on the Live page. Cloudflare Web Analytics is cookieless and does not fingerprint visitors. Confirmation and notification emails are delivered through an email service provider, which necessarily sees the recipient address.',
+      'Links out to Google Scholar, ORCID, ResearchGate, Web of Science, WhatsApp, and journal publishers are ordinary links. Once you follow one, that destination’s own privacy policy applies. No content is embedded from those services, so they learn nothing about you unless you click.',
+    ],
+  },
+  {
+    key: 'Your\nchoices',
+    heading: 'Your choices',
+    paragraphs: [
+      'Because visit events carry no stored identifier that survives the day, there is no per-person record to hand over or erase. What can be acted on is your mailing-list entry and any message you have sent: ask, and it will be shown to you or deleted.',
+      'Blocking local storage or sending a Do Not Track signal will not break anything on the site. If you would rather not be counted at all, an ad or script blocker that blocks the visit beacon is sufficient — the pages themselves work without it.',
+    ],
+  },
+];
+---
+<BaseLayout
+  title="Privacy — Yariv Itzkovich"
+  description="What yarivitzkovich.org records about visitors and what it does not: hashed IPs that are never stored, coarse Cloudflare geolocation, a double opt-in mailing list, and no advertising or third-party cookies."
+  langHref="/he/privacy"
+>
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+
+    <!-- Header -->
+    <div class="grid grid-cols-12 gap-6 mb-20">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">Privacy</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1 class="font-display text-5xl md:text-6xl mb-10" style="font-weight: 300">Privacy.</h1>
+        <p class="text-lg leading-relaxed max-w-2xl" style="color: var(--text)">
+          This is an academic site, not a business. It sells nothing, runs no advertising, and
+          has no reason to know who you are. It does count how often the work is read, because
+          that is genuinely interesting to a researcher — and it counts in a way that cannot be
+          turned back into a person. Below is what that means concretely, written against the
+          code that does it rather than from a template.
+        </p>
+        <p class="font-mono text-xs uppercase tracking-widest text-soft mt-8">
+          Last reviewed: {LAST_REVIEWED}
+        </p>
+      </div>
+    </div>
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    {sections.map((section, index) => (
+      <>
+        <div class="grid grid-cols-12 gap-6 mb-20">
+          <div class="col-span-12 md:col-span-2">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft" set:html={section.key.replace('\n', '<br/>')} />
+          </div>
+          <div class="col-span-12 md:col-span-10">
+            <h2 class="font-display text-3xl md:text-4xl mb-8" style="font-weight: 300">{section.heading}</h2>
+            {section.paragraphs.map((paragraph) => (
+              <p class="text-base leading-relaxed text-muted max-w-2xl mb-5">{paragraph}</p>
+            ))}
+          </div>
+        </div>
+        {index < sections.length - 1 && <div class="h-px mb-20" style="background-color: var(--divider)"></div>}
+      </>
+    ))}
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    <!-- Contact for privacy questions -->
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">Asking</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h2 class="font-display text-3xl md:text-4xl mb-8" style="font-weight: 300">Questions and requests</h2>
+        <p class="text-base leading-relaxed text-muted max-w-2xl mb-5">
+          Anything about this page, about what is stored, or about having something removed goes
+          to the same address as everything else on this site. There is no privacy department;
+          there is one person, and he answers his own email.
+        </p>
+        <p class="text-base leading-relaxed max-w-2xl">
+          <a href={`mailto:${site.email}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{site.email}</a>
+        </p>
+      </div>
+    </div>
+
+  </section>
+</BaseLayout>

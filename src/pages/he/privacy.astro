@@ -1,0 +1,130 @@
+---
+// /he/privacy — הצהרת הפרטיות בעברית.
+//
+// מקבילה מלאה של src/pages/privacy.astro. כל טענה כאן נגזרת מאותו קוד
+// שממנו נגזר הנוסח האנגלי, ולא מתרגום חופשי שלו:
+//   • כתובות IP מגובבות ואינן נשמרות  → functions/_lib/dedup.js
+//   • מיקום גס מ-Cloudflare            → functions/_lib/geo.js
+//   • רשימת תפוצה בשני שלבים          → functions/api/subscribe.js
+//   • עוגיית בעלים בלבד                → functions/_lib/auth.js
+//   • משואת הביקור                     → src/layouts/BaseLayout.astro
+//
+// שני העמודים חייבים להשתנות יחד: אם אחד מהם מתאר טיפול בנתונים שהשני
+// לא מתאר, אחד מהם משקר לקוראיו.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { site } from '../../data/site';
+
+const LAST_REVIEWED = 'אוגוסט 2026';
+
+const sections = [
+  {
+    key: 'ביקורים',
+    heading: 'ביקורים והורדות',
+    paragraphs: [
+      'כשאתם פותחים עמוד, האתר רושם אירוע אחד: אם אתם קוראים חדשים או חוזרים, איזה עמוד נפתח, ובעמוד של מאמר — גם איזה מאמר. הורדת PDF נרשמת כאירוע הורדה באותו אופן. האירועים האלה הם שמציירים את הגלובוס בעמוד Live.',
+      'כתובת ה-IP שלכם אינה נשמרת אף פעם. היא משולבת עם התאריך הנוכחי לפי שעון UTC, עם סוג האירוע ועם המאמר שאליו הוא מתייחס, עוברת דרך SHA-256, ורק הגיבוב הזה נכתב. מכיוון שהתאריך הוא חלק מהקלט, אותו קורא מייצר גיבוב אחר למחרת, ולכן אי אפשר לחבר את האירועים לפרופיל שעוקב אחריכם לאורך ימים. אירועים חוזרים מאותו גיבוב בתוך 24 שעות נזרקים במקום להיספר פעמיים.',
+      'לצד כל אירוע נשמר המיקום המשוער ש-Cloudflare מצרפת לבקשה: עיר, מדינה, יבשת, והקואורדינטות של אותה עיר. זהו האומדן הגס ברמת הרשת שכל אתר שיושב מאחורי Cloudflare מקבל. זה אינו GPS, והוא משמש רק במצטבר כדי למקם קשת על הגלובוס. תעבורה שזוהתה כאוטומטית נרשמת בנפרד ואינה מוצגת בתצוגה הציבורית.',
+      'חלק מהתעבורה נזרק עוד לפני שנכתב דבר. בקשות שמגיעות מהמקומות שבהם בעל האתר עובד באופן קבוע נמחקות, כדי שהקריאה שלו עצמו לא תנפח את הספירה. קורא אמיתי שנמצא באחד מהמקומות האלה נזרק יחד איתו. הספירות בעמוד Live הן לפיכך נמוכות מהמציאות, לעולם לא גבוהות ממנה.',
+    ],
+  },
+  {
+    key: 'אחסון',
+    heading: 'מה נשמר בדפדפן שלכם',
+    paragraphs: [
+      'שני ערכים נכתבים לאחסון המקומי של הדפדפן, ואף אחד מהם אינו נשלח לשרת. האחד מתעד שכבר ביקרתם, כדי שביקור חוזר לא ייספר כביקור ראשון. השני זוכר בחירה ידנית של מצב בהיר או כהה, עד למעבר האוטומטי הבא ב-07:00 או ב-19:00.',
+      'האתר אינו מציב עוגיות פרסום, עוגיות אנליטיקה או עוגיות של צד שלישי. קיימת עוגייה אחת בדומיין הזה — אסימון חתום מסוג HttpOnly — והיא ניתנת רק לבעל האתר, לאחר אימות מול סוד שנשמר בצד השרת. מבקרים רגילים לעולם אינם מקבלים אותה.',
+    ],
+  },
+  {
+    key: 'דיוור',
+    heading: 'רשימת התפוצה',
+    paragraphs: [
+      'אם נרשמתם כדי לשמוע על מאמרים חדשים, כתובת האימייל שלכם נשמרת כדי שאפשר יהיה לשלוח את ההודעה. ההרשמה מתבצעת בשני שלבים: שליחת הטופס יוצרת רשומה ממתינה בלבד ושולחת אליכם מייל אישור אחד, ודבר נוסף אינו נשלח אלא אם לחצתם על הקישור שבתוכו. בכל הודעה מופיע קישור להסרה בלחיצה אחת.',
+      'הרשימה משמשת למטרה אחת: לספר לכם כשמאמר מתפרסם. היא אינה נמכרת, אינה מושכרת ואינה משותפת עם איש, ואין בה שימוש לשום דבר אחר. בקשה אחת, וכתובתכם תימחק לגמרי במקום רק להיות מסומנת כמוסרת.',
+    ],
+  },
+  {
+    key: 'צדדים\nשלישיים',
+    heading: 'צדדים שלישיים',
+    paragraphs: [
+      'האתר פועל על Cloudflare, שמטפלת בבקשות ומספקת את נתוני התעבורה המצטברים שמוצגים בעמוד Live. שירות Cloudflare Web Analytics עובד ללא עוגיות ואינו יוצר טביעת אצבע של מבקרים. מיילים של אישור ושל הודעות נשלחים דרך ספק דיוור, שרואה בהכרח את כתובת הנמען.',
+      'הקישורים היוצאים אל Google Scholar, ORCID, ResearchGate, Web of Science, WhatsApp והוצאות כתבי העת הם קישורים רגילים. מרגע שלחצתם, מדיניות הפרטיות של אותו יעד היא שחלה. שום תוכן אינו מוטמע מהשירותים האלה, ולכן הם אינם לומדים עליכם דבר כל עוד לא לחצתם.',
+    ],
+  },
+  {
+    key: 'הבחירות\nשלכם',
+    heading: 'הבחירות שלכם',
+    paragraphs: [
+      'מכיוון שאירועי הביקור אינם נושאים מזהה שנשמר ושורד את היום, אין רשומה אישית שאפשר למסור לכם או למחוק. מה שכן אפשר לפעול עליו הוא הרשומה שלכם ברשימת התפוצה וכל הודעה ששלחתם: בקשו, והם יוצגו לכם או יימחקו.',
+      'חסימה של האחסון המקומי או שליחת אות Do Not Track לא ישברו דבר באתר. אם אתם מעדיפים שלא להיספר כלל, חוסם פרסומות או סקריפטים שחוסם את משואת הביקור מספיק לכך. העמודים עצמם עובדים גם בלעדיה.',
+    ],
+  },
+];
+---
+<BaseLayout
+  title="הצהרת פרטיות — יריב איצקוביץ"
+  description="מה אתר yarivitzkovich.org רושם על מבקריו ומה לא: כתובות IP שמגובבות ואינן נשמרות, מיקום גס מ-Cloudflare, רשימת תפוצה בשני שלבים, וללא עוגיות פרסום או צד שלישי."
+  lang="he"
+  langHref="/privacy"
+>
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+
+    <!-- כותרת -->
+    <div class="grid grid-cols-12 gap-6 mb-20">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">פרטיות</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1 class="font-display text-5xl md:text-6xl mb-10" style="font-weight: 300">פרטיות.</h1>
+        <p class="text-lg leading-relaxed max-w-2xl" style="color: var(--text)">
+          זהו אתר אקדמי, לא עסק. הוא אינו מוכר דבר, אינו מציג פרסומות, ואין לו סיבה לדעת מי אתם.
+          הוא כן סופר כמה פעמים קוראים את העבודה, משום שזה מעניין חוקר באמת — והוא סופר בדרך
+          שאי אפשר לחזור ממנה אל אדם מסוים. להלן מה שזה אומר בפועל, כתוב מול הקוד שמבצע את זה
+          ולא מתוך תבנית.
+        </p>
+        <p class="font-mono text-xs uppercase tracking-widest text-soft mt-8">
+          עודכן לאחרונה: {LAST_REVIEWED}
+        </p>
+      </div>
+    </div>
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    {sections.map((section, index) => (
+      <>
+        <div class="grid grid-cols-12 gap-6 mb-20">
+          <div class="col-span-12 md:col-span-2">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft" set:html={section.key.replace('\n', '<br/>')} />
+          </div>
+          <div class="col-span-12 md:col-span-10">
+            <h2 class="font-display text-3xl md:text-4xl mb-8" style="font-weight: 300">{section.heading}</h2>
+            {section.paragraphs.map((paragraph) => (
+              <p class="text-base leading-relaxed text-muted max-w-2xl mb-5">{paragraph}</p>
+            ))}
+          </div>
+        </div>
+        {index < sections.length - 1 && <div class="h-px mb-20" style="background-color: var(--divider)"></div>}
+      </>
+    ))}
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    <!-- פנייה בענייני פרטיות -->
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">פנייה</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h2 class="font-display text-3xl md:text-4xl mb-8" style="font-weight: 300">שאלות ובקשות</h2>
+        <p class="text-base leading-relaxed text-muted max-w-2xl mb-5">
+          כל שאלה על העמוד הזה, על מה שנשמר, או בקשה להסיר משהו — מגיעה לאותה כתובת כמו כל
+          פנייה אחרת באתר. אין כאן מחלקת פרטיות; יש אדם אחד, והוא עונה על המיילים שלו בעצמו.
+        </p>
+        <p class="text-base leading-relaxed max-w-2xl">
+          <a href={`mailto:${site.email}`} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)" dir="ltr">{site.email}</a>
+        </p>
+      </div>
+    </div>
+
+  </section>
+</BaseLayout>
