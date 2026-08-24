@@ -21,6 +21,12 @@ const profileLinks: Array<{ label: string; href: string }> = [
 const showProfiles = site.display.footerProfiles && profileLinks.length > 0;
 const showCv = site.display.findCv;
 
+// The privacy statement is the one trust page that exists in both
+// languages, so its link follows the reader instead of dropping a Hebrew
+// visitor onto English text. Every other link in this footer is a profile
+// or an external service and has no Hebrew counterpart to point at.
+const privacyHref = lang === 'he' ? '/he/privacy' : '/privacy';
+
 const copy = {
   en: {
     kicker: '',
@@ -186,7 +192,7 @@ const copy = {
       <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">
         {copy.copyPrefix}<span data-current-year>{new Date().getFullYear()}</span>
         <span aria-hidden="true"> · </span>
-        <a href="/privacy" class="hover:opacity-100 transition-opacity underline underline-offset-4">{copy.privacy}</a>
+        <a href={privacyHref} class="hover:opacity-100 transition-opacity underline underline-offset-4">{copy.privacy}</a>
       </div>
       <script is:inline>
         document.querySelectorAll('[data-current-year]').forEach((el) => {

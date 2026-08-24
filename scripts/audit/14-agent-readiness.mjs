@@ -93,7 +93,7 @@ const MARKDOWN_ACCEPT = 'text/markdown';
 // prefix in the middleware silently took the page's Markdown variant down
 // with the functions. The trailing-slash form is what the sitemap
 // publishes, so it is the form that must be tested.
-const NEGOTIABLE_ROUTES = ['/', '/about', '/privacy', '/publications', '/publications/academic-incivility', '/topics/incivility', '/he', '/live', '/live/'];
+const NEGOTIABLE_ROUTES = ['/', '/about', '/privacy', '/publications', '/publications/academic-incivility', '/topics/incivility', '/he', '/he/privacy', '/live', '/live/'];
 
 /** Paths the middleware must not touch at all. */
 const OPAQUE_ROUTES = [
@@ -454,7 +454,9 @@ function record(id, tableRef, expected, observed, pass, notes = '') {
 
 // ─── AGENT-trust-anchors ──────────────────────────────────────────────
 {
-  const anchors = ['/about', '/privacy'];
+  // /he/privacy counts as a trust anchor in its own right: an agent
+  // answering a Hebrew query should find a Hebrew statement, not a stub.
+  const anchors = ['/about', '/privacy', '/he/privacy'];
   const results = FUNCTIONS_RUN ? await Promise.all(anchors.map((p) => probe(p, { accept: BROWSER_ACCEPT, redirect: 'follow' }))) : [];
   const rows = results.map((r, i) => {
     const text = visibleText(r.body);

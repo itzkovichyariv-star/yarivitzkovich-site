@@ -6,10 +6,14 @@
  *   HE-home        /he/ loads with dir=rtl, no errors, lang attribute
  *                  on <html> is "he".
  *   HE-teaching    /he/teaching loads cleanly.
+ *   HE-privacy     /he/privacy renders RTL Hebrew, carries real content,
+ *                  and is the page the Hebrew footer actually links to —
+ *                  the failure this guards is a Hebrew reader clicking
+ *                  "פרטיות" and landing on the English statement.
  *   HE-nav-toggle  Lang toggle on /he/ points back to / (English).
  *
  * Why a separate suite from 02-static-pages: the Hebrew tree only has
- * a few mirrored pages today (index + teaching). A regression where /he/
+ * a few mirrored pages today (index + teaching + privacy). A regression where /he/
  * starts inheriting English content, or the dir flips back to ltr, or
  * the language toggle stops working — those are localization bugs the
  * generic STATIC walk wouldn't catch.
@@ -71,6 +75,58 @@ audit.log('HE-teaching: /he/teaching loads cleanly');
     pass: !!httpOk && noErrors,
     after,
     notes: !httpOk ? `/he/teaching returned ${resp?.status()}` :
+           !noErrors ? `Errors: ${[...obs.consoleErrors, ...obs.badResponses].slice(0, 3).join(' | ')}` : '',
+  });
+}
+
+// ─── HE-privacy ─────────────────────────────────────────────────────
+audit.log('HE-privacy: /he/privacy renders Hebrew RTL and is what the Hebrew footer links to');
+{
+  audit.observerMark();
+  const resp = await audit.page.goto(`${audit.baseUrl}/he/privacy`, { waitUntil: 'networkidle' });
+  await audit.page.waitForTimeout(600);
+  const after = await audit.shot('HE-privacy');
+  const obs = audit.observerSnapshot();
+
+  const httpOk = resp && resp.ok();
+  const page = await audit.page.evaluate(() => {
+    const main = document.querySelector('main');
+    const text = (main?.innerText || '').trim();
+    return {
+      lang: document.documentElement.lang,
+      dir: document.documentElement.dir,
+      chars: text.length,
+      // Hebrew block: if this page ever regressed to English content under
+      // a Hebrew URL, the ratio collapses and this cell catches it.
+      hebrewChars: (text.match(/[\u0590-\u05FF]/g) || []).length,
+      h1: document.querySelector('main h1')?.textContent?.trim() || '',
+      h2Count: document.querySelectorAll('main h2').length,
+      toggleHref: document.querySelector('header a[aria-label*="Switch language"]')?.getAttribute('href') || null,
+    };
+  });
+  // The footer link a Hebrew reader actually clicks must stay in-locale.
+  const footerHref = await audit.page.locator('#contact a[href*="privacy"]').first().getAttribute('href').catch(() => null);
+
+  const isHebrew = page.hebrewChars > 500;
+  const enoughContent = page.chars >= 500;
+  const rtl = page.lang === 'he' && page.dir === 'rtl';
+  const footerInLocale = footerHref === '/he/privacy';
+  const togglesToEnglish = page.toggleHref === '/privacy';
+  const noErrors = obs.consoleErrors.length === 0 && obs.pageErrors.length === 0 && obs.netFailures.length === 0 && obs.badResponses.length === 0;
+
+  audit.recordCell({
+    id: 'HE-privacy',
+    tableRef: 'GET /he/privacy',
+    expected: '200; lang=he dir=rtl; 500+ chars of predominantly Hebrew content; footer links to /he/privacy; toggle returns to /privacy',
+    observed: `status=${resp?.status()}, lang=${page.lang}/${page.dir}, chars=${page.chars} (hebrew=${page.hebrewChars}), h1="${page.h1}", h2=${page.h2Count}, footer=${footerHref}, toggle=${page.toggleHref}`,
+    pass: !!httpOk && rtl && isHebrew && enoughContent && footerInLocale && togglesToEnglish && noErrors,
+    after,
+    notes: !httpOk ? `/he/privacy returned ${resp?.status()}` :
+           !rtl ? `Wanted lang=he dir=rtl, got ${page.lang}/${page.dir}.` :
+           !enoughContent ? `Only ${page.chars} chars — below the 500 that trust-anchor checks look for.` :
+           !isHebrew ? `Only ${page.hebrewChars} Hebrew characters in ${page.chars} — the page may have regressed to English content.` :
+           !footerInLocale ? `Hebrew footer links to "${footerHref}" instead of /he/privacy — Hebrew readers land on the English statement.` :
+           !togglesToEnglish ? `Language toggle points at "${page.toggleHref}" instead of /privacy.` :
            !noErrors ? `Errors: ${[...obs.consoleErrors, ...obs.badResponses].slice(0, 3).join(' | ')}` : '',
   });
 }
