@@ -47,6 +47,40 @@ try {
   shortSha = execSync('git rev-parse --short HEAD', { cwd: import.meta.dirname }).toString().trim();
 } catch { /* leave shortSha = 'nogit' */ }
 const SITE_VERSION = `v1.${buildDate}-${shortSha}`;
+
+// ─── Structured-data contact details ─────────────────────────────────
+// Everything below is already a live link in the site footer (the mailto:,
+// the wa.me number, the Ariel University affiliation). Restating it as
+// JSON-LD lets an assistant answer "how do I contact him / where is he
+// based" without scraping the page, which is what the schema.org
+// contactPoint and address properties exist for. Defined once and shared
+// by the Person node and the Organization nodes so the two can't drift.
+const PHONE_E164 = '+972-52-397-5027';
+
+const WORK_ADDRESS = {
+  '@type': 'PostalAddress',
+  addressLocality: 'Ariel',
+  addressCountry: 'IL',
+};
+
+const CONTACT_POINTS = [
+  {
+    '@type': 'ContactPoint',
+    contactType: 'Research collaboration and academic enquiries',
+    email: 'mailto:Yarivi@ariel.ac.il',
+    telephone: PHONE_E164,
+    availableLanguage: ['en', 'he'],
+    areaServed: 'Worldwide',
+    url: 'https://yarivitzkovich.org/#contact',
+  },
+  {
+    '@type': 'ContactPoint',
+    contactType: 'Editorial — Journal of Managerial Psychology',
+    email: 'mailto:Yarivi@ariel.ac.il',
+    availableLanguage: ['en'],
+    areaServed: 'Worldwide',
+  },
+];
 ---
 <!doctype html>
 <html lang={lang} dir={dir}>
@@ -172,13 +206,37 @@ const SITE_VERSION = `v1.${buildDate}-${shortSha}`;
         url: 'https://yarivitzkovich.org',
         image: 'https://yarivitzkovich.org/images/headshot.jpg',
         email: 'mailto:Yarivi@ariel.ac.il',
+        telephone: PHONE_E164,
+        // Work address, at the granularity that is actually verifiable:
+        // the campus locality and country. No street line is asserted
+        // here because none is published anywhere else on this site, and
+        // an invented one would be worse than an absent one.
+        address: WORK_ADDRESS,
+        // Two contact routes, each labelled with what it is for, so an
+        // agent answering "how do I reach this person" picks the right
+        // one instead of guessing. Both are already live links in the
+        // site footer — this adds no new exposure, only machine
+        // readability.
+        contactPoint: CONTACT_POINTS,
         worksFor: {
           '@type': 'CollegeOrUniversity',
           name: 'Ariel University',
           url: 'https://www.ariel.ac.il',
+          address: WORK_ADDRESS,
           department: {
             '@type': 'EducationalOrganization',
             name: 'Department of Sociology and Anthropology — HRM & Organizational Development Track',
+            url: 'https://yarivitzkovich.org/about',
+            address: WORK_ADDRESS,
+            contactPoint: CONTACT_POINTS,
+          },
+          contactPoint: {
+            '@type': 'ContactPoint',
+            name: 'Yariv Itzkovich — Head of the HRM & Organizational Development Track',
+            contactType: 'academic',
+            email: 'mailto:Yarivi@ariel.ac.il',
+            telephone: PHONE_E164,
+            availableLanguage: ['en', 'he'],
           },
         },
         affiliation: [

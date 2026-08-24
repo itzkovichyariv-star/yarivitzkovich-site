@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "node scripts/gen-paper-titles.mjs && astro build && pagefind --site dist",
+    "build": "node scripts/gen-paper-titles.mjs && astro build && node scripts/gen-markdown-twins.mjs && pagefind --site dist",
     "preview": "astro preview",
     "astro": "astro",
     "backup": "bash scripts/backup-to-onedrive.sh",
@@ -43,6 +43,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "jsqr": "^1.4.0",
-    "pagefind": "^1.5.2"
+    "pagefind": "^1.5.2",
+    "turndown": "^7.2.4"
   }
 }

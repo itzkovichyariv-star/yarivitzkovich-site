@@ -1,0 +1,99 @@
+---
+// Custom 404 page.
+//
+// Why this file exists: Cloudflare Pages falls back to serving
+// `/index.html` with HTTP 200 for any request that doesn't match an
+// asset when the output directory has no `404.html`. That "soft 404"
+// tells crawlers and AI agents that every path on the site exists, so a
+// probe for /pricing or /api/docs looks like a hit. Astro compiles this
+// page to `dist/404.html`, which Pages then serves with a real HTTP 404
+// status for unmatched paths.
+//
+// The machine-readable pointers at the bottom (sitemap, llms.txt, RSS)
+// are here on purpose: an agent that lands on a dead URL should be able
+// to recover the real entry points from the 404 body itself instead of
+// guessing. Agents that ask for `Accept: text/markdown` get the markdown
+// twin of this page (`/404.md`) via functions/_middleware.js.
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const ENTRY_POINTS = [
+  { href: '/', label: 'Home', note: 'Research focus, current work, and selected papers' },
+  { href: '/publications', label: 'Publications', note: 'The full archive, filterable by topic and method' },
+  { href: '/research', label: 'Research', note: 'Themes and ongoing projects' },
+  { href: '/about', label: 'About', note: 'Biography, citation metrics, affiliations' },
+  { href: '/teaching', label: 'Teaching', note: 'Courses and doctoral supervision' },
+];
+
+const MACHINE_READABLE = [
+  { href: '/llms.txt', label: '/llms.txt', note: 'Site guide for AI agents, with when-to-use guidance' },
+  { href: '/sitemap-index.xml', label: '/sitemap-index.xml', note: 'Every indexable URL' },
+  { href: '/publications.xml', label: '/publications.xml', note: 'RSS feed of new papers' },
+  { href: '/papers-doi.json', label: '/papers-doi.json', note: 'Publication list with DOIs, as JSON' },
+];
+---
+<BaseLayout
+  title="Not found (404) — Yariv Itzkovich"
+  description="That page does not exist on yarivitzkovich.org. Start from the homepage, the publications archive, or the machine-readable index at /llms.txt."
+>
+  {/* A 404 must never be indexed — it is a status, not a document. */}
+  <meta slot="head" name="robots" content="noindex, follow" />
+
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-40 pb-32">
+    <div class="grid grid-cols-12 gap-6 mb-20">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">404</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h1 class="font-display text-5xl md:text-6xl mb-10" style="font-weight: 300">Not found.</h1>
+        <p class="text-lg leading-relaxed max-w-2xl" style="color: var(--text)">
+          There is no page at this address. It may have been renamed, or the link that
+          brought you here may have been mistyped. Nothing on the site has been removed —
+          every paper that has ever been listed is still in the archive.
+        </p>
+      </div>
+    </div>
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    <div class="grid grid-cols-12 gap-6 mb-20">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">Start<br/>here</div>
+      </div>
+      <div class="col-span-12 md:col-span-10 space-y-0">
+        {ENTRY_POINTS.map((item) => (
+          <div class="grid grid-cols-12 gap-4 py-5 border-t" style="border-color: var(--divider)">
+            <div class="col-span-12 md:col-span-4">
+              <a href={item.href} class="underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{item.label}</a>
+            </div>
+            <div class="col-span-12 md:col-span-8 text-muted text-sm">{item.note}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div class="h-px mb-20" style="background-color: var(--divider)"></div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">For<br/>agents</div>
+      </div>
+      <div class="col-span-12 md:col-span-10 space-y-0">
+        <p class="text-muted max-w-2xl mb-8">
+          This response carries a real HTTP 404 status. If you are crawling the site
+          programmatically, do not treat this address as a live resource — read the index
+          files below instead. Any page here also has a Markdown representation: request it
+          with <code class="font-mono text-sm">Accept: text/markdown</code>, or append
+          <code class="font-mono text-sm">.md</code> to the path.
+        </p>
+        {MACHINE_READABLE.map((item) => (
+          <div class="grid grid-cols-12 gap-4 py-5 border-t" style="border-color: var(--divider)">
+            <div class="col-span-12 md:col-span-4">
+              <a href={item.href} class="font-mono text-sm underline underline-offset-4 hover:opacity-70" style="color: var(--text)">{item.label}</a>
+            </div>
+            <div class="col-span-12 md:col-span-8 text-muted text-sm">{item.note}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+</BaseLayout>

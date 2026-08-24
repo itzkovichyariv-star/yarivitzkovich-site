@@ -30,6 +30,7 @@ const copy = {
     whatsapp: 'WhatsApp',
     cv: 'C.V.',
     findMe: 'Find me',
+    privacy: 'Privacy',
     tagline: '',
     copyPrefix: `© ${site.shortName} · `,
   },
@@ -41,6 +42,7 @@ const copy = {
     whatsapp: 'WhatsApp',
     cv: 'קורות חיים',
     findMe: 'מצאו אותי',
+    privacy: 'פרטיות',
     tagline: '',
     copyPrefix: `© ${site.shortName} · `,
   },
@@ -177,8 +179,14 @@ const copy = {
           Live
         </a>
       </div>
+      {/* The privacy link sits on the copyright line rather than in the
+          profile-chip row above: it is a legal/trust page, not a place to
+          find the work, and this is where a reader looks for one. Keeping
+          it here also means the chip row stays a row of *profiles*. */}
       <div class="pt-6 border-t border-current border-opacity-20 text-center font-mono text-xs uppercase tracking-widest opacity-60">
         {copy.copyPrefix}<span data-current-year>{new Date().getFullYear()}</span>
+        <span aria-hidden="true"> · </span>
+        <a href="/privacy" class="hover:opacity-100 transition-opacity underline underline-offset-4">{copy.privacy}</a>
       </div>
       <script is:inline>
         document.querySelectorAll('[data-current-year]').forEach((el) => {

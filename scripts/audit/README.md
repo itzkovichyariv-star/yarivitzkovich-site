@@ -2,7 +2,7 @@
 
 Handoff doc for the audit workstream. Read this first whenever you (or a new Claude session) pick up the audit work.
 
-## Current state (v1.6)
+## Current state (v1.7)
 
 ### Pre-gate: `scripts/check-local-migrations.mjs`
 
@@ -31,14 +31,17 @@ Why it exists (2026-08-12): the local D1 at the persist path had never been migr
 | `11-contact-qr.mjs` | QR-present, QR-decodes, QR-no-secrets | 3/3 | vCard QR in the `#contact` footer (`ContactQR.astro`). `QR-decodes` screenshots the rendered tile (incl. monogram) and decodes it with jsQR — proves it actually SCANS. `QR-no-secrets` fails if the payload ever carries a token/login link. Runs at deviceScaleFactor 3 (retina phone). |
 | `12-book-chapters.mjs` | BOOK-lists-chapters | 1/1 | Opens the book and asserts it lists its 7 chapters |
 | `13-title-casing.mjs` | TITLE-sentence-case ×3 | 3/3 | Three sentinel publication slugs render sentence-case titles, with the bad casing absent anywhere in the DOM |
+| `14-agent-readiness.mjs` | AGENT-{404-status, 404-pointers, 404-markdown, md-negotiation, md-vary, html-unchanged, md-twins, opaque-untouched, redirects-intact, llms-txt, schema-org, home-no-js, md-headers, trust-anchors} | 14/14 | The contract the site offers to AI agents rather than to a browser. HTTP-only, ~1s. Every cell maps to a finding from the external is-agentic.com audit of 2026-08-24, so a red here is a regression in something explicitly fixed. `AGENT-404-status` is the load-bearing one: Cloudflare Pages silently falls back to serving `index.html` with HTTP 200 the moment `dist/404.html` stops existing, which tells every crawler that all paths exist. `AGENT-html-unchanged` is the safety cell for the negotiation layer — if a browser-shaped `Accept` ever stops returning HTML, revert `functions/_middleware.js` rather than patch it. Requires the wrangler substrate; skips itself under astro-dev, where Pages Functions don't run |
 
-**Total: 42 cells across 13 suites, plus the local-D1 pre-gate. All green at v1.6.**
+**Total: 56 cells across 14 suites, plus the local-D1 pre-gate. All green at v1.7.**
+
+Note on this container/CI: three suites fail for environment reasons, not site reasons, and do so identically on an unmodified checkout — `05-prod-smoke` (the egress proxy answers 403 to CONNECT for yarivitzkovich.org), `02-static-pages/STATIC-live` (the globe fetches its earth textures from unpkg.com and cdn.jsdelivr.net, also blocked), and `11-contact-qr/QR-decodes` (`audit-lib.mjs` hardcodes a macOS `ROOT`, so the jsQR bundle path does not resolve). Confirm against a stashed baseline before treating any of the three as a real red.
 
 ## Versioning convention
 
 Two distinct versions:
 
-- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp), `v1.4` (stamp legibility fix), `v1.5` (contact-zone vCard QR), `v1.6` (local-D1 pre-gate + suites 12/13 documented). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate, fixes). Rollback points.
+- **Audit-gate tags** — `v1.0` (baseline), `v1.1` (wrangler substrate), `v1.2` (coverage expansion), `v1.3` (version stamp), `v1.4` (stamp legibility fix), `v1.5` (contact-zone vCard QR), `v1.6` (local-D1 pre-gate + suites 12/13 documented), `v1.7` (agent-readiness suite: real 404s, Markdown content negotiation, llms.txt, schema completeness). One bump per meaningful addition to the harness or to the site (new cells, new feature, new substrate, fixes). Rollback points.
 - **Website version stamp** — `v1.YYYY.MM.DD-<short-sha>` rendered fixed bottom-left of every page (see `src/layouts/BaseLayout.astro`). The `1.` prefix is hardcoded as the major-version anchor (bump to `2.` only on a breaking-change-class rebuild). The date and SHA derive automatically at `npm run build` time — zero manual edits.
 
 Earlier `v0.x` tags were rebased to `v1.x` on 2026-05-29 to match the "start at 1" convention. The original commits are unchanged.

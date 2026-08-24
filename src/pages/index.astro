@@ -175,7 +175,14 @@ const nowUpdated = new Date().toLocaleDateString('en-US', { month: 'long', year:
             {nowItems.map((item) => (
               <div>
                 <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
-                <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
+                {/* h3, not p: each item is a subsection of "Currently.",
+                    and without these the section was the one h2 on the
+                    page with no children — a hole in the outline that
+                    screen readers and AI crawlers both read as a flat
+                    document. Tailwind's preflight clears heading
+                    font-size and weight, and the classes here already
+                    set both, so this renders identically to the <p>. */}
+                <h3 class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</h3>
                 <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
                 {item.audio && (
                   <audio controls preload="none" src={item.audio} class="w-full mt-3" style="margin-top: 12px"></audio>
