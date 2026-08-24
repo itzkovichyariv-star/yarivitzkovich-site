@@ -54,6 +54,19 @@
  * every cell exercises functions/_middleware.js — under plain `astro dev`
  * Pages Functions do not execute and the suite skips itself rather than
  * reporting phantom reds.
+ *
+ * RUN IT AGAINST PRODUCTION AFTER DEPLOYING. Several cells assert
+ * behaviour that belongs to the Cloudflare edge rather than to this repo
+ * — chiefly that Pages serves dist/404.html with a real 404 instead of
+ * falling back to index.html with a 200. `wrangler pages dev` emulates
+ * that faithfully, but the deploy is what makes it true:
+ *
+ *   PLAYWRIGHT_BASE_URL=https://yarivitzkovich.org node scripts/audit/14-agent-readiness.mjs
+ *
+ * Every cell is a plain GET with no side effects, so this is safe to run
+ * against the live site as often as you like. It also works against a
+ * Pages branch-preview URL, which is the cheapest way to check a change
+ * before it reaches the apex domain.
  */
 import { Audit } from '../audit-lib.mjs';
 
@@ -97,10 +110,14 @@ const OPAQUE_ROUTES = [
 
 const NONEXISTENT = ['/some-path-that-does-not-exist', '/pricing', '/api/docs', '/publications/no-such-paper-here'];
 
-async function probe(path, { accept, redirect = 'manual' } = {}) {
+async function probe(path, { accept, redirect = 'manual', timeoutMs = 15_000 } = {}) {
   const headers = accept === null ? {} : { accept };
+  // A bare fetch has no timeout. Against localhost that never mattered;
+  // against production one stalled connection would hang the whole gate.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const r = await fetch(`${BASE}${path}`, { headers, redirect });
+    const r = await fetch(`${BASE}${path}`, { headers, redirect, signal: ctrl.signal });
     const contentType = r.headers.get('content-type') || '';
     const isBinary = /pdf|image|font|octet-stream/.test(contentType);
     return {
@@ -115,7 +132,9 @@ async function probe(path, { accept, redirect = 'manual' } = {}) {
       bytes: isBinary ? (await r.arrayBuffer()).byteLength : 0,
     };
   } catch (e) {
-    return { status: 0, contentType: '', vary: '', location: '', body: '', bytes: 0, error: e.message };
+    return { status: 0, contentType: '', vary: '', location: '', body: '', bytes: 0, nosniff: '', referrerPolicy: '', cacheControl: '', error: e.message };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
