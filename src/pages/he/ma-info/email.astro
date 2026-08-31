@@ -71,7 +71,7 @@ const pageUrl = EVENT.registerUrl;
       <div class="card">
         <h2>ההזמנה המלאה — לגוף ההודעה</h2>
         <p>הפלייר המלא, עם כל המלל ובצבעים של אריאל. מתאים כשאתה שולח הזמנה לרשימת תפוצה.</p>
-        <button type="button" data-copy="flyer">העתק את ההזמנה</button>
+        <button type="button" data-copy="flyer" data-src={flyerUrl} data-href={pageUrl} data-alt="הזמנה למפגש זום — תואר שני בייעוץ ארגוני וקהילתי">העתק את ההזמנה</button>
         <div class="said" data-said="flyer"></div>
         <div class="stage" id="stage-flyer">
           <a href={pageUrl}><img src={flyerUrl} alt="הזמנה למפגש זום — תואר שני בייעוץ ארגוני וקהילתי" width="600" /></a>
@@ -81,7 +81,7 @@ const pageUrl = EVENT.registerUrl;
       <div class="card">
         <h2>הרצועה הרחבה — לחתימה</h2>
         <p>באותן מידות כמו הבאנר שכבר יושב בחתימה שלך.</p>
-        <button type="button" data-copy="banner">העתק את הרצועה</button>
+        <button type="button" data-copy="banner" data-src={bannerUrl} data-href={pageUrl} data-alt="מפגש זום — תואר שני בייעוץ ארגוני וקהילתי">העתק את הרצועה</button>
         <div class="said" data-said="banner"></div>
         <div class="stage" id="stage-banner">
           <a href={pageUrl}><img src={bannerUrl} alt="מפגש זום — תואר שני בייעוץ ארגוני וקהילתי" width="600" /></a>
@@ -91,6 +91,7 @@ const pageUrl = EVENT.registerUrl;
       <div class="card">
         <h2>אם ההדבקה בכל זאת יוצאת כקישור</h2>
         <ol>
+          <li>לסמן את התמונה למטה עם העכבר, <code>Cmd+C</code>, ואז להדביק. זו בדיוק אותה פעולה שהכפתור עושה.</li>
           <li>באאוטלוק, במקום הדבקה רגילה: <code>Edit → Paste Special → HTML</code></li>
           <li>או: להכניס תמונה מכתובת, ואז לבחור אותה ו‑<code>Cmd+K</code> עם הכתובת <code>{pageUrl}</code></li>
         </ol>
@@ -99,21 +100,30 @@ const pageUrl = EVENT.registerUrl;
 
     <script is:inline>
       (function () {
-        // Copy the <a><img></a> as rich HTML so the mail client receives a
-        // linked picture. Falls back to selecting it for a manual Cmd+C when
-        // the async clipboard API is unavailable or refuses.
-        function copyNode(node) {
-          var html = node.innerHTML.trim();
-          var text = node.querySelector('a').href;
-          if (navigator.clipboard && window.ClipboardItem) {
-            return navigator.clipboard.write([
-              new ClipboardItem({
-                'text/html': new Blob([html], { type: 'text/html' }),
-                'text/plain': new Blob([text], { type: 'text/plain' }),
-              }),
-            ]);
-          }
-          return Promise.reject(new Error('no clipboard api'));
+        // Two things went wrong before, and both are fixed here.
+        //
+        // 1. The first version put the page URL on the clipboard as text/plain
+        //    alongside the HTML. Outlook took the plain flavour, so the paste
+        //    arrived as a bare link — the exact failure this page exists to
+        //    prevent. Nothing but text/html is written now.
+        //
+        // 2. Copying the rendered DOM instead (a selection + execCommand)
+        //    pastes what the BROWSER generates, and Chromium appends an
+        //    "alttext-container" carrying a 16x16 placeholder image and the alt
+        //    text as visible words. In a mail client that lands as a broken
+        //    icon and a duplicated caption beside the invitation.
+        //
+        // So the markup is built here from the URLs, not scraped from the page:
+        // one anchor, one image, inline width so Outlook does not rescale it,
+        // and nothing else.
+        function markup(src, href, alt) {
+          var esc = function (v) {
+            return String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+          };
+          return '<a href="' + esc(href) + '">' +
+                 '<img src="' + esc(src) + '" alt="' + esc(alt) + '" width="600" ' +
+                 'style="display:block;width:600px;max-width:100%;height:auto;border:0" />' +
+                 '</a>';
         }
 
         function selectNode(node) {
@@ -129,13 +139,23 @@ const pageUrl = EVENT.registerUrl;
             var key = btn.getAttribute('data-copy');
             var stage = document.getElementById('stage-' + key);
             var said = document.querySelector('[data-said="' + key + '"]');
-            copyNode(stage).then(
-              function () { said.textContent = 'הועתק. עכשיו הדבק בגוף ההודעה.'; },
-              function () {
-                selectNode(stage);
-                said.textContent = 'סימנתי את התמונה — הקש Cmd+C ואז הדבק בהודעה.';
-              }
-            );
+            var html = markup(btn.getAttribute('data-src'), btn.getAttribute('data-href'), btn.getAttribute('data-alt'));
+
+            var ok = function () {
+              said.textContent = 'הועתק. הדבק בגוף ההודעה — התמונה תגיע קליקבילית.';
+            };
+            var manual = function () {
+              selectNode(stage);
+              said.textContent = 'סימנתי את התמונה — הקש Cmd+C ואז הדבק בהודעה.';
+            };
+
+            if (navigator.clipboard && window.ClipboardItem) {
+              navigator.clipboard
+                .write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }) })])
+                .then(ok, manual);
+            } else {
+              manual();
+            }
           });
         });
       })();
