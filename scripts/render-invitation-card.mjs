@@ -123,7 +123,7 @@ function cardHtml({ width, height, scale, vgap, padding, wedgeW, wedgeH, logoW }
   .fact .s { font-size: ${px(13)}; color: ${GREY_MID}; }
 
   .foot { display: flex; justify-content: space-between; align-items: baseline; gap: ${px(16)}; margin-top: ${gap(24)}; font-size: ${px(15)}; color: ${GREY_MID}; }
-  .foot .url { direction: ltr; unicode-bidi: isolate; color: ${TEAL_BRIGHT}; font-weight: 600; }
+  .foot .cta { color: ${TEAL_BRIGHT}; font-weight: 600; }
 </style></head>
 <body>
   <div class="wedge"></div>
@@ -142,7 +142,7 @@ function cardHtml({ width, height, scale, vgap, padding, wedgeW, wedgeH, logoW }
     </div>
     <div class="foot">
       <span>${EVENT.hosts.join(' &middot; ')}</span>
-      <span class="url">${EVENT.pageUrl.replace(/^https?:\/\//, '')}</span>
+      <span class="cta">הרשמה מראש &middot; ההשתתפות ללא עלות</span>
     </div>
   </div>
 </body></html>`;

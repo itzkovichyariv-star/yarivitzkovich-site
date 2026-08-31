@@ -71,7 +71,8 @@ export function renderRegistrationEmail({ name, origin }) {
   <!-- The Zoom link: as a button AND as bare text, because some clients strip <a> styling -->
   <div style="text-align:center;margin:0 0 10px">${pill(EVENT.zoomUrl, 'כניסה למפגש בזום', { solid: true })}</div>
   <p style="font-size:12px;color:${INK_SOFT};text-align:center;margin:0 0 26px;word-break:break-all">
-    או העתיקו לדפדפן:<br><span dir="ltr" style="color:${INK}">${escapeHtml(EVENT.zoomUrl)}</span>
+    או פתחו את הקישור ישירות:<br>
+    <a href="${escapeHtml(EVENT.zoomUrl)}" dir="ltr" style="color:${ACCENT};font-weight:600;text-decoration:underline">${escapeHtml(EVENT.zoomUrl)}</a>
   </p>
 
   <!-- Add to calendar -->
@@ -218,10 +219,6 @@ export function renderInvitationEmail({ source = 'email' } = {}) {
   <p style="font-size:13px;color:${INK_SOFT};text-align:center;margin:0 0 28px">
     ההשתתפות ללא עלות · לאחר ההרשמה יישלח אליכם קישור הזום
   </p>
-  <p style="font-size:12px;color:#8A939E;text-align:center;margin:0 0 26px;word-break:break-all">
-    <span dir="ltr">${safeUrl}</span>
-  </p>
-
   <p style="font-size:15px;line-height:1.7;color:${INK};margin:0;border-top:1px solid ${LINE};padding-top:20px">
     ${escapeHtml(EVENT.hosts[0])}<br>ו${escapeHtml(EVENT.hosts[1])}
   </p>
