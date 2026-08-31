@@ -23,7 +23,9 @@ import { EVENT } from '../../../data/event.js';
 const site = Astro.site ?? 'https://yarivitzkovich.org';
 const flyerUrl = new URL('/images/ma-info-flyer.png', site).href;
 const bannerUrl = new URL('/images/ma-info-banner.png', site).href;
-const pageUrl = EVENT.pageUrl;
+// The image is clicked by a reader who has just read the whole invitation, so
+// it lands on the form rather than the top of the page.
+const pageUrl = EVENT.registerUrl;
 ---
 <!doctype html>
 <html lang="he" dir="rtl">
