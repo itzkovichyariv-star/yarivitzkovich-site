@@ -1,18 +1,31 @@
 #!/usr/bin/env node
 /**
- * Render the whole invitation as ONE image, for pasting into a mail client.
+ * Render the invitation as images for pasting into a mail client.
  *
- * Why this exists: getting designed HTML into Outlook by hand keeps failing —
- * the clipboard carries a URL flavour and Outlook pastes a link instead of the
- * content. An image has no such ambiguity: every mail client embeds a picture
- * dropped into the body, and it arrives looking exactly like the design.
+ * Two shapes, because they do different jobs:
  *
- * The image is meant to be hyperlinked in the mail client (select it, Cmd+K,
- * paste the page URL) so a click on the invitation opens the registration
- * page. Keep a line of real text underneath carrying the same link anyway:
- * most clients block remote images until the reader allows them, and for
- * those readers an image-only email arrives as a blank rectangle with nothing
- * to click. The wording inside the image names both routes for that reason.
+ *   ma-info-flyer.png    600×1083 (2x) — the whole invitation, for the BODY of
+ *                        an email. Everything a reader needs without leaving
+ *                        the message.
+ *   ma-info-banner.png   1520×340       — a wide strip in the same proportions
+ *                        as signature-banner.png, so it drops into an email
+ *                        SIGNATURE exactly where the existing banner sits.
+ *
+ * Why images at all: getting designed HTML into Outlook by hand keeps failing.
+ * Copying the rendered page out of a browser puts both a URL and the markup on
+ * the clipboard, and Outlook takes the URL — the paste arrives as a bare link.
+ * An image has no such ambiguity.
+ *
+ * Both are meant to be HYPERLINKED in the mail client (insert the picture,
+ * select it, add a link to the landing page), which is how the existing
+ * signature banner already works. Serve them from their public URL rather than
+ * dragging the local file in: a dragged file becomes an inert embedded
+ * attachment, while an image inserted from a URL behaves like the banner that
+ * already works.
+ *
+ * In an email body, keep a text link under the flyer as well — most clients
+ * block remote images until the reader allows them, and for those readers an
+ * image-only email is a blank rectangle with nothing to click.
  *
  *   node scripts/render-invitation-flyer.mjs
  *   CHROMIUM_PATH=/path/to/chrome node scripts/render-invitation-flyer.mjs
@@ -117,18 +130,67 @@ const html = `<!doctype html>
   </div>
 </body></html>`;
 
+/**
+ * The wide signature strip. Deliberately terse: at 600 px wide in a signature
+ * it is only ~134 px tall, so it carries the programme, the date and a call to
+ * action, and nothing else. Anything more becomes unreadable at that height.
+ */
+const BANNER_W = 760;   // rendered at 2x → 1520, matching signature-banner.png
+const BANNER_H = 170;   // → 340
+
+const bannerHtml = `<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<style>
+  @font-face { font-family: 'RubikHe'; src: url('${RUBIK}') format('woff2'); font-weight: 300 900; font-display: block; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: ${BANNER_W}px; height: ${BANNER_H}px; }
+  body {
+    position: relative; overflow: hidden;
+    background: ${NAVY};
+    font-family: 'RubikHe', sans-serif; color: ${GREY};
+    display: flex; align-items: center;
+    padding: 0 30px 0 190px;
+  }
+  .wedge { position: absolute; bottom: 0; left: 0; width: 168px; height: ${BANNER_H}px; background: ${WEDGE}; clip-path: polygon(0 0, 0 100%, 100% 100%); }
+  .logo  { position: absolute; bottom: 16px; left: 14px; width: 92px; }
+  .txt   { position: relative; width: 100%; }
+  .k  { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: ${TEAL}; margin-bottom: 7px; }
+  .h  { font-size: 23px; font-weight: 800; line-height: 1.15; color: ${GREY}; }
+  .h .teal { color: ${TEAL_BRIGHT}; }
+  .d  { font-size: 15px; font-weight: 700; color: #fff; margin-top: 9px; }
+  .d .cta { color: ${TEAL_BRIGHT}; font-weight: 600; }
+</style></head>
+<body>
+  <div class="wedge"></div>
+  <img class="logo" src="${LOGO}" alt="">
+  <div class="txt">
+    <div class="k">${EVENT.university} &middot; ${EVENT.department}</div>
+    <div class="h">${EVENT.kicker} &middot; <span class="teal">${EVENT.programme}</span></div>
+    <div class="d">${EVENT.dateLabel}, ${EVENT.timeLabel} &nbsp;<span class="cta">· לפרטים ולהרשמה לחצו כאן</span></div>
+  </div>
+</body></html>`;
+
 mkdirSync(OUT_DIR, { recursive: true });
 const browser = await chromium.launch(
   process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}
 );
 try {
-  const page = await browser.newPage({ viewport: { width: WIDTH, height: 900 }, deviceScaleFactor: 2 });
-  await page.setContent(html, { waitUntil: 'load' });
-  await page.evaluate(() => document.fonts.ready);
-  const out = resolve(OUT_DIR, 'ma-info-flyer.png');
-  await page.screenshot({ path: out, type: 'png', fullPage: true });
-  const box = await page.evaluate(() => [document.body.scrollWidth, document.body.scrollHeight]);
-  console.log(`rendered ma-info-flyer.png  ${box[0] * 2}×${box[1] * 2} (2x of ${box[0]}×${box[1]})`);
+  // Full-height flyer for an email body.
+  const flyer = await browser.newPage({ viewport: { width: WIDTH, height: 900 }, deviceScaleFactor: 2 });
+  await flyer.setContent(html, { waitUntil: 'load' });
+  await flyer.evaluate(() => document.fonts.ready);
+  await flyer.screenshot({ path: resolve(OUT_DIR, 'ma-info-flyer.png'), type: 'png', fullPage: true });
+  const box = await flyer.evaluate(() => [document.body.scrollWidth, document.body.scrollHeight]);
+  console.log(`rendered ma-info-flyer.png   ${box[0] * 2}×${box[1] * 2}`);
+  await flyer.close();
+
+  // Wide strip for an email signature.
+  const banner = await browser.newPage({ viewport: { width: BANNER_W, height: BANNER_H }, deviceScaleFactor: 2 });
+  await banner.setContent(bannerHtml, { waitUntil: 'load' });
+  await banner.evaluate(() => document.fonts.ready);
+  await banner.screenshot({ path: resolve(OUT_DIR, 'ma-info-banner.png'), type: 'png' });
+  console.log(`rendered ma-info-banner.png  ${BANNER_W * 2}×${BANNER_H * 2}`);
+  await banner.close();
 } finally {
   await browser.close();
 }
