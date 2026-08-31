@@ -48,6 +48,18 @@ export const EVENT = {
   /** Canonical public URL — used in the email, the .ics and the share buttons. */
   pageUrl: 'https://yarivitzkovich.org/he/ma-info',
 
+  /**
+   * Same page, landing straight on the form.
+   *
+   * Used by anything a reader clicks AFTER they have already read the
+   * invitation — the image in an email, the CTA button — because sending them
+   * to the top of a page they just read costs a second click to reach the
+   * thing they came for. Bare links that people may meet cold (the plain-text
+   * URL, the link preview) still point at pageUrl, where the page explains
+   * itself first. The fragment must match the section id on /he/ma-info.
+   */
+  registerUrl: 'https://yarivitzkovich.org/he/ma-info#registration',
+
   /** Term the programme starts in, as it appears in the invitation copy. */
   academicYear: 'תשפ"ז',
 };

@@ -171,7 +171,9 @@ export function renderOwnerNotice({ name, email, phone, question, total }) {
  * which send brought each person in.
  */
 export function renderInvitationEmail({ source = 'email' } = {}) {
-  const url = `${EVENT.pageUrl}?from=${encodeURIComponent(source)}`;
+  // ?from= before the fragment — a URL fragment must come last or the query
+  // string is swallowed into it and the source is never recorded.
+  const url = `${EVENT.pageUrl}?from=${encodeURIComponent(source)}#registration`;
   const safeUrl = escapeHtml(url);
   const subject = `הזמנה למפגש זום · ${EVENT.programme} · ${EVENT.dateLabel}`;
 
