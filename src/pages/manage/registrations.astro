@@ -1,0 +1,199 @@
+---
+/**
+ * Owner-only list of information-session registrations.
+ *
+ * Same shape as /manage/subscribers: the page renders empty, calls the
+ * owner-gated API, and swaps in the table (or the "not signed in" note when
+ * the API answers 401).
+ *
+ * Written RTL because everything in it — names, questions — is Hebrew.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { EVENT } from '../../data/event.js';
+---
+<BaseLayout
+  title="נרשמים למפגש — ניהול — Yariv Itzkovich"
+  description="Registration list for the information session."
+  lang="he"
+  langHref="/manage"
+>
+  <section class="max-w-6xl mx-auto px-6 md:px-10 pt-32 pb-16">
+    <div class="font-mono text-xs uppercase tracking-widest mb-4" style="color: var(--text-soft)">
+      <a href="/manage" class="underline underline-offset-4 hover:opacity-70">← ניהול</a> · נרשמים
+    </div>
+    <h1 class="font-display leading-[1.05] mb-2" style="font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 300">
+      נרשמים למפגש.
+    </h1>
+    <p class="text-base mb-6" style="color: var(--text-muted)">
+      {EVENT.programme} · {EVENT.dateLabel}, {EVENT.timeLabel}
+    </p>
+
+    <div id="counts" class="font-mono text-xs uppercase tracking-widest mb-8" style="color: var(--text-soft)" aria-live="polite">
+      טוען…
+    </div>
+
+    <div id="gate" class="leading-relaxed" style="display: none; color: var(--text-muted)">
+      לא מחובר כמנהל במכשיר הזה. <a href="/manage" class="underline underline-offset-4">חזרה</a>.
+    </div>
+
+    <div id="error" class="text-sm" style="display: none; color: #b3411c"></div>
+
+    <div id="toolbar" class="flex flex-wrap gap-3 mb-8" style="display: none">
+      <a
+        href="/api/manage/registrations?format=csv"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm font-mono uppercase tracking-widest hover:opacity-85 transition-opacity"
+        style="background-color: var(--color-accent); color: var(--color-bg)"
+      >
+        ייצוא לאקסל (CSV)
+      </a>
+      <button
+        type="button" id="copy-emails"
+        class="inline-flex items-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity cursor-pointer"
+        style="border-color: var(--divider); color: var(--text)"
+      >
+        <span id="copy-emails-label">העתקת כל כתובות המייל</span>
+      </button>
+    </div>
+
+    <div id="questions-wrap" class="mb-12" style="display: none">
+      <div class="font-mono text-xs uppercase tracking-widest mb-4" style="color: var(--text-soft)">
+        שאלות שנשלחו מראש
+      </div>
+      <div id="questions" class="space-y-3"></div>
+    </div>
+
+    <div id="table-wrap" style="display: none; overflow-x: auto">
+      <table class="w-full text-sm" style="border-collapse: collapse; min-width: 720px">
+        <thead>
+          <tr class="font-mono text-xs uppercase tracking-widest" style="color: var(--text-soft); text-align: start">
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: start">שם</th>
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: start">אימייל</th>
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: start">טלפון</th>
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: start">נרשם</th>
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: start">אישור</th>
+            <th class="py-3 px-3 border-b" style="border-color: var(--divider); text-align: end">פעולות</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div id="empty" class="leading-relaxed" style="display: none; color: var(--text-muted)">
+      עדיין אין נרשמים.
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var el = function (id) { return document.getElementById(id); };
+      var rowsEl = el('rows');
+      var data = null;
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function fmt(unix) {
+        if (!unix) return '—';
+        return new Date(unix * 1000).toLocaleString('he-IL', {
+          timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+        });
+      }
+
+      function render(d) {
+        data = d;
+        var c = d.counts;
+        el('counts').textContent =
+          c.total + ' נרשמים · ' + c.with_question + ' עם שאלה' +
+          (c.email_failed ? ' · ' + c.email_failed + ' ללא אישור שנשלח' : '');
+
+        if (!d.registrations.length) { el('empty').style.display = ''; return; }
+
+        el('toolbar').style.display = '';
+        el('table-wrap').style.display = '';
+
+        var withQuestions = d.registrations.filter(function (r) { return r.question && r.question.trim(); });
+        if (withQuestions.length) {
+          el('questions-wrap').style.display = '';
+          el('questions').innerHTML = withQuestions.map(function (r) {
+            return '<div style="border: 1px solid var(--divider); border-radius: 12px; padding: 14px 16px">' +
+              '<div style="font-size: 12px; color: var(--text-soft); margin-bottom: 6px">' + esc(r.name) + '</div>' +
+              '<div style="font-size: 15px; line-height: 1.6; white-space: pre-wrap">' + esc(r.question) + '</div>' +
+              '</div>';
+          }).join('');
+        }
+
+        rowsEl.innerHTML = d.registrations.map(function (r) {
+          return '<tr style="border-bottom: 1px solid var(--divider)">' +
+            '<td class="py-3 px-3">' + esc(r.name) + '</td>' +
+            '<td class="py-3 px-3" dir="ltr" style="text-align: start; font-family: ui-monospace, monospace; font-size: 12px">' + esc(r.email) + '</td>' +
+            '<td class="py-3 px-3" dir="ltr" style="text-align: start; font-family: ui-monospace, monospace; font-size: 12px">' + esc(r.phone || '—') + '</td>' +
+            '<td class="py-3 px-3" style="color: var(--text-muted); font-size: 12px">' + esc(fmt(r.registered_at)) + '</td>' +
+            '<td class="py-3 px-3" style="font-size: 12px">' + (r.email_sent ? 'נשלח' : '<span style="color: #b3411c">לא נשלח</span>') + '</td>' +
+            '<td class="py-3 px-3" style="text-align: end; white-space: nowrap">' +
+              '<button type="button" data-resend="' + r.id + '" style="font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; color: var(--accent)">שליחה חוזרת</button>' +
+              ' &nbsp; ' +
+              '<button type="button" data-delete="' + r.id + '" style="font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; color: var(--text-soft)">מחיקה</button>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      function act(id, action) {
+        return fetch('/api/manage/registrations', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ id: id, action: action }),
+        }).then(function (r) { return r.json(); });
+      }
+
+      rowsEl.addEventListener('click', function (e) {
+        var resend = e.target.getAttribute && e.target.getAttribute('data-resend');
+        var del = e.target.getAttribute && e.target.getAttribute('data-delete');
+        if (resend) {
+          e.target.textContent = 'שולח…';
+          act(Number(resend), 'resend').then(function (res) {
+            e.target.textContent = res && res.ok ? 'נשלח ✓' : 'נכשל';
+          });
+        }
+        if (del) {
+          if (!confirm('למחוק את הנרשם/ת? הפעולה בלתי הפיכה.')) return;
+          act(Number(del), 'delete').then(function () { load(); });
+        }
+      });
+
+      el('copy-emails').addEventListener('click', function () {
+        if (!data) return;
+        var list = data.registrations.map(function (r) { return r.email; }).join(', ');
+        var label = el('copy-emails-label');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(list).then(function () {
+            label.textContent = 'הועתק (' + data.registrations.length + ')';
+            setTimeout(function () { label.textContent = 'העתקת כל כתובות המייל'; }, 1800);
+          });
+        }
+      });
+
+      function load() {
+        fetch('/api/manage/registrations', { credentials: 'same-origin' })
+          .then(function (r) {
+            if (r.status === 401) { el('gate').style.display = ''; el('counts').style.display = 'none'; return null; }
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d) return;
+            if (!d.ok) { el('error').style.display = ''; el('error').textContent = 'שגיאה: ' + (d.error || 'לא ידוע'); return; }
+            render(d);
+          })
+          .catch(function () {
+            el('error').style.display = '';
+            el('error').textContent = 'לא הצלחנו לטעון את הרשימה.';
+          });
+      }
+
+      load();
+    })();
+  </script>
+</BaseLayout>
