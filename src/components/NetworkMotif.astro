@@ -1,0 +1,77 @@
+---
+/**
+ * Abstract "organizational network" motif — nodes joined by arcs.
+ *
+ * Decorative, but not arbitrary: the programme is about organizational and
+ * community consulting, so the figure is people and the ties between them.
+ * It sits behind the hero at low opacity to give the panel depth without
+ * competing with the type, and it is marked aria-hidden because it carries no
+ * information a reader needs.
+ *
+ * Stroke and fill inherit currentColor so one component works on the dark
+ * panel and on the cream ground alike.
+ */
+interface Props {
+  /** Extra classes, appended to the component's own positioning class. */
+  class?: string;
+}
+const { class: className = '' } = Astro.props;
+
+import { NODES, LINKS, RINGS, RING_CENTER } from '../data/motif.js';
+---
+<svg
+  class={`motif ${className}`}
+  viewBox="0 0 400 400"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  aria-hidden="true"
+  focusable="false"
+>
+  {RINGS.map((ring) => (
+    <circle cx={RING_CENTER.x} cy={RING_CENTER.y} r={ring.r} stroke="currentColor" stroke-width="1" opacity={ring.opacity} />
+  ))}
+
+  {LINKS.map(([a, b]) => (
+    <line
+      x1={NODES[a].x} y1={NODES[a].y}
+      x2={NODES[b].x} y2={NODES[b].y}
+      stroke="currentColor" stroke-width="1" opacity="0.28"
+    />
+  ))}
+
+  {NODES.map((n) => (
+    <circle cx={n.x} cy={n.y} r={n.r} fill="currentColor" opacity="0.5" />
+  ))}
+</svg>
+
+<style>
+  /* Positioning lives here, not in the page: Astro scopes a component's CSS to
+     that component's own elements, so a `.motif` rule written in the page
+     never matched this svg (it rendered at natural size and swallowed the
+     hero). Keeping the rule beside the markup it targets makes that
+     impossible to get wrong again. */
+  .motif {
+    position: absolute;
+    display: none;
+    color: currentColor;
+    pointer-events: none;
+  }
+  @media (min-width: 768px) {
+    .motif {
+      display: block;
+      width: 430px;
+      height: 430px;
+      top: 50%;
+      inset-inline-start: -120px;
+      transform: translateY(-46%);
+    }
+  }
+  @media (min-width: 1280px) {
+    .motif { width: 520px; height: 520px; inset-inline-start: -60px; }
+  }
+  /* The figure is decoration; never let it animate for readers who asked for
+     stillness, and never let it intercept a tap. */
+  @media (prefers-reduced-motion: reduce) {
+    .motif { transition: none; }
+  }
+</style>

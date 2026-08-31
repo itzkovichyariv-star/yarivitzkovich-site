@@ -1,0 +1,492 @@
+---
+/**
+ * Public landing page for the MA information session.
+ *
+ * Built to be pasted into an email and clicked by someone who has never
+ * visited this site: everything above the fold answers "what, when, and how
+ * do I get in", and the form is one screen below it. Registration is a single
+ * step (no confirm-link round trip) because the confirmation email carrying
+ * the Zoom link is itself the confirmation — see functions/api/event-register.js.
+ *
+ * All meeting facts come from src/data/event.js, which the API, the .ics
+ * builder and the confirmation email import too. Nothing here is retyped.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import NetworkMotif from '../../components/NetworkMotif.astro';
+import { EVENT, eventSummary, googleCalendarUrl } from '../../data/event.js';
+
+// Built at build time so the calendar button works with JavaScript off.
+const gcalUrl = googleCalendarUrl();
+
+// The three facts a reader needs before deciding, as a strip across the hero.
+const facts = [
+  { label: 'מועד', value: '8.9.2026', sub: 'יום שלישי' },
+  { label: 'שעה', value: EVENT.timeLabel, sub: EVENT.timezoneNote },
+  { label: 'איפה', value: 'בזום', sub: 'הקישור נשלח במייל' },
+];
+
+// What the hour actually contains. Numbered because a candidate scanning the
+// page wants to know it is worth an evening, not to read a paragraph.
+const agenda = [
+  { n: '01', title: 'התכנית מקרוב', body: 'מבנה הלימודים, ההתמחות בייעוץ ארגוני וקהילתי, ומה בוגרת או בוגר של התכנית יודעים לעשות בסופה.' },
+  { n: '02', title: 'היתרונות שבה', body: 'מה מייחד את התכנית הזו, ולמי היא מתאימה — כולל השילוב עם עבודה.' },
+  { n: '03', title: 'שיחה פתוחה', body: 'מענה על שאלות. אפשר לשלוח שאלה מראש בטופס ההרשמה, ונתייחס אליה במפגש.' },
+];
+
+// Initials for the host badges. Written out rather than derived: a regex
+// literal inside an Astro template expression breaks the compiler's scanner
+// (it reads the slash as division and the apostrophe in "פרופ'" as a string),
+// and two names do not need an algorithm.
+const hostBadges = [
+  { name: EVENT.hosts[0], initial: 'מ' },
+  { name: EVENT.hosts[1], initial: 'י' },
+];
+
+const shareText = `${eventSummary()} · ${EVENT.university}
+${EVENT.dateLabel}, בשעה ${EVENT.timeLabel}
+פרטים והרשמה: ${EVENT.pageUrl}`;
+
+const pageTitle = `${EVENT.kicker} — ${EVENT.programme}`;
+const pageDescription = `${EVENT.dateLabel}, בשעה ${EVENT.timeLabel}. ${EVENT.department}, ${EVENT.university}. הרשמה מראש, והקישור לזום נשלח במייל.`;
+---
+<BaseLayout
+  title={`${pageTitle} — ${EVENT.university}`}
+  description={pageDescription}
+  lang="he"
+  langHref="/"
+  ogImage="/images/ma-info-og.png"
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'EducationEvent',
+      name: eventSummary(),
+      description: pageDescription,
+      startDate: EVENT.startUtc,
+      endDate: EVENT.endUtc,
+      eventAttendanceMode: 'https://schema.org/OnlineEventAttendanceMode',
+      eventStatus: 'https://schema.org/EventScheduled',
+      inLanguage: 'he',
+      location: { '@type': 'VirtualLocation', url: EVENT.pageUrl },
+      organizer: { '@type': 'CollegeOrUniversity', name: EVENT.university, url: 'https://www.ariel.ac.il' },
+      isAccessibleForFree: true,
+      url: EVENT.pageUrl,
+    })} />
+  </Fragment>
+
+  <!-- ───────── Hero: full-bleed panel, type reversed out ───────── -->
+  <section class="bg-panel grain relative overflow-hidden">
+    <!-- Motif bleeds off the leading edge so it reads as texture, not as a
+         picture parked in a corner. -->
+    <div class="absolute inset-0 overflow-hidden" aria-hidden="true" style="color: var(--panel-text); opacity: 0.45">
+      <NetworkMotif />
+    </div>
+
+    <div class="relative max-w-5xl mx-auto px-6 md:px-10 pt-36 pb-16 md:pt-44 md:pb-20">
+      <div class="font-mono text-xs tracking-widest mb-8 fade-up" style="color: var(--panel-label)">
+        § הזמנה · {EVENT.university}
+      </div>
+
+      <h1 class="font-display fade-up" style="font-size: clamp(2.4rem, 7.5vw, 5rem); font-weight: 300; line-height: 1.08; letter-spacing: -0.01em">
+        תואר שני<br>
+        <em style="font-style: normal; font-weight: 600">בייעוץ ארגוני וקהילתי</em>
+      </h1>
+
+      <div class="mt-8 mb-7" style="width: 84px; border-top: 2px solid var(--panel-accent); opacity: 0.55"></div>
+
+      <p class="text-lg md:text-2xl max-w-2xl leading-relaxed" style="color: var(--panel-text)">
+        {EVENT.kicker} — נסביר על התכנית, ונקיים שיחה פתוחה ומענה על שאלות.
+      </p>
+      <p class="text-sm md:text-base mt-3" style="color: var(--panel-muted)">
+        {EVENT.department}
+      </p>
+
+      <!-- Fact strip -->
+      <div class="mt-12 grid grid-cols-2 sm:grid-cols-3 gap-px rounded-2xl overflow-hidden" style="background: var(--panel-divider)">
+        {facts.map((f) => (
+          <div class="px-5 py-6 md:px-7 md:py-7" style="background: var(--panel)">
+            <div class="font-mono text-[10px] md:text-xs tracking-widest mb-3" style="color: var(--panel-label)">{f.label}</div>
+            <div class="font-display leading-none mb-2" style="font-size: clamp(1.7rem, 5vw, 2.6rem); font-weight: 400">{f.value}</div>
+            <div class="text-xs md:text-sm" style="color: var(--panel-muted)">{f.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div class="mt-10 flex flex-col sm:flex-row sm:items-center gap-4">
+        <a
+          href="#registration"
+          class="inline-block text-center px-9 py-4 rounded-full font-mono text-xs uppercase tracking-widest hover:opacity-85 transition-opacity"
+          style="background: var(--panel-text); color: var(--panel)"
+        >
+          להרשמה למפגש
+        </a>
+        <span class="text-sm" style="color: var(--panel-muted)">
+          ללא עלות · קישור הזום יישלח אליכם במייל
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── The invitation, in their words ───────── -->
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-20 pb-4">
+    <div class="grid grid-cols-12 gap-6 md:gap-10">
+      <div class="col-span-12 md:col-span-3">
+        <div class="font-mono text-xs uppercase tracking-widest md:sticky md:top-28" style="color: var(--text-soft)">
+          § ההזמנה
+        </div>
+      </div>
+      <div class="col-span-12 md:col-span-9">
+        <p class="text-xl md:text-2xl leading-relaxed mb-6 font-display" style="font-weight: 400">שלום רב,</p>
+        <p class="text-lg md:text-xl leading-relaxed mb-6" style="color: var(--text)">
+          שמחים להזמינך למפגש זום בנושא תכנית לתואר שני במחלקה לסוציולוגיה ולאנתרופולוגיה,
+          עם התמחות בייעוץ ארגוני וקהילתי.
+        </p>
+        <p class="text-base md:text-lg leading-relaxed" style="color: var(--text-muted)">
+          זאת הזדמנות נוספת לקבל החלטה מושכלת, רגע לפני שמתחילה השנה החדשה.
+        </p>
+
+        <!-- Hosts, with initial badges rather than a bare line of names. -->
+        <div class="mt-10 flex flex-wrap gap-6">
+          {hostBadges.map((host) => (
+            <div class="flex items-center gap-3">
+              <span
+                class="font-display flex items-center justify-center rounded-full shrink-0"
+                style="width: 46px; height: 46px; background: var(--color-accent); color: var(--color-bg); font-size: 19px; font-weight: 400"
+                aria-hidden="true"
+              >{host.initial}</span>
+              <span class="text-base" style="color: var(--text)">{host.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── What the hour contains ───────── -->
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-16 pb-4">
+    <div class="font-mono text-xs uppercase tracking-widest mb-8" style="color: var(--text-soft)">§ מה נעשה במפגש</div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      {agenda.map((item) => (
+        <div class="p-7 rounded-2xl border" style="border-color: var(--divider); background: color-mix(in srgb, var(--color-exec-summary-bg) 42%, var(--surface))">
+          <div class="font-mono text-sm mb-5" style="color: var(--accent)">{item.n}</div>
+          <div class="font-display text-xl md:text-2xl mb-3" style="font-weight: 400">{item.title}</div>
+          <p class="text-sm md:text-base leading-relaxed" style="color: var(--text-muted)">{item.body}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- ───────── Next year's timetable ───────── -->
+  <section class="max-w-5xl mx-auto px-6 md:px-10 pt-16 pb-4">
+    <div class="font-mono text-xs uppercase tracking-widest mb-8" style="color: var(--text-soft)">
+      § מתכונת הלימודים · {EVENT.academicYear}
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <div class="p-8 rounded-2xl flex items-baseline gap-5" style="background: var(--color-accent); color: var(--color-bg)">
+        <div class="font-display leading-none" style="font-size: clamp(2.4rem, 7vw, 3.6rem); font-weight: 300">ג׳</div>
+        <div>
+          <div class="font-display text-xl md:text-2xl mb-1" style="font-weight: 400">ימי שלישי</div>
+          <div class="text-sm" style="opacity: 0.78">משעה 15:00 · לימודים פרונטליים</div>
+        </div>
+      </div>
+      <div class="p-8 rounded-2xl border flex items-baseline gap-5" style="border-color: var(--divider)">
+        <div class="font-display leading-none" style="font-size: clamp(2.4rem, 7vw, 3.6rem); font-weight: 300; color: var(--accent)">ו׳</div>
+        <div>
+          <div class="font-display text-xl md:text-2xl mb-1" style="font-weight: 400">ימי שישי</div>
+          <div class="text-sm" style="color: var(--text-muted)">בזום</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── Registration ───────── -->
+  <section id="registration" class="max-w-3xl mx-auto px-6 md:px-10 pt-20 pb-24 scroll-mt-24">
+    <div
+      class="rounded-2xl border overflow-hidden"
+      style="border-color: color-mix(in srgb, var(--color-accent) 26%, transparent); background: var(--surface); box-shadow: 0 18px 50px -28px rgba(26, 22, 18, 0.35)"
+    >
+      <!-- A band of the accent across the top: this is the one block on the
+           page the reader has to act in, and it should not look like another
+           outlined panel. -->
+      <div style="height: 5px; background: var(--color-accent)"></div>
+      <div class="p-6 md:p-10">
+
+      <!-- The form. Replaced in place by #done on success. -->
+      <div id="form-panel">
+        <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--text-soft)">הרשמה</div>
+        <h2 class="font-display mb-3" style="font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 400">
+          נשמח לראותכם במפגש.
+        </h2>
+        <p class="text-base leading-relaxed mb-8" style="color: var(--text-muted)">
+          מלאו את הפרטים ותקבלו מיד מייל אישור עם קישור הזום ואפשרות להוסיף את המפגש ליומן.
+        </p>
+
+        <form id="register-form" novalidate>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label for="reg-name" class="block font-mono text-xs uppercase tracking-widest mb-2" style="color: var(--text-soft)">
+                שם מלא <span style="color: var(--accent)">*</span>
+              </label>
+              <input
+                id="reg-name" name="name" type="text" required autocomplete="name" maxlength="120"
+                class="w-full px-4 py-3 rounded-xl border bg-transparent outline-none focus:opacity-90 transition-opacity"
+                style="border-color: var(--divider); color: var(--text); font-size: 16px"
+              />
+            </div>
+            <div>
+              <label for="reg-email" class="block font-mono text-xs uppercase tracking-widest mb-2" style="color: var(--text-soft)">
+                אימייל <span style="color: var(--accent)">*</span>
+              </label>
+              <input
+                id="reg-email" name="email" type="email" required autocomplete="email" dir="ltr" maxlength="200"
+                class="w-full px-4 py-3 rounded-xl border bg-transparent outline-none focus:opacity-90 transition-opacity"
+                style="border-color: var(--divider); color: var(--text); font-size: 16px; text-align: start"
+              />
+            </div>
+          </div>
+
+          <div class="mt-5">
+            <label for="reg-phone" class="block font-mono text-xs uppercase tracking-widest mb-2" style="color: var(--text-soft)">
+              טלפון <span style="text-transform: none; letter-spacing: 0">(לא חובה)</span>
+            </label>
+            <input
+              id="reg-phone" name="phone" type="tel" autocomplete="tel" dir="ltr" maxlength="40"
+              class="w-full px-4 py-3 rounded-xl border bg-transparent outline-none focus:opacity-90 transition-opacity"
+              style="border-color: var(--divider); color: var(--text); font-size: 16px; text-align: start"
+            />
+          </div>
+
+          <div class="mt-5">
+            <label for="reg-question" class="block font-mono text-xs uppercase tracking-widest mb-2" style="color: var(--text-soft)">
+              שאלה שתרצו שנתייחס אליה <span style="text-transform: none; letter-spacing: 0">(לא חובה)</span>
+            </label>
+            <textarea
+              id="reg-question" name="question" rows="3" maxlength="1000"
+              placeholder="למשל: מה נדרש בקבלה? איך נראה הפרקטיקום? כמה שעות בשבוע?"
+              class="w-full px-4 py-3 rounded-xl border bg-transparent outline-none focus:opacity-90 transition-opacity resize-y"
+              style="border-color: var(--divider); color: var(--text); font-size: 16px"
+            ></textarea>
+            <p class="text-xs mt-2" style="color: var(--text-soft)">
+              נעבור על השאלות לפני המפגש ונתייחס אליהן בשיחה הפתוחה.
+            </p>
+          </div>
+
+          <!-- Honeypot. Hidden from people, irresistible to form-filling bots;
+               the endpoint discards anything that arrives with it filled. -->
+          <div aria-hidden="true" style="position: absolute; left: -9999px; top: -9999px">
+            <label for="reg-website">אל תמלאו שדה זה</label>
+            <input id="reg-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+          </div>
+
+          <button
+            type="submit"
+            id="reg-submit"
+            class="mt-8 w-full sm:w-auto px-9 py-4 rounded-full font-mono text-xs uppercase tracking-widest hover:opacity-85 transition-opacity"
+            style="background-color: var(--color-accent); color: var(--color-bg)"
+          >
+            אישור הרשמה
+          </button>
+
+          <p id="reg-message" class="mt-4 text-sm leading-relaxed" style="display: none" aria-live="polite"></p>
+
+          <p class="text-xs leading-relaxed mt-6" style="color: var(--text-soft)">
+            הפרטים משמשים אך ורק לשליחת קישור הזום ולתזכורת לקראת המפגש. לא נצרף אתכם לשום רשימת תפוצה.
+          </p>
+        </form>
+      </div>
+
+      <!-- Success panel. Carries the Zoom link itself, not just "check your
+           email" — a bounced or slow confirmation must not cost the meeting. -->
+      <div id="done" style="display: none">
+        <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--accent)">ההרשמה נקלטה</div>
+        <h2 class="font-display mb-3" style="font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 400">
+          נרשמתם. נתראה במפגש.
+        </h2>
+        <p id="done-note" class="text-base leading-relaxed mb-8" style="color: var(--text-muted)"></p>
+
+        <div class="rounded-xl border p-5 md:p-6 mb-6" style="border-color: var(--divider)">
+          <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--text-soft)">קישור המפגש</div>
+          <a
+            id="done-zoom" href={EVENT.zoomUrl} target="_blank" rel="noopener noreferrer" dir="ltr"
+            class="block font-mono text-sm md:text-base underline underline-offset-4 hover:opacity-70 transition-opacity"
+            style="color: var(--accent); word-break: break-all; text-align: start"
+          >{EVENT.zoomUrl}</a>
+          <p class="text-xs mt-3" style="color: var(--text-soft)">
+            אותו קישור נשלח אליכם גם במייל — אין צורך לשמור אותו כאן.
+          </p>
+        </div>
+
+        <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--text-soft)">הוספה ליומן</div>
+        <div class="flex flex-col sm:flex-row gap-3 mb-8">
+          <a
+            id="done-gcal" href={gcalUrl} target="_blank" rel="noopener noreferrer"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity flex-1"
+            style="border-color: var(--divider); color: var(--text)"
+          >Google Calendar</a>
+          <a
+            id="done-ics" href="/api/event-ics"
+            class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity flex-1"
+            style="border-color: var(--divider); color: var(--text)"
+          >Outlook / Apple</a>
+        </div>
+
+        <div class="pt-6" style="border-top: 1px solid var(--divider)">
+          <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--text-soft)">מכירים מישהו שזה מתאים לו?</div>
+          <p class="text-sm leading-relaxed mb-4" style="color: var(--text-muted)">
+            אפשר להעביר את ההזמנה הלאה בלחיצה אחת.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <a
+              id="share-whatsapp" href="#" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity flex-1"
+              style="border-color: var(--divider); color: var(--text)"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
+              שליחה בוואטסאפ
+            </a>
+            <a
+              id="share-email" href="#"
+              class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity flex-1"
+              style="border-color: var(--divider); color: var(--text)"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>
+              </svg>
+              שליחה במייל
+            </a>
+            <button
+              type="button" id="share-copy"
+              class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity flex-1 cursor-pointer"
+              style="border-color: var(--divider); color: var(--text)"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span id="share-copy-label">העתקת קישור</span>
+            </button>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="text-center text-sm mt-8" style="color: var(--text-soft)">
+      שאלה לפני ההרשמה? אפשר לכתוב ל<a href="mailto:Yarivi@ariel.ac.il" class="underline underline-offset-4" style="color: var(--accent)">Yarivi@ariel.ac.il</a>
+    </p>
+  </section>
+
+  <script is:inline define:vars={{ shareText, pageUrl: EVENT.pageUrl }}>
+    (function () {
+      var form = document.getElementById('register-form');
+      var formPanel = document.getElementById('form-panel');
+      var done = document.getElementById('done');
+      var msg = document.getElementById('reg-message');
+      var submit = document.getElementById('reg-submit');
+      if (!form) return;
+
+      // Where did this click come from? Append ?from=whatsapp (or anything
+      // else) to the link in each channel and the registration row records
+      // it, so it is possible to tell afterwards which send actually worked.
+      var source = '';
+      try { source = new URLSearchParams(location.search).get('from') || ''; } catch (e) {}
+
+      function show(text, isError) {
+        msg.textContent = text;
+        msg.style.display = 'block';
+        msg.style.color = isError ? '#b3411c' : 'var(--text-muted)';
+      }
+
+      function wireShare() {
+        var wa = document.getElementById('share-whatsapp');
+        var em = document.getElementById('share-email');
+        var copy = document.getElementById('share-copy');
+        var label = document.getElementById('share-copy-label');
+        if (wa) wa.href = 'https://wa.me/?text=' + encodeURIComponent(shareText);
+        if (em) {
+          em.href =
+            'mailto:?subject=' + encodeURIComponent('הזמנה למפגש זום — תואר שני בייעוץ ארגוני וקהילתי') +
+            '&body=' + encodeURIComponent(shareText);
+        }
+        if (copy && label) {
+          copy.addEventListener('click', function () {
+            var reset = function () { setTimeout(function () { label.textContent = 'העתקת קישור'; }, 1800); };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(pageUrl).then(function () { label.textContent = 'הועתק'; reset(); }, function () {});
+            }
+          });
+        }
+      }
+
+      function succeed(res) {
+        // Prefer the URLs the server returned — they are built from the same
+        // event config, so a corrected time can never leave a stale link
+        // baked into a cached page.
+        if (res.zoom_url) {
+          var z = document.getElementById('done-zoom');
+          if (z) { z.href = res.zoom_url; z.textContent = res.zoom_url; }
+        }
+        if (res.google_calendar_url) {
+          var g = document.getElementById('done-gcal');
+          if (g) g.href = res.google_calendar_url;
+        }
+        var note = document.getElementById('done-note');
+        if (note) {
+          if (res.email_send === 'failed') {
+            note.textContent =
+              'שמרנו את ההרשמה, אבל מייל האישור לא יצא כרגע. הקישור למפגש מופיע כאן למטה — שמרו אותו, ואנחנו נשלח אישור בהמשך.';
+          } else if (res.status === 'already_registered') {
+            note.textContent = 'כבר הייתם רשומים — שלחנו לכם שוב את מייל האישור עם קישור הזום.';
+          } else {
+            note.textContent = 'שלחנו לכם מייל אישור עם קישור הזום. אם הוא לא הגיע תוך כמה דקות, כדאי לבדוק בתיקיית הספאם.';
+          }
+        }
+        formPanel.style.display = 'none';
+        done.style.display = '';
+        wireShare();
+        done.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = (document.getElementById('reg-name').value || '').trim();
+        var email = (document.getElementById('reg-email').value || '').trim();
+        var phone = (document.getElementById('reg-phone').value || '').trim();
+        var question = (document.getElementById('reg-question').value || '').trim();
+        var website = (document.getElementById('reg-website').value || '').trim();
+
+        if (name.length < 2) { show('נשמח לשם המלא.', true); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { show('כתובת המייל לא נראית תקינה.', true); return; }
+
+        submit.disabled = true;
+        submit.style.opacity = '0.6';
+        show('רגע…', false);
+
+        fetch('/api/event-register', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, phone: phone, question: question, website: website, source: source }),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+          .then(function (res) {
+            submit.disabled = false;
+            submit.style.opacity = '';
+            if (res.status !== 200 || !res.body.ok) {
+              if (res.body && res.body.error === 'invalid_email') show('כתובת המייל לא נראית תקינה.', true);
+              else if (res.body && res.body.error === 'invalid_name') show('נשמח לשם המלא.', true);
+              else show('משהו השתבש. אפשר לנסות שוב עוד רגע, או לכתוב ל-Yarivi@ariel.ac.il', true);
+              return;
+            }
+            msg.style.display = 'none';
+            succeed(res.body);
+          })
+          .catch(function () {
+            submit.disabled = false;
+            submit.style.opacity = '';
+            show('לא הצלחנו להגיע לשרת. אפשר לנסות שוב, או לכתוב ל-Yarivi@ariel.ac.il', true);
+          });
+      });
+    })();
+  </script>
+</BaseLayout>
