@@ -1,0 +1,126 @@
+---
+/**
+ * Standalone layout for campaign landing pages.
+ *
+ * Deliberately NOT BaseLayout. Two reasons:
+ *
+ *  1. A page emailed to prospective students should not carry the site's
+ *     navigation. Every link in that bar is a way to leave before registering.
+ *  2. This page wears Ariel University's palette — deep navy, teal, heavy grey
+ *     type — while the rest of the site is cream and burgundy. Putting the
+ *     site's burgundy footer under a navy page would read as a mistake.
+ *
+ * What it keeps from BaseLayout: the canonical URL, the social-preview tags,
+ * the visit beacon (so /live still counts these readers) and the build stamp.
+ * What it drops: nav, footer, search, and the time-of-day dark-mode script —
+ * this page is dark by design and must not flip at 07:00.
+ */
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Site-root-relative social-preview image. */
+  ogImage: string;
+}
+const { title, description, ogImage } = Astro.props;
+
+const site = Astro.site ?? 'https://yarivitzkovich.org';
+const canonicalUrl = new URL(Astro.url.pathname, site).href;
+const ogImageUrl = new URL(ogImage, site).href;
+
+const buildDate = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+let shortSha = 'nogit';
+try {
+  const { execSync } = await import('node:child_process');
+  shortSha = execSync('git rev-parse --short HEAD', { cwd: import.meta.dirname }).toString().trim();
+} catch { /* leave shortSha = 'nogit' */ }
+---
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <meta property="og:site_name" content="אוניברסיטת אריאל" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:locale" content="he_IL" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <slot name="head" />
+
+    <style is:global>
+      /* Ariel University's campaign palette, sampled from their own ad:
+         deep navy ground, teal accent, heavy light-grey display type.
+         Scoped to this layout so the rest of the site keeps cream/burgundy. */
+      :root, :root.dark {
+        --ln-navy: #122033;
+        --ln-navy-deep: #0C1727;
+        --ln-navy-soft: #1B2C45;
+        --ln-navy-line: rgba(193, 195, 198, 0.16);
+        --ln-teal: #2FA0A8;
+        --ln-teal-bright: #4FBFC7;
+        --ln-grey: #C1C3C6;
+        --ln-grey-mid: #9CA0A5;
+        --ln-wedge: #838486;
+        --ln-light: #F1F2F3;
+        --ln-light-2: #E4E6E8;
+        --ln-ink: #132238;
+        --ln-ink-soft: #4A5567;
+      }
+      html { background: var(--ln-navy); }
+      body {
+        background: var(--ln-navy);
+        color: var(--ln-grey);
+        /* Rubik carries Hebrew to weight 900 — the ad's display face is a
+           heavy grotesque, not the serif the rest of the site uses. */
+        font-family: 'Rubik Variable', 'Instrument Sans Variable', system-ui, sans-serif;
+        margin: 0;
+      }
+      ::selection { background: var(--ln-teal); color: #fff; }
+    </style>
+  </head>
+  <body>
+    <slot />
+
+    <script is:inline>
+      // Same visit beacon BaseLayout uses, so campaign traffic still shows on /live.
+      (() => {
+        try {
+          if (navigator.webdriver) return;
+          var KEY = 'yi_visitedBefore';
+          var visited = localStorage.getItem(KEY);
+          if (!visited) { try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {} }
+          var body = JSON.stringify({
+            visitor_class: visited ? 'returning' : 'first_time',
+            page_path: location.pathname || '/',
+            paper_slug: null,
+            paper_title: null,
+          });
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/track-visit', new Blob([body], { type: 'application/json' }));
+          } else {
+            fetch('/api/track-visit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: body, keepalive: true }).catch(function () {});
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <div
+      style="position:fixed; bottom:max(4px, env(safe-area-inset-bottom, 4px)); right:8px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; line-height:1; color:rgba(193,195,198,0.35); padding:2px 6px; border-radius:4px; pointer-events:none; z-index:40; user-select:none;"
+      aria-hidden="true"
+    >{`v1.${buildDate}-${shortSha}`}</div>
+  </body>
+</html>

@@ -14,11 +14,15 @@
 import { escapeHtml } from './email.js';
 import { EVENT, eventSummary, googleCalendarUrl } from '../../src/data/event.js';
 
-const INK = '#1A1612';
-const INK_SOFT = '#57504A';
-const ACCENT = '#7A1E2B';
-const CREAM = '#F4EFE6';
-const LINE = '#E0D6C6';
+// Ariel University's campaign palette, the same one the landing page wears.
+const INK = '#132238';
+const INK_SOFT = '#4A5567';
+const ACCENT = '#1F7F86';        // teal, darkened for AA contrast on white text
+const TEAL_BRIGHT = '#4FBFC7';   // on the navy card only
+const NAVY = '#122033';
+const GREY = '#C1C3C6';
+const TINT = '#EEF4F5';          // faint teal wash for the quiet blocks
+const LINE = '#D8DEE2';
 
 // Re-exported so callers can pull both calendar URLs from one place.
 export { googleCalendarUrl };
@@ -30,7 +34,7 @@ export function icsUrl(origin) {
 
 function pill(href, label, { solid = false } = {}) {
   const style = solid
-    ? `display:inline-block;background:${ACCENT};color:${CREAM};text-decoration:none;padding:14px 26px;border-radius:999px;font-size:15px;font-weight:700`
+    ? `display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:999px;font-size:15px;font-weight:700`
     : `display:inline-block;border:1px solid ${LINE};color:${INK};text-decoration:none;padding:11px 20px;border-radius:999px;font-size:13px;font-weight:600`;
   return `<a href="${escapeHtml(href)}" style="${style}">${escapeHtml(label)}</a>`;
 }
@@ -42,15 +46,20 @@ export function renderRegistrationEmail({ name, origin }) {
   const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
 <div style="max-width:560px;margin:0 auto">
 
-  <!-- Invitation card, drawn in type so it survives image blocking -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM};border:1px solid ${LINE};border-radius:14px">
-    <tr><td style="padding:30px 26px;text-align:center">
-      <div style="font-size:11px;letter-spacing:0.08em;color:${ACCENT};font-weight:700;margin-bottom:16px">${escapeHtml(EVENT.university)} &middot; ${escapeHtml(EVENT.department)}</div>
-      <div style="font-size:23px;line-height:1.3;font-weight:700;color:${ACCENT};margin-bottom:10px">${escapeHtml(EVENT.programme)}</div>
-      <div style="font-size:14px;color:${INK};margin-bottom:20px">${escapeHtml(EVENT.kicker)} — הכירו את התכנית</div>
-      <div style="border-top:1px solid ${LINE};margin:0 auto 20px;width:150px"></div>
-      <div style="font-size:18px;font-weight:700;color:${ACCENT};line-height:1.5">${escapeHtml(EVENT.dateLabel)}<br>בשעה ${escapeHtml(EVENT.timeLabel)}</div>
-      <div style="font-size:12px;color:${INK_SOFT};margin-top:14px">${escapeHtml(EVENT.hosts.join(' · '))}</div>
+  <!-- Invitation card, drawn in type so it survives image blocking. Remote
+       images are blocked by default in Gmail, Outlook and Apple Mail, so a
+       header built from an <img> arrives as a grey box for most readers. -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:32px 26px">
+      <div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:18px">${escapeHtml(EVENT.university)} &middot; ${escapeHtml(EVENT.department)}</div>
+      <div style="font-size:25px;line-height:1.15;font-weight:800;color:${GREY};margin-bottom:6px">${escapeHtml(EVENT.kicker)}</div>
+      <div style="font-size:25px;line-height:1.15;font-weight:800;color:${TEAL_BRIGHT};margin-bottom:22px">${escapeHtml(EVENT.programme)}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="border-top:1px solid rgba(193,195,198,0.2);padding-top:6px;width:100%">
+        <tr><td style="padding-top:18px">
+          <div style="font-size:19px;font-weight:700;color:#ffffff;line-height:1.5">${escapeHtml(EVENT.dateLabel)}<br>בשעה ${escapeHtml(EVENT.timeLabel)} <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(EVENT.timezoneNote)})</span></div>
+          <div style="font-size:13px;color:${GREY};margin-top:14px">${escapeHtml(EVENT.hosts.join(' · '))}</div>
+        </td></tr>
+      </table>
     </td></tr>
   </table>
 
@@ -81,7 +90,7 @@ export function renderRegistrationEmail({ name, origin }) {
   </table>
 
   <!-- What the programme looks like next year -->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:${CREAM};border-radius:12px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;background:${TINT};border-radius:12px">
     <tr><td style="padding:18px 20px">
       <div style="font-size:15px;font-weight:700;margin-bottom:8px">מה נעשה במפגש</div>
       <div style="font-size:14px;line-height:1.7;color:${INK_SOFT}">
@@ -141,8 +150,108 @@ export function renderOwnerNotice({ name, email, phone, question, total }) {
     ${row('אימייל', email)}
     ${row('טלפון', phone)}
   </table>
-  ${question ? `<div style="margin-top:14px;padding:12px 14px;background:${CREAM};border-radius:10px;font-size:14px;line-height:1.6"><strong>שאלה שנשלחה מראש:</strong><br>${escapeHtml(question)}</div>` : ''}
+  ${question ? `<div style="margin-top:14px;padding:12px 14px;background:${TINT};border-radius:10px;font-size:14px;line-height:1.6"><strong>שאלה שנשלחה מראש:</strong><br>${escapeHtml(question)}</div>` : ''}
   <p style="font-size:13px;color:${INK_SOFT};margin:18px 0 0">סה"כ נרשמים עד כה: <strong>${Number(total) || 0}</strong> · <a href="https://yarivitzkovich.org/manage/registrations" style="color:${ACCENT}">רשימת הנרשמים</a></p>
 </div>`;
   return { subject: `נרשם/ת חדש/ה למפגש: ${name}`, html };
 }
+
+/**
+ * The INVITATION email — the one that goes out to the mailing list, as
+ * distinct from the confirmation somebody receives after registering.
+ *
+ * Every path in it leads to the landing page rather than trying to be the
+ * landing page: an email client cannot run the registration form, and a page
+ * can be updated after the mail has gone out. The Zoom link is deliberately
+ * NOT here — it goes only to people who registered, so the room is not sitting
+ * open in a forwarded mail.
+ *
+ * `source` is appended to the link as ?from=… so the registration rows record
+ * which send brought each person in.
+ */
+export function renderInvitationEmail({ source = 'email' } = {}) {
+  const url = `${EVENT.pageUrl}?from=${encodeURIComponent(source)}`;
+  const safeUrl = escapeHtml(url);
+  const subject = `הזמנה למפגש זום · ${EVENT.programme} · ${EVENT.dateLabel}`;
+
+  const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
+<div style="max-width:560px;margin:0 auto">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:32px 26px">
+      <div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:18px">${escapeHtml(EVENT.university)} &middot; ${escapeHtml(EVENT.department)}</div>
+      <div style="font-size:25px;line-height:1.15;font-weight:800;color:${GREY};margin-bottom:6px">${escapeHtml(EVENT.kicker)}</div>
+      <div style="font-size:25px;line-height:1.15;font-weight:800;color:${TEAL_BRIGHT};margin-bottom:22px">${escapeHtml(EVENT.programme)}</div>
+      <div style="border-top:1px solid rgba(193,195,198,0.2);padding-top:18px">
+        <div style="font-size:19px;font-weight:700;color:#ffffff;line-height:1.5">${escapeHtml(EVENT.dateLabel)}<br>בשעה ${escapeHtml(EVENT.timeLabel)} <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(EVENT.timezoneNote)})</span></div>
+        <div style="font-size:13px;color:${GREY};margin-top:14px">${escapeHtml(EVENT.hosts.join(' · '))}</div>
+      </div>
+    </td></tr>
+  </table>
+
+  <p style="font-size:16px;line-height:1.65;margin:28px 0 16px">שלום רב,</p>
+  <p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">
+    שמחים להזמינך למפגש זום בנושא תכנית לתואר שני במחלקה לסוציולוגיה ולאנתרופולוגיה,
+    עם התמחות בייעוץ ארגוני וקהילתי.
+  </p>
+  <p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">
+    במפגש נסביר על התכנית ועל היתרונות שבה, ונקיים שיחה פתוחה ומענה על שאלות.
+  </p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${TINT};border-radius:12px;margin:0 0 24px">
+    <tr><td style="padding:18px 20px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px">מתכונת הלימודים בשנת ${escapeHtml(EVENT.academicYear)}</div>
+      <div style="font-size:14px;line-height:1.7;color:${INK_SOFT}">
+        <strong>ימי שלישי</strong> — משעה 15:00, לימודים פרונטליים<br>
+        <strong>ימי שישי</strong> — בזום
+      </div>
+    </td></tr>
+  </table>
+
+  <p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 26px">
+    זאת הזדמנות נוספת לקבל החלטה מושכלת, רגע לפני שמתחילה השנה החדשה.
+  </p>
+
+  <div style="text-align:center;margin:0 0 12px">
+    <a href="${safeUrl}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:15px 34px;border-radius:999px;font-size:16px;font-weight:700">לפרטים ולהרשמה</a>
+  </div>
+  <p style="font-size:13px;color:${INK_SOFT};text-align:center;margin:0 0 28px">
+    ההשתתפות ללא עלות · לאחר ההרשמה יישלח אליכם קישור הזום
+  </p>
+  <p style="font-size:12px;color:#8A939E;text-align:center;margin:0 0 26px;word-break:break-all">
+    <span dir="ltr">${safeUrl}</span>
+  </p>
+
+  <p style="font-size:15px;line-height:1.7;color:${INK};margin:0;border-top:1px solid ${LINE};padding-top:20px">
+    ${escapeHtml(EVENT.hosts[0])}<br>ו${escapeHtml(EVENT.hosts[1])}
+  </p>
+</div>
+</div>`;
+
+  const text = `שלום רב,
+
+שמחים להזמינך למפגש זום בנושא תכנית לתואר שני במחלקה לסוציולוגיה ולאנתרופולוגיה,
+עם התמחות בייעוץ ארגוני וקהילתי.
+
+במפגש נסביר על התכנית ועל היתרונות שבה, ונקיים שיחה פתוחה ומענה על שאלות.
+
+${EVENT.dateLabel}, בשעה ${EVENT.timeLabel} (${EVENT.timezoneNote})
+
+מתכונת הלימודים בשנת ${EVENT.academicYear}:
+ימי שלישי — משעה 15:00, לימודים פרונטליים
+ימי שישי — בזום
+
+זאת הזדמנות נוספת לקבל החלטה מושכלת, רגע לפני שמתחילה השנה החדשה.
+
+לפרטים ולהרשמה:
+${url}
+
+ההשתתפות ללא עלות. לאחר ההרשמה יישלח אליכם קישור הזום.
+
+${EVENT.hosts[0]}
+ו${EVENT.hosts[1]}
+`;
+
+  return { subject, html, text };
+}
+
