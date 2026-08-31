@@ -1,0 +1,142 @@
+---
+/**
+ * A copy-source for the invitation image.
+ *
+ * The problem this solves: pasting the invitation into Outlook kept producing
+ * a bare link. Copying a whole rendered page puts a URL on the clipboard
+ * alongside the markup, and Outlook prefers the URL; and dragging the image
+ * file in from the Finder embeds an inert attachment that no click follows.
+ *
+ * What works is copying a SELECTION that is exactly one image wrapped in one
+ * link, from a real https page. Mail clients paste that as a clickable
+ * picture — the same mechanism that already makes the signature banner work.
+ *
+ * So this page renders precisely that, and nothing else the selection could
+ * pick up. The button copies it for you; selecting the image by hand and
+ * copying works identically.
+ *
+ * Not linked from anywhere and kept out of the sitemap — it is a tool for the
+ * sender, not a page for readers.
+ */
+import { EVENT } from '../../../data/event.js';
+
+const site = Astro.site ?? 'https://yarivitzkovich.org';
+const flyerUrl = new URL('/images/ma-info-flyer.png', site).href;
+const bannerUrl = new URL('/images/ma-info-banner.png', site).href;
+const pageUrl = EVENT.pageUrl;
+---
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>העתקת ההזמנה למייל</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0; padding: 40px 20px 80px;
+        background: #F1F2F3; color: #132238;
+        font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      }
+      .wrap { max-width: 680px; margin: 0 auto; }
+      h1 { font-size: 24px; margin: 0 0 10px; }
+      .sub { font-size: 15px; line-height: 1.6; color: #4A5567; margin: 0 0 26px; }
+      .card { background: #fff; border-radius: 14px; padding: 22px; margin-bottom: 22px; }
+      .card h2 { font-size: 16px; margin: 0 0 6px; }
+      .card p { font-size: 14px; line-height: 1.6; color: #4A5567; margin: 0 0 16px; }
+      button {
+        font: inherit; font-weight: 600; font-size: 15px;
+        background: #1F7F86; color: #fff; border: 0; border-radius: 999px;
+        padding: 13px 26px; cursor: pointer;
+      }
+      button:hover { background: #2FA0A8; }
+      .stage img { display: block; width: 100%; height: auto; border-radius: 10px; }
+      .stage { margin-top: 18px; }
+      ol { font-size: 14px; line-height: 1.9; color: #4A5567; padding-inline-start: 20px; margin: 0; }
+      code { background: #E4E6E8; border-radius: 5px; padding: 2px 6px; font-size: 13px; }
+      .said { font-size: 13px; color: #1F7F86; font-weight: 600; min-height: 20px; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>העתקת ההזמנה למייל</h1>
+      <p class="sub">
+        לוחצים «העתק», ומדביקים בגוף ההודעה באאוטלוק או בג׳ימייל.
+        התמונה תגיע קליקבילית — לחיצה עליה תפתח את דף ההרשמה.
+      </p>
+
+      <div class="card">
+        <h2>ההזמנה המלאה — לגוף ההודעה</h2>
+        <p>הפלייר המלא, עם כל המלל ובצבעים של אריאל. מתאים כשאתה שולח הזמנה לרשימת תפוצה.</p>
+        <button type="button" data-copy="flyer">העתק את ההזמנה</button>
+        <div class="said" data-said="flyer"></div>
+        <div class="stage" id="stage-flyer">
+          <a href={pageUrl}><img src={flyerUrl} alt="הזמנה למפגש זום — תואר שני בייעוץ ארגוני וקהילתי" width="600" /></a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>הרצועה הרחבה — לחתימה</h2>
+        <p>באותן מידות כמו הבאנר שכבר יושב בחתימה שלך.</p>
+        <button type="button" data-copy="banner">העתק את הרצועה</button>
+        <div class="said" data-said="banner"></div>
+        <div class="stage" id="stage-banner">
+          <a href={pageUrl}><img src={bannerUrl} alt="מפגש זום — תואר שני בייעוץ ארגוני וקהילתי" width="600" /></a>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>אם ההדבקה בכל זאת יוצאת כקישור</h2>
+        <ol>
+          <li>באאוטלוק, במקום הדבקה רגילה: <code>Edit → Paste Special → HTML</code></li>
+          <li>או: להכניס תמונה מכתובת, ואז לבחור אותה ו‑<code>Cmd+K</code> עם הכתובת <code>{pageUrl}</code></li>
+        </ol>
+      </div>
+    </div>
+
+    <script is:inline>
+      (function () {
+        // Copy the <a><img></a> as rich HTML so the mail client receives a
+        // linked picture. Falls back to selecting it for a manual Cmd+C when
+        // the async clipboard API is unavailable or refuses.
+        function copyNode(node) {
+          var html = node.innerHTML.trim();
+          var text = node.querySelector('a').href;
+          if (navigator.clipboard && window.ClipboardItem) {
+            return navigator.clipboard.write([
+              new ClipboardItem({
+                'text/html': new Blob([html], { type: 'text/html' }),
+                'text/plain': new Blob([text], { type: 'text/plain' }),
+              }),
+            ]);
+          }
+          return Promise.reject(new Error('no clipboard api'));
+        }
+
+        function selectNode(node) {
+          var range = document.createRange();
+          range.selectNodeContents(node);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+
+        document.querySelectorAll('[data-copy]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var key = btn.getAttribute('data-copy');
+            var stage = document.getElementById('stage-' + key);
+            var said = document.querySelector('[data-said="' + key + '"]');
+            copyNode(stage).then(
+              function () { said.textContent = 'הועתק. עכשיו הדבק בגוף ההודעה.'; },
+              function () {
+                selectNode(stage);
+                said.textContent = 'סימנתי את התמונה — הקש Cmd+C ואז הדבק בהודעה.';
+              }
+            );
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

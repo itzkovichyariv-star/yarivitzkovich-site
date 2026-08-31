@@ -19,6 +19,8 @@ export default defineConfig({
       filter: (page) =>
         !page.includes('/manage') &&
         !page.includes('/subscribe-confirm') &&
+        // A copy-source for the sender, not a page for readers.
+        !page.includes('/ma-info/email') &&
         !page.includes('/api/'),
     }),
   ],
