@@ -7,9 +7,12 @@
  * content. An image has no such ambiguity: every mail client embeds a picture
  * dropped into the body, and it arrives looking exactly like the design.
  *
- * Use it WITH a line of real text underneath carrying the link, never alone:
- * most clients block remote images until the reader allows them, and an
- * image-only email arrives as a blank rectangle for those readers.
+ * The image is meant to be hyperlinked in the mail client (select it, Cmd+K,
+ * paste the page URL) so a click on the invitation opens the registration
+ * page. Keep a line of real text underneath carrying the same link anyway:
+ * most clients block remote images until the reader allows them, and for
+ * those readers an image-only email arrives as a blank rectangle with nothing
+ * to click. The wording inside the image names both routes for that reason.
  *
  *   node scripts/render-invitation-flyer.mjs
  *   CHROMIUM_PATH=/path/to/chrome node scripts/render-invitation-flyer.mjs
@@ -106,7 +109,7 @@ const html = `<!doctype html>
 
       <p class="dim">זאת הזדמנות נוספת לקבל החלטה מושכלת, רגע לפני שמתחילה השנה החדשה.</p>
 
-      <div class="cta">לפרטים ולהרשמה — הקישור מתחת לתמונה</div>
+      <div class="cta">לפרטים ולהרשמה — לחצו על ההזמנה או על הקישור שמתחתיה</div>
       <div class="cta-s">ההשתתפות ללא עלות · לאחר ההרשמה יישלח אליכם קישור הזום</div>
 
       <div class="sign">${EVENT.hosts[0]}<br>ו${EVENT.hosts[1]}</div>
