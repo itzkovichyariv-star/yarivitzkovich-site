@@ -262,11 +262,26 @@ const onRequestPostInner = async ({ request, env }) => {
   const slug = rawSlug || (await mintSlug(env, body));
 
   const now = Math.floor(Date.now() / 1000);
-  const supplied = WRITABLE.filter((k) => body[k] !== undefined && body[k] !== null);
+  const supplied = WRITABLE.filter((k) => body[k] !== undefined);
 
   const values = {};
   for (const key of supplied) {
     let v = body[key];
+
+    // Three different things a caller can mean, told apart on purpose:
+    //   absent  — "I am not talking about this field"      → untouched
+    //   ''      — the editing screen's blank box            → untouched (defaulted) / cleared (optional)
+    //   null    — "there is deliberately nothing here"       → cleared
+    // The third exists for the template: the September page carries the MA
+    // timetable as a footnote, and a page for a different programme must be
+    // able to drop it, not just overwrite it. A required or defaulted column
+    // cannot be cleared, so null there means "leave it".
+    if (v === null) {
+      if (REQUIRED.includes(key) || DEFAULTED.includes(key)) continue;
+      values[key] = null;
+      continue;
+    }
+
     if (INTEGERS.includes(key)) {
       if (String(v).trim() === '') continue;   // not answered — keep the default
       v = truthy(v);
