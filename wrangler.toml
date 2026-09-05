@@ -29,5 +29,5 @@ OWNER_CITIES = "Kfar Saba,Jerusalem,Tel Aviv,Petah Tiqva,Ariel,Hadera,Netanya"
 #
 # Mobile data still rotates its network as well as its address, so phones use
 # the cookie path (/api/auth-owner?owner=<OWNER_SECRET>, good for 400 days).
-OWNER_IPS = "2a00:a041:e62b:c600::/64,2a00:a041:e60a:4300::/64,2a00:a041:e654:1c00::/64,2a02:6680:1104:1821::/64,192.114.52.9,195.47.41.82,109.67.189.38,5.29.18.41,188.64.207.159"
+OWNER_IPS = "2a00:a041:e62b:c600::/64,2a00:a041:e60a:4300::/64,2a00:a041:e654:1c00::/64,2a02:6680:1104:1821::/64,2a00:a041:e10e:f700::/64,192.114.52.9,195.47.41.82,109.67.189.38,5.29.18.41,188.64.207.159,5.29.23.242"
 
