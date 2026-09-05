@@ -1,0 +1,116 @@
+# Redeploy the site — yarivitzkovich.org — without a code change.
+#
+# HOW THE SITE NORMALLY DEPLOYS
+# -----------------------------
+#   The Cloudflare Pages project `yarivitzkovich-site` is connected to this
+#   repository: every merge to main is built and published by Cloudflare on
+#   its own, within a few minutes. There is no deploy step in this repo and
+#   none is needed for code — merging IS deploying.
+#
+# WHEN THIS BUTTON IS NEEDED
+# --------------------------
+#   A change that is not a commit. A new or edited environment variable or
+#   secret in the Pages dashboard (OWNER_SECRET, EMMA_EVENTS_SECRET, the
+#   Resend keys) applies only to the NEXT deployment; until one happens the
+#   running site keeps the old values. On 2026-09-05 that meant waiting for an
+#   unrelated merge. This asks Cloudflare to build and publish again, right
+#   now, from a phone, and waits until it is live.
+#
+# WHICH BRANCH
+# ------------
+#   The branch chosen in the dropdown is the branch Cloudflare builds. `main`
+#   is the production branch, so a run from main is production; any other
+#   branch becomes a preview deployment on its own URL, printed at the end.
+#
+# WHAT IT NEEDS (repository secrets — Settings → Secrets and variables → Actions)
+# ------------------------------------------------------------------------------
+#   CLOUDFLARE_API_TOKEN    an API token with "Cloudflare Pages: Edit" on the
+#                           account
+#   CLOUDFLARE_ACCOUNT_ID   8243916dabbfb97befa6e7ec2c4a5128
+#
+# WHAT IT DOES NOT DO
+# -------------------
+#   Build anything on this runner. Cloudflare builds from the repository,
+#   exactly as it does after a merge, so what goes live is the branch as it
+#   is on GitHub — nothing local, nothing uncommitted.
+
+name: Redeploy site
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: redeploy-site
+  cancel-in-progress: false
+
+jobs:
+  redeploy:
+    name: Ask Cloudflare to build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Secrets present?
+        env:
+          T: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          A: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -z "$T" ] && missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -z "$A" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing — add them under Settings → Secrets and variables → Actions, then run again."
+            exit 1
+          fi
+
+      - name: Start a deployment of ${{ github.ref_name }}
+        id: start
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -u
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/yarivitzkovich-site/deployments"
+          RESP=$(curl -sS -X POST "$API" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -F "branch=${GITHUB_REF_NAME}")
+          if [ "$(echo "$RESP" | jq -r '.success')" != "true" ]; then
+            echo "::error::Cloudflare refused to start the deployment: $(echo "$RESP" | jq -c '.errors')"
+            exit 1
+          fi
+          ID=$(echo "$RESP" | jq -r '.result.id')
+          URL=$(echo "$RESP" | jq -r '.result.url')
+          ENV=$(echo "$RESP" | jq -r '.result.environment')
+          echo "Deployment $ID started ($ENV) — $URL"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENV" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until it is live
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ID: ${{ steps.start.outputs.id }}
+          URL: ${{ steps.start.outputs.url }}
+          ENVIRONMENT: ${{ steps.start.outputs.environment }}
+        run: |
+          set -u
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/yarivitzkovich-site/deployments/${ID}"
+          for i in $(seq 1 45); do
+            RESP=$(curl -sS "$API" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            STAGE=$(echo "$RESP" | jq -r '.result.latest_stage.name // "?"')
+            STATUS=$(echo "$RESP" | jq -r '.result.latest_stage.status // "?"')
+            echo "$(date -u +%H:%M:%S)  stage=$STAGE  status=$STATUS"
+            if [ "$STATUS" = "failure" ] || [ "$STATUS" = "canceled" ]; then
+              echo "::error::Deployment ${ID} ended with $STATUS at stage $STAGE — open it in the Cloudflare dashboard (Workers & Pages → yarivitzkovich-site → Deployments) for the build log."
+              exit 1
+            fi
+            if [ "$STAGE" = "deploy" ] && [ "$STATUS" = "success" ]; then
+              echo
+              echo "Live: ${URL} (${ENVIRONMENT})"
+              if [ "${ENVIRONMENT}" = "production" ]; then echo "Production: https://yarivitzkovich.org"; fi
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::Still not live after 15 minutes — check the Cloudflare dashboard."
+          exit 1
