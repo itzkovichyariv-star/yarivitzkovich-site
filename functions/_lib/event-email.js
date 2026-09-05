@@ -11,6 +11,8 @@
 // dir="rtl" on the wrapper plus explicit text-align keeps the Hebrew right
 // where it belongs even in clients that ignore dir.
 
+import { googleCalendarUrl as dbGoogleCalendarUrl } from './event-page.js';
+
 import { escapeHtml } from './email.js';
 import { EVENT, eventSummary, googleCalendarUrl } from '../../src/data/event.js';
 
@@ -254,3 +256,87 @@ ${EVENT.hosts[0]}
   return { subject, html, text };
 }
 
+
+/**
+ * Confirmation email for an event stored in the `landing_events` table.
+ *
+ * Deliberately separate from renderRegistrationEmail() above, which is frozen
+ * around the September 2026 session: that mail is already in people's inboxes
+ * and its wording is settled, so it is not worth risking to save a branch.
+ * This one takes its every value from the row.
+ *
+ * Image-free for the same reason as the other: Gmail, Outlook and Apple Mail
+ * all block remote images by default, so a header built from an <img> arrives
+ * as a grey box for most readers.
+ */
+export function renderEventConfirmation(event, { name, origin }) {
+  const pageUrl = `${origin}/e/${event.slug}`;
+  const when = [event.date_label, event.time_label ? `בשעה ${event.time_label}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const hosts = String(event.hosts || '').split('\n').map((h) => h.trim()).filter(Boolean);
+  const subject = `נרשמת · ${event.title}`;
+
+  const joinBlock = event.join_url
+    ? `
+  <div style="text-align:center;margin:0 0 10px">
+    <a href="${escapeHtml(event.join_url)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:999px;font-weight:700;font-size:15px">כניסה למפגש</a>
+  </div>
+  <p style="font-size:12px;color:${INK_SOFT};text-align:center;margin:0 0 26px;word-break:break-all">
+    או פתחו את הקישור ישירות:<br>
+    <a href="${escapeHtml(event.join_url)}" dir="ltr" style="color:${ACCENT};font-weight:600">${escapeHtml(event.join_url)}</a>
+  </p>`
+    : `<p style="font-size:14px;color:${INK_SOFT};text-align:center;margin:0 0 26px">קישור ההצטרפות יישלח אליכם לקראת המפגש.</p>`;
+
+  // Put it in the calendar, or the confirmation is just a message to lose.
+  // Only offered when the event carries a real start instant: without one there
+  // is nothing to write into a calendar entry, and a button that produces an
+  // empty appointment is worse than no button.
+  const icsUrl = `${origin}/api/event-ics?event=${encodeURIComponent(event.slug)}`;
+  const calendarBlock = event.starts_at_utc
+    ? `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+    <tr>
+      <td align="center" style="padding:0 4px">
+        <a href="${escapeHtml(dbGoogleCalendarUrl(event, origin))}" style="display:block;border:1px solid ${LINE};border-radius:999px;padding:11px 14px;font-size:13px;color:${INK_SOFT};text-decoration:none">הוספה ליומן Google</a>
+      </td>
+      <td align="center" style="padding:0 4px">
+        <a href="${escapeHtml(icsUrl)}" style="display:block;border:1px solid ${LINE};border-radius:999px;padding:11px 14px;font-size:13px;color:${INK_SOFT};text-decoration:none">Outlook / Apple</a>
+      </td>
+    </tr>
+  </table>`
+    : '';
+
+  const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
+<div style="max-width:560px;margin:0 auto">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:30px 26px">
+      ${event.organisation || event.department ? `<div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:16px">${escapeHtml([event.organisation, event.department].filter(Boolean).join(' · '))}</div>` : ''}
+      <div style="font-size:23px;line-height:1.2;font-weight:800;color:${TEAL_BRIGHT};margin-bottom:18px">${escapeHtml(event.title)}</div>
+      ${when ? `<div style="border-top:1px solid rgba(193,195,198,0.2);padding-top:16px"><div style="font-size:18px;font-weight:700;color:#ffffff">${escapeHtml(when)}${event.timezone_note ? ` <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(event.timezone_note)})</span>` : ''}</div></div>` : ''}
+      ${hosts.length ? `<div style="font-size:13px;color:${GREY};margin-top:12px">${escapeHtml(hosts.join(' · '))}</div>` : ''}
+    </td></tr>
+  </table>
+
+  <p style="font-size:16px;line-height:1.65;margin:26px 0 6px">שלום ${escapeHtml(name)},</p>
+  <p style="font-size:16px;line-height:1.65;color:${INK_SOFT};margin:0 0 22px">ההרשמה שלך נקלטה. שמרו את המייל הזה.</p>
+  ${joinBlock}
+  ${calendarBlock}
+  <p style="font-size:12px;line-height:1.6;color:#8A939E;margin:26px 0 0;border-top:1px solid ${LINE};padding-top:16px">
+    פרטי המפגש: <a href="${escapeHtml(pageUrl)}" style="color:${ACCENT}">${escapeHtml(pageUrl)}</a><br>
+    אם לא נרשמתם, אפשר להתעלם מהמייל.
+  </p>
+</div>
+</div>`;
+
+  const text = `שלום ${name},
+
+ההרשמה שלך ל${event.title} נקלטה.
+${when}${event.timezone_note ? ` (${event.timezone_note})` : ''}
+${event.join_url ? `\nקישור ההצטרפות:\n${event.join_url}\n` : '\nקישור ההצטרפות יישלח אליכם לקראת המפגש.\n'}
+פרטים: ${pageUrl}
+${event.starts_at_utc ? `הוספה ליומן: ${icsUrl}\n` : ''}${hosts.length ? `\n${hosts.join('\n')}` : ''}
+`;
+
+  return { subject, html, text };
+}

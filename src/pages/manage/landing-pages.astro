@@ -1,0 +1,239 @@
+---
+/**
+ * Owner-only editor for landing pages.
+ *
+ * The form is generated from the field spec the API returns, not hand-written
+ * here: the API already has to know what is required in order to validate, and
+ * to tell Emma what to ask for. Two hand-maintained copies of that list would
+ * disagree the first time a field is added.
+ *
+ * Named landing-pages rather than events because /manage/events already exists
+ * and means something else entirely — the visit-tracking browser.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="דפי נחיתה — ניהול — Yariv Itzkovich"
+  description="Create and edit standalone landing pages."
+  lang="he"
+  langHref="/manage"
+>
+  <section class="max-w-4xl mx-auto px-6 md:px-10 pt-32 pb-20">
+    <div class="font-mono text-xs uppercase tracking-widest mb-4" style="color: var(--text-soft)">
+      <a href="/manage" class="underline underline-offset-4 hover:opacity-70">← ניהול</a> · דפי נחיתה
+    </div>
+    <h1 class="font-display leading-[1.05] mb-3" style="font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 300">
+      דפי נחיתה.
+    </h1>
+    <p class="text-base mb-10" style="color: var(--text-muted)">
+      כל דף עומד בפני עצמו בכתובת <code>/e/&lt;מזהה&gt;</code> — בלי תפריט האתר ובלי להופיע בו.
+      שינוי נשמר ומופיע מיד, בלי בנייה מחדש.
+    </p>
+
+    <div id="gate" class="leading-relaxed" style="display: none; color: var(--text-muted)">
+      לא מחובר כמנהל במכשיר הזה. <a href="/manage" class="underline underline-offset-4">חזרה</a>.
+    </div>
+
+    <div id="app" style="display: none">
+      <div class="flex flex-wrap items-center gap-3 mb-8">
+        <button type="button" id="new"
+          class="px-6 py-3 rounded-full font-mono text-xs uppercase tracking-widest hover:opacity-85 transition-opacity cursor-pointer"
+          style="background-color: var(--color-accent); color: var(--color-bg)">
+          דף חדש
+        </button>
+        <span id="count" class="text-sm" style="color: var(--text-soft)"></span>
+      </div>
+
+      <div id="list" class="space-y-3 mb-12"></div>
+
+      <div id="editor" style="display: none">
+        <div class="rounded-2xl border p-6 md:p-8" style="border-color: var(--divider)">
+          <div class="flex items-baseline justify-between mb-6 gap-4 flex-wrap">
+            <h2 class="font-display text-2xl" style="font-weight: 400" id="editor-title">דף חדש</h2>
+            <a id="preview" href="#" target="_blank" rel="noopener noreferrer"
+               class="text-sm underline underline-offset-4" style="display: none; color: var(--accent)">תצוגה מקדימה ↗</a>
+          </div>
+          <form id="form" class="space-y-5"></form>
+          <div class="flex flex-wrap gap-3 mt-8">
+            <button type="button" id="save"
+              class="px-7 py-3 rounded-full font-mono text-xs uppercase tracking-widest hover:opacity-85 transition-opacity cursor-pointer"
+              style="background-color: var(--color-accent); color: var(--color-bg)">שמירה</button>
+            <button type="button" id="cancel"
+              class="px-6 py-3 rounded-full border text-sm hover:opacity-70 transition-opacity cursor-pointer"
+              style="border-color: var(--divider); color: var(--text)">ביטול</button>
+            <button type="button" id="del"
+              class="px-6 py-3 border-0 text-sm underline underline-offset-4 cursor-pointer bg-transparent"
+              style="display: none; color: #b3411c">מחיקה</button>
+          </div>
+          <p id="msg" class="mt-4 text-sm leading-relaxed" style="display: none" aria-live="polite"></p>
+
+          <div id="share-wrap" class="mt-8 pt-6" style="display: none; border-top: 1px solid var(--divider)">
+            <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--text-soft)">נוסח לוואטסאפ</div>
+            <pre id="share" class="text-sm p-4 rounded-xl whitespace-pre-wrap" style="background: var(--color-exec-summary-bg); color: var(--text); font-family: inherit"></pre>
+            <button type="button" id="copy-share"
+              class="mt-3 px-5 py-2 rounded-full border text-sm hover:opacity-70 transition-opacity cursor-pointer"
+              style="border-color: var(--divider); color: var(--text)">העתקה</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      var el = function (id) { return document.getElementById(id); };
+      var FIELDS = null, current = null;
+
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+      // Hebrew has a singular the number 1 does not carry on its own: "1 נרשמים"
+      // reads as a bug to anyone who speaks it.
+      function regCount(n) {
+        if (n === 0) return 'אין נרשמים';
+        if (n === 1) return 'נרשם אחד';
+        return n + ' נרשמים';
+      }
+      function say(t, bad) {
+        el('msg').textContent = t; el('msg').style.display = 'block';
+        el('msg').style.color = bad ? '#b3411c' : 'var(--text-muted)';
+      }
+
+      // Long-form fields get a textarea; the rest a single line.
+      var MULTILINE = ['body', 'hosts', 'lede', 'footnote', 'closed_message'];
+      var BOOLEAN = ['registration_open', 'ask_phone', 'ask_question'];
+
+      function buildForm(values) {
+        var html = '';
+        Object.keys(FIELDS).forEach(function (key) {
+          var f = FIELDS[key];
+          var v = values && values[key] != null ? values[key] : '';
+          var label = esc(f.label) + (f.required ? ' <span style="color:var(--accent)">*</span>' : '');
+          var hint = f.hint ? '<p class="text-xs mt-1" style="color:var(--text-soft)">' + esc(f.hint) + '</p>' : '';
+          html += '<div><label for="f-' + key + '" class="block font-mono text-xs uppercase tracking-widest mb-2" style="color:var(--text-soft)">' + label + '</label>';
+          if (BOOLEAN.indexOf(key) >= 0) {
+            var on = v === '' ? 1 : Number(v);
+            html += '<select id="f-' + key + '" class="w-full px-4 py-3 rounded-xl border bg-transparent" style="border-color:var(--divider);color:var(--text);font-size:16px">' +
+              '<option value="1"' + (on ? ' selected' : '') + '>כן</option>' +
+              '<option value="0"' + (on ? '' : ' selected') + '>לא</option></select>';
+          } else if (MULTILINE.indexOf(key) >= 0) {
+            html += '<textarea id="f-' + key + '" rows="' + (key === 'body' ? 7 : 3) + '" class="w-full px-4 py-3 rounded-xl border bg-transparent" style="border-color:var(--divider);color:var(--text);font-size:16px;resize:vertical">' + esc(v) + '</textarea>';
+          } else {
+            html += '<input id="f-' + key + '" type="text" value="' + esc(v) + '" class="w-full px-4 py-3 rounded-xl border bg-transparent" style="border-color:var(--divider);color:var(--text);font-size:16px">';
+          }
+          html += hint + '</div>';
+        });
+        el('form').innerHTML = html;
+      }
+
+      function collect() {
+        var out = {};
+        Object.keys(FIELDS).forEach(function (key) {
+          var f = el('f-' + key);
+          if (f) out[key] = f.value;
+        });
+        return out;
+      }
+
+      function openEditor(row) {
+        current = row;
+        el('editor').style.display = '';
+        el('editor-title').textContent = row ? ('עריכה — ' + row.title) : 'דף חדש';
+        el('del').style.display = row ? '' : 'none';
+        el('share-wrap').style.display = 'none';
+        el('msg').style.display = 'none';
+        if (row) {
+          el('preview').style.display = '';
+          el('preview').href = '/e/' + row.slug;
+        } else {
+          el('preview').style.display = 'none';
+        }
+        buildForm(row);
+        el('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function renderList(events) {
+        el('count').textContent = events.length ? events.length + ' דפים' : 'עדיין אין דפים.';
+        el('list').innerHTML = events.map(function (e) {
+          var badge = e.status === 'published' ? 'פורסם' : (e.status === 'closed' ? 'סגור' : 'טיוטה');
+          return '<div class="p-5 rounded-xl border flex flex-wrap items-center justify-between gap-4" style="border-color:var(--divider)">' +
+            '<div><div class="font-display text-lg" style="font-weight:400">' + esc(e.title) + '</div>' +
+            '<div class="text-xs mt-1" style="color:var(--text-soft)">' + esc(badge) + ' · ' + esc(e.date_label || '') + ' · ' +
+            regCount(e.registrations || 0) + ' · <span dir="ltr">/e/' + esc(e.slug) + '</span></div></div>' +
+            '<div class="flex gap-3">' +
+            '<a href="/e/' + esc(e.slug) + '" target="_blank" rel="noopener" class="text-sm underline underline-offset-4" style="color:var(--accent)">פתיחה</a>' +
+            '<button type="button" data-edit="' + esc(e.slug) + '" class="text-sm underline underline-offset-4 cursor-pointer bg-transparent border-0" style="color:var(--text)">עריכה</button>' +
+            '</div></div>';
+        }).join('');
+      }
+
+      el('list').addEventListener('click', function (ev) {
+        var slug = ev.target.getAttribute && ev.target.getAttribute('data-edit');
+        if (!slug) return;
+        fetch('/api/manage/events?slug=' + encodeURIComponent(slug), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d.ok) openEditor(d.event); });
+      });
+
+      el('new').addEventListener('click', function () { openEditor(null); });
+      el('cancel').addEventListener('click', function () { el('editor').style.display = 'none'; current = null; });
+
+      el('save').addEventListener('click', function () {
+        say('שומר…');
+        fetch('/api/manage/events', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin', body: JSON.stringify(collect()),
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (!d.ok) return say(d.message || ('שגיאה: ' + d.error), true);
+          say(d.notice || (d.status === 'created' ? 'נוצר. הדף חי עכשיו.' : 'נשמר. השינוי כבר בדף.'));
+          el('preview').style.display = ''; el('preview').href = d.url;
+          el('share').textContent = d.share_text;
+          el('share-wrap').style.display = '';
+          current = d.event;
+          // The server mints a slug when none was given. Put it back in the box
+          // before the next save, or a second click posts an empty slug again
+          // and creates a second page instead of updating this one.
+          if (el('f-slug') && !el('f-slug').value) el('f-slug').value = d.event.slug;
+          el('del').style.display = '';
+          load();
+        }).catch(function () { say('לא הצלחנו לשמור.', true); });
+      });
+
+      el('del').addEventListener('click', function () {
+        if (!current || !confirm('למחוק את הדף? הפעולה בלתי הפיכה.')) return;
+        fetch('/api/manage/events?slug=' + encodeURIComponent(current.slug), {
+          method: 'DELETE', credentials: 'same-origin',
+        }).then(function (r) { return r.json(); }).then(function (d) {
+          if (!d.ok) return say(d.message || ('שגיאה: ' + d.error), true);
+          el('editor').style.display = 'none'; current = null; load();
+        });
+      });
+
+      el('copy-share').addEventListener('click', function () {
+        var t = el('share').textContent;
+        if (navigator.clipboard) navigator.clipboard.writeText(t).then(function () {
+          el('copy-share').textContent = 'הועתק';
+          setTimeout(function () { el('copy-share').textContent = 'העתקה'; }, 1600);
+        });
+      });
+
+      function load() {
+        fetch('/api/manage/events', { credentials: 'same-origin' })
+          .then(function (r) {
+            if (r.status === 401) { el('gate').style.display = ''; return null; }
+            return r.json();
+          })
+          .then(function (d) {
+            if (!d || !d.ok) return;
+            FIELDS = d.fields;
+            el('app').style.display = '';
+            renderList(d.events);
+          })
+          .catch(function () {});
+      }
+
+      load();
+    })();
+  </script>
+</BaseLayout>
