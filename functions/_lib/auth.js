@@ -105,17 +105,77 @@ export function clearOwnerCookieHeader() {
   return `${COOKIE_NAME}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`;
 }
 
+/**
+ * The /64 an IPv6 address sits on, normalised for comparison — or null when the
+ * value is not IPv6.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * macOS and iOS rotate the second half of an IPv6 address every few days, on
+ * purpose: it is a privacy feature that stops a device being tracked across the
+ * web by its address. The consequence here is that an exact-match allowlist
+ * un-recognises the owner every time it rotates, and OWNER_IPS had grown to
+ * roughly eighty entries — each one a network claimed again after the last
+ * address expired. That is a race the list cannot win.
+ *
+ * The half that does NOT rotate is the network prefix: the first four hextets,
+ * the /64. Matching on that means the home wifi keeps working through every
+ * rotation and through every new phone or laptop that joins it, which is what
+ * "recognise me on my own network" was always meant to mean.
+ *
+ * IPv4 is deliberately left alone — exact match only. There is no equivalent
+ * "my network" half to an IPv4 address here: the addresses in the list are a
+ * campus and a couple of mobile carriers, and widening those to a /24 would
+ * hand owner access to a stranger sharing an ISP.
+ */
+function ipv6Prefix64(value) {
+  const raw = String(value).trim().toLowerCase().split('/')[0];
+  if (!raw.includes(':')) return null;
+
+  const [head, tail = ''] = raw.split('::');
+  const parts = head ? head.split(':').filter(Boolean) : [];
+  const tailParts = tail ? tail.split(':').filter(Boolean) : [];
+
+  if (raw.includes('::')) {
+    const fill = 8 - parts.length - tailParts.length;
+    if (fill < 0) return null;
+    for (let i = 0; i < fill; i++) parts.push('0');
+  }
+
+  const full = parts.concat(tailParts);
+  if (full.length < 4) return null;
+
+  // Compare by value, so 00e6 and e6 are the same hextet.
+  return full.slice(0, 4).map((h) => {
+    const n = parseInt(h, 16);
+    return Number.isNaN(n) ? 'x' : String(n);
+  }).join(':');
+}
+
 /** Returns true if the request comes from an IP in the OWNER_IPS allowlist.
  *  OWNER_IPS is a comma-separated list set in wrangler.toml [vars]. The
  *  Cloudflare edge populates `cf-connecting-ip` with the visitor's real IP
  *  (no spoofing risk since this header is set by Cloudflare itself).
+ *
+ *  An IPv6 entry matches any address on the same /64 — see ipv6Prefix64 above.
+ *  An entry may therefore be written as a bare address or as a prefix
+ *  (`2a00:a041:e654:1c00::/64`); both mean the same network.
  */
 function isOwnerByIP(request, env) {
   if (!env.OWNER_IPS) return false;
-  const ip = request.headers.get('cf-connecting-ip');
+  const ip = String(request.headers.get('cf-connecting-ip') || '').trim().toLowerCase();
   if (!ip) return false;
-  for (const entry of String(env.OWNER_IPS).split(',')) {
-    if (entry.trim() === ip) return true;
+
+  const ipPrefix = ipv6Prefix64(ip);
+
+  for (const raw of String(env.OWNER_IPS).split(',')) {
+    const entry = raw.trim().toLowerCase();
+    if (!entry) continue;
+    if (entry === ip) return true;
+    if (ipPrefix) {
+      const entryPrefix = ipv6Prefix64(entry);
+      if (entryPrefix && entryPrefix === ipPrefix) return true;
+    }
   }
   return false;
 }
