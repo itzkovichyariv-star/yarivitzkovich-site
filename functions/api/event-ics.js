@@ -53,8 +53,39 @@ function fold(line) {
   return out.map((part, i) => (i === 0 ? part : ` ${part}`)).join('\r\n');
 }
 
-export const onRequestGet = async ({ request }) => {
-  const origin = new URL(request.url).origin;
+export const onRequestGet = async ({ request, env }) => {
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  // ?event=<slug> serves a database event; no parameter keeps serving the
+  // frozen September 2026 session, whose .ics is already in people's calendars.
+  const slug = url.searchParams.get('event');
+  if (slug) {
+    if (!env?.DB) return new Response('not available', { status: 500 });
+    // The calendar file carries the join link, and this endpoint is not gated:
+    // knowing the slug is enough. That is deliberate. The link is kept off the
+    // page so it cannot be scraped from HTML, but the invitation itself is sent
+    // to a mailing list, so anyone who could guess the slug already had it. A
+    // per-registrant token would buy nothing against that and would strand a
+    // legitimate registrant whose token went missing.
+    const row = await env.DB.prepare(`SELECT * FROM landing_events WHERE slug = ?`).bind(slug).first();
+    if (!row || !row.starts_at_utc) return new Response('not found', { status: 404 });
+    return icsResponse(buildIcs({
+      uid: `${row.slug}@yarivitzkovich.org`,
+      summary: row.title,
+      description: [
+        [row.department, row.organisation].filter(Boolean).join(', '),
+        row.lede || '',
+        row.join_url ? `קישור ההצטרפות: ${row.join_url}` : '',
+        `פרטים: ${origin}/e/${row.slug}`,
+      ].filter(Boolean).join('\n'),
+      location: row.join_url || row.location_label || '',
+      startUtc: row.starts_at_utc,
+      endUtc: row.ends_at_utc || row.starts_at_utc,
+      url: `${origin}/e/${row.slug}`,
+    }), `${row.slug}.ics`);
+  }
+
   const stamp = toCalendarStamp(new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
 
   const description = [
@@ -103,16 +134,37 @@ export const onRequestGet = async ({ request }) => {
     'END:VCALENDAR',
   ];
 
-  const body = lines.map(fold).join('\r\n') + '\r\n';
+  return icsResponse(lines.map(fold).join('\r\n') + '\r\n', `${EVENT.slug}.ics`);
+};
 
+/** Same headers for both paths. */
+function icsResponse(body, filename) {
   return new Response(body, {
     headers: {
       'content-type': 'text/calendar; charset=utf-8',
-      'content-disposition': `attachment; filename="${EVENT.slug}.ics"`,
-      // The meeting details are fixed; let the edge cache them but keep the
-      // window short enough that a corrected time propagates the same day.
+      'content-disposition': `attachment; filename="${filename}"`,
+      // Short enough that a corrected time propagates the same day, long
+      // enough that a mail-out's arrivals do not each hit the database.
       'cache-control': 'public, max-age=3600',
-      'x-source': origin,
     },
   });
-};
+}
+
+/** Build a one-event calendar from plain values. */
+function buildIcs({ uid, summary, description, location, startUtc, endUtc, url }) {
+  const stamp = toCalendarStamp(new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//yarivitzkovich.org//event//HE',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `UID:${uid}`, `DTSTAMP:${stamp}`,
+    `DTSTART:${toCalendarStamp(startUtc)}`, `DTEND:${toCalendarStamp(endUtc)}`,
+    `SUMMARY:${esc(summary)}`, `DESCRIPTION:${esc(description)}`,
+    location ? `LOCATION:${esc(location)}` : null,
+    url ? `URL:${esc(url)}` : null,
+    'STATUS:CONFIRMED', 'TRANSP:OPAQUE',
+    'BEGIN:VALARM', 'TRIGGER:-P1D', 'ACTION:DISPLAY', `DESCRIPTION:${esc('מחר: ' + summary)}`, 'END:VALARM',
+    'BEGIN:VALARM', 'TRIGGER:-PT15M', 'ACTION:DISPLAY', `DESCRIPTION:${esc(summary)}`, 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean);
+  return lines.map(fold).join('\r\n') + '\r\n';
+}

@@ -11,6 +11,8 @@
 // dir="rtl" on the wrapper plus explicit text-align keeps the Hebrew right
 // where it belongs even in clients that ignore dir.
 
+import { googleCalendarUrl as dbGoogleCalendarUrl } from './event-page.js';
+
 import { escapeHtml } from './email.js';
 import { EVENT, eventSummary, googleCalendarUrl } from '../../src/data/event.js';
 
@@ -254,3 +256,171 @@ ${EVENT.hosts[0]}
   return { subject, html, text };
 }
 
+
+/**
+ * Confirmation email for an event stored in the `landing_events` table.
+ *
+ * Deliberately separate from renderRegistrationEmail() above, which is frozen
+ * around the September 2026 session: that mail is already in people's inboxes
+ * and its wording is settled, so it is not worth risking to save a branch.
+ * This one takes its every value from the row.
+ *
+ * Image-free for the same reason as the other: Gmail, Outlook and Apple Mail
+ * all block remote images by default, so a header built from an <img> arrives
+ * as a grey box for most readers.
+ */
+export function renderEventConfirmation(event, { name, origin }) {
+  const pageUrl = `${origin}/e/${event.slug}`;
+  const when = [event.date_label, event.time_label ? `בשעה ${event.time_label}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const hosts = String(event.hosts || '').split('\n').map((h) => h.trim()).filter(Boolean);
+  const subject = `נרשמת · ${event.title}`;
+
+  const joinBlock = event.join_url
+    ? `
+  <div style="text-align:center;margin:0 0 10px">
+    <a href="${escapeHtml(event.join_url)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:14px 26px;border-radius:999px;font-weight:700;font-size:15px">כניסה למפגש</a>
+  </div>
+  <p style="font-size:12px;color:${INK_SOFT};text-align:center;margin:0 0 26px;word-break:break-all">
+    או פתחו את הקישור ישירות:<br>
+    <a href="${escapeHtml(event.join_url)}" dir="ltr" style="color:${ACCENT};font-weight:600">${escapeHtml(event.join_url)}</a>
+  </p>`
+    : `<p style="font-size:14px;color:${INK_SOFT};text-align:center;margin:0 0 26px">קישור ההצטרפות יישלח אליכם לקראת המפגש.</p>`;
+
+  // Put it in the calendar, or the confirmation is just a message to lose.
+  // Only offered when the event carries a real start instant: without one there
+  // is nothing to write into a calendar entry, and a button that produces an
+  // empty appointment is worse than no button.
+  const icsUrl = `${origin}/api/event-ics?event=${encodeURIComponent(event.slug)}`;
+  const calendarBlock = event.starts_at_utc
+    ? `
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+    <tr>
+      <td align="center" style="padding:0 4px">
+        <a href="${escapeHtml(dbGoogleCalendarUrl(event, origin))}" style="display:block;border:1px solid ${LINE};border-radius:999px;padding:11px 14px;font-size:13px;color:${INK_SOFT};text-decoration:none">הוספה ליומן Google</a>
+      </td>
+      <td align="center" style="padding:0 4px">
+        <a href="${escapeHtml(icsUrl)}" style="display:block;border:1px solid ${LINE};border-radius:999px;padding:11px 14px;font-size:13px;color:${INK_SOFT};text-decoration:none">Outlook / Apple</a>
+      </td>
+    </tr>
+  </table>`
+    : '';
+
+  const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
+<div style="max-width:560px;margin:0 auto">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:30px 26px">
+      ${event.organisation || event.department ? `<div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:16px">${escapeHtml([event.organisation, event.department].filter(Boolean).join(' · '))}</div>` : ''}
+      <div style="font-size:23px;line-height:1.2;font-weight:800;color:${TEAL_BRIGHT};margin-bottom:18px">${escapeHtml(event.title)}</div>
+      ${when ? `<div style="border-top:1px solid rgba(193,195,198,0.2);padding-top:16px"><div style="font-size:18px;font-weight:700;color:#ffffff">${escapeHtml(when)}${event.timezone_note ? ` <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(event.timezone_note)})</span>` : ''}</div></div>` : ''}
+      ${hosts.length ? `<div style="font-size:13px;color:${GREY};margin-top:12px">${escapeHtml(hosts.join(' · '))}</div>` : ''}
+    </td></tr>
+  </table>
+
+  <p style="font-size:16px;line-height:1.65;margin:26px 0 6px">שלום ${escapeHtml(name)},</p>
+  <p style="font-size:16px;line-height:1.65;color:${INK_SOFT};margin:0 0 22px">ההרשמה שלך נקלטה. שמרו את המייל הזה.</p>
+  ${joinBlock}
+  ${calendarBlock}
+  <p style="font-size:12px;line-height:1.6;color:#8A939E;margin:26px 0 0;border-top:1px solid ${LINE};padding-top:16px">
+    פרטי המפגש: <a href="${escapeHtml(pageUrl)}" style="color:${ACCENT}">${escapeHtml(pageUrl)}</a><br>
+    אם לא נרשמתם, אפשר להתעלם מהמייל.
+  </p>
+</div>
+</div>`;
+
+  const text = `שלום ${name},
+
+ההרשמה שלך ל${event.title} נקלטה.
+${when}${event.timezone_note ? ` (${event.timezone_note})` : ''}
+${event.join_url ? `\nקישור ההצטרפות:\n${event.join_url}\n` : '\nקישור ההצטרפות יישלח אליכם לקראת המפגש.\n'}
+פרטים: ${pageUrl}
+${event.starts_at_utc ? `הוספה ליומן: ${icsUrl}\n` : ''}${hosts.length ? `\n${hosts.join('\n')}` : ''}
+`;
+
+  return { subject, html, text };
+}
+
+/**
+ * The invitation itself — the mail that goes OUT to invite someone, as opposed
+ * to renderEventConfirmation() which answers someone who already signed up.
+ *
+ * Image-free for the same reason as the others: remote images are blocked by
+ * default in Gmail, Outlook and Apple Mail, so a header built from an <img>
+ * arrives as a grey box for most readers. The whole card is drawn in type.
+ *
+ * Every path into the page carries ?from=email so he can tell which channel
+ * actually brought people, and lands on #registration so the invitation costs
+ * one click rather than two — the thing he asked for about the September page.
+ */
+export function renderEventInvitation(event, { name, origin }) {
+  const pageUrl = `${origin}/e/${event.slug}?from=email#registration`;
+  const when = [event.date_label, event.time_label ? `בשעה ${event.time_label}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const hosts = String(event.hosts || '').split('\n').map((h) => h.trim()).filter(Boolean);
+  const institution = [event.organisation, event.department].filter(Boolean).join(' · ');
+  const subject = event.kicker ? `${event.kicker} · ${event.title}` : event.title;
+
+  // The body he writes usually opens with its own greeting — "שלום רב," — and
+  // when we know the recipient's name we can do better than that. Greeting them
+  // by name AND keeping the generic line gives "שלום דנה כהן," followed by
+  // "שלום רב,", which reads like a mail merge that went wrong. So a personalised
+  // greeting REPLACES a generic opening line rather than sitting above it.
+  const blocks = String(event.body || '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  // No \b here: JavaScript defines a word character as [A-Za-z0-9_], so a word
+  // boundary never matches at the end of a Hebrew word and the test would
+  // silently never fire.
+  const opensWithGreeting = blocks.length
+    && blocks[0].length <= 30
+    && /^(שלום רב|שלום|היי|לכבוד|ערב טוב|בוקר טוב)/.test(blocks[0]);
+  const bodyBlocks = name && opensWithGreeting ? blocks.slice(1) : blocks;
+
+  const paragraphs = bodyBlocks
+    .map((p) => `<p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .join('\n  ');
+
+  const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
+<div style="max-width:560px;margin:0 auto">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:30px 26px">
+      ${institution ? `<div style="font-size:12px;letter-spacing:0.06em;color:${GREY};margin-bottom:14px">${escapeHtml(institution)}</div>` : ''}
+      ${event.kicker ? `<div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:12px">${escapeHtml(event.kicker)}</div>` : ''}
+      <div style="font-size:25px;line-height:1.2;font-weight:800;color:#ffffff;margin-bottom:18px">${escapeHtml(event.title)}</div>
+      ${when ? `<div style="border-top:1px solid rgba(193,195,198,0.2);padding-top:16px"><div style="font-size:18px;font-weight:700;color:${TEAL_BRIGHT}">${escapeHtml(when)}${event.timezone_note ? ` <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(event.timezone_note)})</span>` : ''}</div>${event.location_label ? `<div style="font-size:14px;color:${GREY};margin-top:6px">${escapeHtml(event.location_label)}</div>` : ''}</div>` : ''}
+    </td></tr>
+  </table>
+
+  ${name ? `<p style="font-size:16px;line-height:1.65;margin:26px 0 16px">שלום ${escapeHtml(name)},</p>` : '<div style="height:26px"></div>'}
+  ${paragraphs || (event.lede ? `<p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">${escapeHtml(event.lede)}</p>` : '')}
+
+  <div style="text-align:center;margin:28px 0 10px">
+    <a href="${escapeHtml(pageUrl)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:15px 34px;border-radius:999px;font-weight:700;font-size:16px">להרשמה</a>
+  </div>
+  <p style="font-size:12px;color:${INK_SOFT};text-align:center;margin:0 0 24px">ההשתתפות ללא עלות · קישור ההצטרפות יישלח במייל לאחר ההרשמה</p>
+
+  ${hosts.length ? `<p style="font-size:14px;line-height:1.7;color:${INK_SOFT};margin:0 0 6px;text-align:center">${escapeHtml(hosts.join(' · '))}</p>` : ''}
+  ${event.footnote ? `<p style="font-size:13px;line-height:1.6;color:#8A939E;margin:20px 0 0;border-top:1px solid ${LINE};padding-top:16px">${escapeHtml(event.footnote)}</p>` : ''}
+  <p style="font-size:12px;line-height:1.6;color:#8A939E;margin:16px 0 0">
+    <a href="${escapeHtml(pageUrl)}" style="color:${ACCENT}">${escapeHtml(`${origin}/e/${event.slug}`)}</a>
+  </p>
+</div>
+</div>`;
+
+  const text = `${event.kicker ? event.kicker + '\n' : ''}${event.title}
+${institution}
+${when}${event.timezone_note ? ` (${event.timezone_note})` : ''}${event.location_label ? `\n${event.location_label}` : ''}
+
+${name ? `שלום ${name},\n\n` : ''}${(bodyBlocks.join('\n\n') || event.lede || '').trim()}
+
+להרשמה:
+${pageUrl}
+${hosts.length ? `\n${hosts.join('\n')}` : ''}${event.footnote ? `\n\n${event.footnote}` : ''}
+`;
+
+  return { subject, html, text };
+}

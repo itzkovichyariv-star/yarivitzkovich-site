@@ -15,7 +15,8 @@
 // the email must never mean losing the meeting.
 
 import { sendEmail, notifyOwner } from '../_lib/email.js';
-import { renderRegistrationEmail, renderOwnerNotice, googleCalendarUrl, icsUrl } from '../_lib/event-email.js';
+import { renderRegistrationEmail, renderEventConfirmation, renderOwnerNotice, googleCalendarUrl, icsUrl } from '../_lib/event-email.js';
+import { googleCalendarUrl as eventCalendarUrl } from '../_lib/event-page.js';
 import { EVENT } from '../../src/data/event.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -37,8 +38,22 @@ export const onRequestPost = async ({ request, env }) => {
   // bot. Answer with a normal-looking success so the bot has no signal to
   // adapt against — and write nothing to the database.
   if (String(body?.website || '').trim() !== '') {
-    return json({ ok: true, status: 'registered', ...publicEventPayload(request) });
+    return json({ ok: true, status: 'registered', ...publicEventPayload(request, null) });
   }
+
+  // Which event? A request naming one is for a row in `events`; a request
+  // naming none is the September 2026 session on /he/ma-info, whose details
+  // are frozen in src/data/event.js and must keep working untouched.
+  const requestedSlug = clean(body?.event, 80);
+  let dbEvent = null;
+  if (requestedSlug) {
+    dbEvent = await env.DB.prepare(`SELECT * FROM landing_events WHERE slug = ?`).bind(requestedSlug).first();
+    if (!dbEvent) return json({ ok: false, error: 'unknown_event' }, 404);
+    if (!dbEvent.registration_open || dbEvent.status === 'closed') {
+      return json({ ok: false, error: 'registration_closed' }, 409);
+    }
+  }
+  const eventSlug = dbEvent ? dbEvent.slug : EVENT.slug;
 
   const name = clean(body?.name, LIMITS.name);
   const email = clean(body?.email, LIMITS.email).toLowerCase();
@@ -54,7 +69,7 @@ export const onRequestPost = async ({ request, env }) => {
   const nowSec = Math.floor(Date.now() / 1000);
   const existing = await env.DB
     .prepare(`SELECT id, send_count FROM event_registrations WHERE event_slug = ? AND email = ?`)
-    .bind(EVENT.slug, email)
+    .bind(eventSlug, email)
     .first();
 
   if (existing) {
@@ -80,12 +95,14 @@ export const onRequestPost = async ({ request, env }) => {
         `INSERT INTO event_registrations (event_slug, name, email, phone, question, registered_at, source)
          VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .bind(EVENT.slug, name, email, phone || null, question || null, nowSec, source || null)
+      .bind(eventSlug, name, email, phone || null, question || null, nowSec, source || null)
       .run();
   }
 
   const origin = new URL(request.url).origin;
-  const mail = renderRegistrationEmail({ name, origin });
+  const mail = dbEvent
+    ? renderEventConfirmation(dbEvent, { name, origin })
+    : renderRegistrationEmail({ name, origin });
   const sent = await sendEmail({
     env,
     to: email,
@@ -104,7 +121,7 @@ export const onRequestPost = async ({ request, env }) => {
          SET email_sent = 1, send_count = send_count + 1
          WHERE event_slug = ? AND email = ?`
       )
-      .bind(EVENT.slug, email)
+      .bind(eventSlug, email)
       .run();
   }
 
@@ -113,7 +130,7 @@ export const onRequestPost = async ({ request, env }) => {
   if (!existing) {
     const total = await env.DB
       .prepare(`SELECT COUNT(*) AS n FROM event_registrations WHERE event_slug = ?`)
-      .bind(EVENT.slug)
+      .bind(eventSlug)
       .first();
     const notice = renderOwnerNotice({ name, email, phone, question, total: total?.n });
     // Never let a failed admin ping fail the registration itself.
@@ -125,13 +142,25 @@ export const onRequestPost = async ({ request, env }) => {
     status: existing ? 'already_registered' : 'registered',
     email_send: sent.ok ? 'sent' : 'failed',
     ...(sent.ok ? {} : { email_send_error: sent.error }),
-    ...publicEventPayload(request),
+    ...publicEventPayload(request, dbEvent),
   });
 };
 
-/** What the page needs to show the joining details without a second round-trip. */
-function publicEventPayload(request) {
+/**
+ * What the page needs to show the joining details without a second round-trip.
+ *
+ * The success panel must be able to stand on its own: if the confirmation
+ * email bounces or is slow, the reader still leaves with the link in hand.
+ */
+function publicEventPayload(request, dbEvent) {
   const origin = new URL(request.url).origin;
+  if (dbEvent) {
+    return {
+      join_url: dbEvent.join_url || '',
+      google_calendar_url: dbEvent.starts_at_utc ? eventCalendarUrl(dbEvent, origin) : '',
+      ics_url: `${origin}/api/event-ics?event=${encodeURIComponent(dbEvent.slug)}`,
+    };
+  }
   return {
     zoom_url: EVENT.zoomUrl,
     google_calendar_url: googleCalendarUrl(),
