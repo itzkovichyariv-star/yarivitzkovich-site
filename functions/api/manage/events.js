@@ -25,6 +25,7 @@
 // here, next to the validation that enforces it, so the two cannot drift.
 
 import { isOwner } from '../../_lib/auth.js';
+import { EVENT } from '../../../src/data/event.js';
 
 /** The field spec — served to Emma, and the single source of what is required. */
 const FIELDS = {
@@ -57,6 +58,56 @@ const FIELDS = {
   ask_phone:       { required: false, label: 'לשאול טלפון', hint: '1 או 0' },
   ask_question:    { required: false, label: 'לשאול שאלה',  hint: '1 או 0' },
 };
+
+/**
+ * TEMPLATES — everything that repeats from one event to the next.
+ *
+ * Yariv, after seeing the 28-field form: "יש הרבה פרטים שחוזרים על עצמם". He is
+ * right. The institution, the department, the two hosts, the logo, his Zoom
+ * room and the campaign colours are the same for every session he will ever
+ * run; only the date, the time and the reason for meeting change. A template
+ * carries the constant part, so a new page needs three facts, not thirty.
+ *
+ * The September page is the first and, for now, only template. Its stable
+ * facts are read from EVENT so they cannot drift from the frozen page; its
+ * copy (lede, body, footnote) is restated here because it lives in the .astro
+ * page, not in the data file. The copy is a STARTING POINT: Emma rewrites the
+ * kicker, title, lede and body for whatever the new session is about, in the
+ * same register, and shows the result before anything is saved.
+ */
+const TEMPLATES = {
+  september: {
+    label: 'מפגש המידע לתואר השני, ספטמבר 2026',
+    note: 'מוסד, מחלקה, מנחים, לוגו, זום וצבעים מגיעים מכאן כמו שהם. הכותרת, שורת הפתיחה וגוף ההזמנה הם נקודת פתיחה — מנוסחים מחדש לפי המטרה של המפגש.',
+    fields: () => ({
+      kicker: EVENT.kicker,
+      title: EVENT.programme,
+      organisation: EVENT.university,
+      department: EVENT.department,
+      lede: 'זאת הזדמנות נוספת לקבל החלטה מושכלת, רגע לפני שמתחילה השנה החדשה.',
+      body: [
+        'שלום רב,',
+        'שמחים להזמינך למפגש זום בנושא תכנית לתואר שני במחלקה לסוציולוגיה ולאנתרופולוגיה, עם התמחות בייעוץ ארגוני וקהילתי.',
+        'במפגש נציג את התכנית מקרוב — מבנה הלימודים, ההתמחות בייעוץ ארגוני וקהילתי, ומה בוגרת או בוגר של התכנית יודעים לעשות בסופה; נדבר על היתרונות שבה — מה מייחד אותה ולמי היא מתאימה, כולל השילוב עם עבודה; ונקיים שיחה פתוחה. אפשר לשלוח שאלה מראש בטופס ההרשמה, ונתייחס אליה במפגש.',
+      ].join('\n\n'),
+      hosts: EVENT.hosts.join('\n'),
+      footnote: `מתכונת הלימודים ${EVENT.academicYear}: ימי שלישי משעה 15:00 (לימודים פרונטליים) וימי שישי בזום.`,
+      timezone_note: EVENT.timezoneNote,
+      location_label: 'בזום',
+      join_url: EVENT.zoomUrl,
+      logo_url: '/images/ariel-logo-light.png',
+      theme_bg: '#122033',
+      theme_accent: '#2FA0A8',
+      theme_text: '#C1C3C6',
+      ask_phone: 1,
+      ask_question: 1,
+    }),
+  },
+};
+
+function templateList() {
+  return Object.entries(TEMPLATES).map(([id, t]) => ({ id, label: t.label, note: t.note }));
+}
 
 const WRITABLE = Object.keys(FIELDS);
 const REQUIRED = WRITABLE.filter((k) => FIELDS[k].required);
@@ -118,6 +169,13 @@ const onRequestGetInner = async ({ request, env }) => {
   const origin = url.origin;
   const slug = url.searchParams.get('slug');
 
+  const templateId = url.searchParams.get('template');
+  if (templateId) {
+    const t = TEMPLATES[templateId];
+    if (!t) return json({ ok: false, error: 'unknown_template', templates: templateList() }, 404);
+    return json({ ok: true, id: templateId, label: t.label, note: t.note, template: t.fields(), fields: FIELDS });
+  }
+
   if (slug) {
     const row = await env.DB.prepare(`SELECT * FROM landing_events WHERE slug = ?`).bind(slug).first();
     if (!row) return json({ ok: false, error: 'not_found', fields: FIELDS }, 404);
@@ -135,6 +193,7 @@ const onRequestGetInner = async ({ request, env }) => {
   return json({
     ok: true,
     events: (rows.results || []).map((r) => ({ ...r, url: `${origin}/e/${r.slug}` })),
+    templates: templateList(),
     fields: FIELDS,
     required: REQUIRED,
   });
