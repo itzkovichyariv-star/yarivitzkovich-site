@@ -340,3 +340,87 @@ ${event.starts_at_utc ? `הוספה ליומן: ${icsUrl}\n` : ''}${hosts.length
 
   return { subject, html, text };
 }
+
+/**
+ * The invitation itself — the mail that goes OUT to invite someone, as opposed
+ * to renderEventConfirmation() which answers someone who already signed up.
+ *
+ * Image-free for the same reason as the others: remote images are blocked by
+ * default in Gmail, Outlook and Apple Mail, so a header built from an <img>
+ * arrives as a grey box for most readers. The whole card is drawn in type.
+ *
+ * Every path into the page carries ?from=email so he can tell which channel
+ * actually brought people, and lands on #registration so the invitation costs
+ * one click rather than two — the thing he asked for about the September page.
+ */
+export function renderEventInvitation(event, { name, origin }) {
+  const pageUrl = `${origin}/e/${event.slug}?from=email#registration`;
+  const when = [event.date_label, event.time_label ? `בשעה ${event.time_label}` : '']
+    .filter(Boolean)
+    .join(', ');
+  const hosts = String(event.hosts || '').split('\n').map((h) => h.trim()).filter(Boolean);
+  const institution = [event.organisation, event.department].filter(Boolean).join(' · ');
+  const subject = event.kicker ? `${event.kicker} · ${event.title}` : event.title;
+
+  // The body he writes usually opens with its own greeting — "שלום רב," — and
+  // when we know the recipient's name we can do better than that. Greeting them
+  // by name AND keeping the generic line gives "שלום דנה כהן," followed by
+  // "שלום רב,", which reads like a mail merge that went wrong. So a personalised
+  // greeting REPLACES a generic opening line rather than sitting above it.
+  const blocks = String(event.body || '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  // No \b here: JavaScript defines a word character as [A-Za-z0-9_], so a word
+  // boundary never matches at the end of a Hebrew word and the test would
+  // silently never fire.
+  const opensWithGreeting = blocks.length
+    && blocks[0].length <= 30
+    && /^(שלום רב|שלום|היי|לכבוד|ערב טוב|בוקר טוב)/.test(blocks[0]);
+  const bodyBlocks = name && opensWithGreeting ? blocks.slice(1) : blocks;
+
+  const paragraphs = bodyBlocks
+    .map((p) => `<p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .join('\n  ');
+
+  const html = `<div dir="rtl" style="background:#ffffff;margin:0;padding:28px 20px;font-family:-apple-system,'Segoe UI',system-ui,Arial,sans-serif;color:${INK}">
+<div style="max-width:560px;margin:0 auto">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${NAVY};border-radius:14px">
+    <tr><td style="padding:30px 26px">
+      ${institution ? `<div style="font-size:12px;letter-spacing:0.06em;color:${GREY};margin-bottom:14px">${escapeHtml(institution)}</div>` : ''}
+      ${event.kicker ? `<div style="font-size:12px;letter-spacing:0.08em;color:${TEAL_BRIGHT};font-weight:600;margin-bottom:12px">${escapeHtml(event.kicker)}</div>` : ''}
+      <div style="font-size:25px;line-height:1.2;font-weight:800;color:#ffffff;margin-bottom:18px">${escapeHtml(event.title)}</div>
+      ${when ? `<div style="border-top:1px solid rgba(193,195,198,0.2);padding-top:16px"><div style="font-size:18px;font-weight:700;color:${TEAL_BRIGHT}">${escapeHtml(when)}${event.timezone_note ? ` <span style="font-size:13px;font-weight:400;color:${GREY}">(${escapeHtml(event.timezone_note)})</span>` : ''}</div>${event.location_label ? `<div style="font-size:14px;color:${GREY};margin-top:6px">${escapeHtml(event.location_label)}</div>` : ''}</div>` : ''}
+    </td></tr>
+  </table>
+
+  ${name ? `<p style="font-size:16px;line-height:1.65;margin:26px 0 16px">שלום ${escapeHtml(name)},</p>` : '<div style="height:26px"></div>'}
+  ${paragraphs || (event.lede ? `<p style="font-size:16px;line-height:1.7;color:${INK_SOFT};margin:0 0 16px">${escapeHtml(event.lede)}</p>` : '')}
+
+  <div style="text-align:center;margin:28px 0 10px">
+    <a href="${escapeHtml(pageUrl)}" style="display:inline-block;background:${ACCENT};color:#ffffff;text-decoration:none;padding:15px 34px;border-radius:999px;font-weight:700;font-size:16px">להרשמה</a>
+  </div>
+  <p style="font-size:12px;color:${INK_SOFT};text-align:center;margin:0 0 24px">ההשתתפות ללא עלות · קישור ההצטרפות יישלח במייל לאחר ההרשמה</p>
+
+  ${hosts.length ? `<p style="font-size:14px;line-height:1.7;color:${INK_SOFT};margin:0 0 6px;text-align:center">${escapeHtml(hosts.join(' · '))}</p>` : ''}
+  ${event.footnote ? `<p style="font-size:13px;line-height:1.6;color:#8A939E;margin:20px 0 0;border-top:1px solid ${LINE};padding-top:16px">${escapeHtml(event.footnote)}</p>` : ''}
+  <p style="font-size:12px;line-height:1.6;color:#8A939E;margin:16px 0 0">
+    <a href="${escapeHtml(pageUrl)}" style="color:${ACCENT}">${escapeHtml(`${origin}/e/${event.slug}`)}</a>
+  </p>
+</div>
+</div>`;
+
+  const text = `${event.kicker ? event.kicker + '\n' : ''}${event.title}
+${institution}
+${when}${event.timezone_note ? ` (${event.timezone_note})` : ''}${event.location_label ? `\n${event.location_label}` : ''}
+
+${name ? `שלום ${name},\n\n` : ''}${(bodyBlocks.join('\n\n') || event.lede || '').trim()}
+
+להרשמה:
+${pageUrl}
+${hosts.length ? `\n${hosts.join('\n')}` : ''}${event.footnote ? `\n\n${event.footnote}` : ''}
+`;
+
+  return { subject, html, text };
+}
