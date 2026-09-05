@@ -82,7 +82,35 @@ async function allowed(request, env) {
   return isEmma(request, env) || (await isOwner(request, env));
 }
 
-export const onRequestGet = async ({ request, env }) => {
+/**
+ * The one failure that is certain to happen once, to him, on the first click.
+ *
+ * The code ships with the deploy; the table arrives only when the migration is
+ * run by hand. So between merging this and running it, every endpoint here
+ * fails on a missing table — and "D1_ERROR: no such table" tells him nothing
+ * about what to do next. This turns that one error into the instruction.
+ */
+function migrationNeeded(err) {
+  return /no such table/i.test(String(err?.message || err));
+}
+
+const MIGRATION_HELP = {
+  ok: false,
+  error: 'migration_needed',
+  message: 'הטבלה של דפי הנחיתה עדיין לא קיימת. הרץ את המיגרציה פעם אחת ואז רענן.',
+  command: 'npx wrangler d1 migrations apply yarivitzkovich-events --remote',
+};
+
+export const onRequestGet = async (context) => {
+  try {
+    return await onRequestGetInner(context);
+  } catch (err) {
+    if (migrationNeeded(err)) return json(MIGRATION_HELP, 503);
+    throw err;
+  }
+};
+
+const onRequestGetInner = async ({ request, env }) => {
   if (!(await allowed(request, env))) return json({ ok: false, error: 'unauthorized' }, 401);
   if (!env.DB) return json({ ok: false, error: 'no_db_binding' }, 500);
 
@@ -112,7 +140,16 @@ export const onRequestGet = async ({ request, env }) => {
   });
 };
 
-export const onRequestPost = async ({ request, env }) => {
+export const onRequestPost = async (context) => {
+  try {
+    return await onRequestPostInner(context);
+  } catch (err) {
+    if (migrationNeeded(err)) return json(MIGRATION_HELP, 503);
+    throw err;
+  }
+};
+
+const onRequestPostInner = async ({ request, env }) => {
   if (!(await allowed(request, env))) return json({ ok: false, error: 'unauthorized' }, 401);
   if (!env.DB) return json({ ok: false, error: 'no_db_binding' }, 500);
 
@@ -226,7 +263,16 @@ export const onRequestPost = async ({ request, env }) => {
   });
 };
 
-export const onRequestDelete = async ({ request, env }) => {
+export const onRequestDelete = async (context) => {
+  try {
+    return await onRequestDeleteInner(context);
+  } catch (err) {
+    if (migrationNeeded(err)) return json(MIGRATION_HELP, 503);
+    throw err;
+  }
+};
+
+const onRequestDeleteInner = async ({ request, env }) => {
   if (!(await allowed(request, env))) return json({ ok: false, error: 'unauthorized' }, 401);
   if (!env.DB) return json({ ok: false, error: 'no_db_binding' }, 500);
 

@@ -117,6 +117,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         if (n === 1) return 'נרשם אחד';
         return n + ' נרשמים';
       }
+      // A migration_needed answer carries the command to run. Show it as
+      // something he can copy, not as prose he has to retype.
+      function showBlocker(d) {
+        var box = el('list');
+        box.innerHTML = '<div class="p-6 rounded-2xl" style="border: 1px solid var(--divider)">' +
+          '<p class="text-sm mb-3">' + esc(d.message) + '</p>' +
+          '<pre class="text-sm p-3 rounded-xl overflow-x-auto" style="background: var(--color-exec-summary-bg)" dir="ltr">' +
+          esc(d.command) + '</pre></div>';
+      }
+
       function say(t, bad) {
         el('msg').textContent = t; el('msg').style.display = 'block';
         el('msg').style.color = bad ? '#b3411c' : 'var(--text-muted)';
@@ -308,12 +318,22 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             return r.json();
           })
           .then(function (d) {
-            if (!d || !d.ok) return;
+            if (!d) return;
+            if (!d.ok) {
+              // Silence here would be a blank screen with no way to tell why.
+              el('app').style.display = '';
+              if (d.error === 'migration_needed') showBlocker(d);
+              else el('list').textContent = d.message || ('שגיאה: ' + d.error);
+              return;
+            }
             FIELDS = d.fields;
             el('app').style.display = '';
             renderList(d.events);
           })
-          .catch(function () {});
+          .catch(function () {
+            el('app').style.display = '';
+            el('list').textContent = 'לא הצלחנו לטעון את רשימת הדפים.';
+          });
       }
 
       load();

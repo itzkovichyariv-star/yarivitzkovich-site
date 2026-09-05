@@ -67,7 +67,28 @@ function parseRecipients(raw) {
   return { recipients: out, invalid: bad };
 }
 
-export const onRequestGet = async ({ request, env }) => {
+/** See functions/api/manage/events.js — the code deploys before the table exists. */
+function migrationNeeded(err) {
+  return /no such table/i.test(String(err?.message || err));
+}
+
+const MIGRATION_HELP = {
+  ok: false,
+  error: 'migration_needed',
+  message: 'הטבלה של השליחות עדיין לא קיימת. הרץ את המיגרציה פעם אחת ואז רענן.',
+  command: 'npx wrangler d1 migrations apply yarivitzkovich-events --remote',
+};
+
+export const onRequestGet = async (context) => {
+  try {
+    return await onRequestGetInner(context);
+  } catch (err) {
+    if (migrationNeeded(err)) return json(MIGRATION_HELP, 503);
+    throw err;
+  }
+};
+
+const onRequestGetInner = async ({ request, env }) => {
   if (!(await isOwner(request, env))) return json({ ok: false, error: 'unauthorized' }, 401);
   if (!env.DB) return json({ ok: false, error: 'no_db_binding' }, 500);
 
@@ -88,7 +109,16 @@ export const onRequestGet = async ({ request, env }) => {
   });
 };
 
-export const onRequestPost = async ({ request, env }) => {
+export const onRequestPost = async (context) => {
+  try {
+    return await onRequestPostInner(context);
+  } catch (err) {
+    if (migrationNeeded(err)) return json(MIGRATION_HELP, 503);
+    throw err;
+  }
+};
+
+const onRequestPostInner = async ({ request, env }) => {
   if (!(await isOwner(request, env))) return json({ ok: false, error: 'unauthorized' }, 401);
   if (!env.DB) return json({ ok: false, error: 'no_db_binding' }, 500);
 

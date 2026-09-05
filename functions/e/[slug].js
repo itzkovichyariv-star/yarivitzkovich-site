@@ -18,10 +18,20 @@ export const onRequestGet = async ({ params, request, env }) => {
   const slug = String(params.slug || '').trim();
   if (!slug) return notFound();
 
-  const event = await env.DB
-    .prepare(`SELECT * FROM landing_events WHERE slug = ?`)
-    .bind(slug)
-    .first();
+  // Before the migration has been run the table does not exist yet. A visitor
+  // must never be shown that: to anyone out here a page that is not there is a
+  // 404, and the operational detail belongs on the manage screens, which say
+  // exactly which command to run.
+  let event;
+  try {
+    event = await env.DB
+      .prepare(`SELECT * FROM landing_events WHERE slug = ?`)
+      .bind(slug)
+      .first();
+  } catch (err) {
+    if (/no such table/i.test(String(err?.message || err))) return notFound();
+    throw err;
+  }
 
   if (!event) return notFound();
 
