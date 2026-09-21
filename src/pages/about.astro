@@ -1,6 +1,30 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import metrics from '../data/metrics.json';
+import { isFresh, freshnessLabel } from '../lib/metrics';
+
+// Scholar's figures are only shown while something is still refreshing them.
+// Google Scholar blocks automated access, so the daily job is allowed to come
+// back empty-handed; when it does, metrics.googleScholar.updatedAt stops
+// advancing and these tiles drop out rather than quietly showing last
+// quarter's numbers. See src/lib/metrics.ts.
+const scholarFresh = isFresh(metrics.googleScholar);
+const openAlexFresh = isFresh(metrics.openAlex, 14); // weekly job, so allow two cycles
+
+const impactTiles = [
+  ...(scholarFresh
+    ? [
+        { value: metrics.googleScholar.hIndex, label: 'H-index', source: 'Google Scholar', note: freshnessLabel(metrics.googleScholar) },
+        { value: metrics.googleScholar.citations, label: 'Citations', source: 'Google Scholar', note: freshnessLabel(metrics.googleScholar) },
+      ]
+    : []),
+  ...(openAlexFresh
+    ? [
+        { value: metrics.openAlex.hIndex, label: 'H-index', source: 'OpenAlex', note: freshnessLabel(metrics.openAlex) },
+        { value: metrics.openAlex.citations, label: 'Citations', source: 'OpenAlex', note: freshnessLabel(metrics.openAlex) },
+      ]
+    : []),
+];
 
 const affiliations = [
   { org: 'Academy of Management (AOM)', period: '2018–present' },
@@ -40,29 +64,23 @@ const students = [
         <div class="font-mono text-xs uppercase tracking-widest text-soft">Impact</div>
       </div>
       <div class="col-span-12 md:col-span-10">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-6">
-          <div>
-            <div class="font-display text-5xl mb-1" style="font-weight: 300">{metrics.googleScholar.hIndex}</div>
-            <div class="font-mono text-xs uppercase tracking-widest text-soft">H-index</div>
-            <div class="font-mono text-xs text-muted mt-1">Google Scholar</div>
+        {impactTiles.length > 0 && (
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-6">
+            {impactTiles.map((tile) => (
+              <div>
+                <div class="font-display text-5xl mb-1" style="font-weight: 300">{tile.value}</div>
+                <div class="font-mono text-xs uppercase tracking-widest text-soft">{tile.label}</div>
+                <div class="font-mono text-xs text-muted mt-1">{tile.source}</div>
+                {tile.note && <div class="font-mono text-xs text-soft mt-0.5">{tile.note}</div>}
+              </div>
+            ))}
           </div>
-          <div>
-            <div class="font-display text-5xl mb-1" style="font-weight: 300">{metrics.googleScholar.citations}</div>
-            <div class="font-mono text-xs uppercase tracking-widest text-soft">Citations</div>
-            <div class="font-mono text-xs text-muted mt-1">Google Scholar</div>
-          </div>
-          <div>
-            <div class="font-display text-5xl mb-1" style="font-weight: 300">{metrics.openAlex.hIndex}</div>
-            <div class="font-mono text-xs uppercase tracking-widest text-soft">H-index</div>
-            <div class="font-mono text-xs text-muted mt-1">OpenAlex</div>
-          </div>
-          <div>
-            <div class="font-display text-5xl mb-1" style="font-weight: 300">{metrics.openAlex.citations}</div>
-            <div class="font-mono text-xs uppercase tracking-widest text-soft">Citations</div>
-            <div class="font-mono text-xs text-muted mt-1">OpenAlex · auto-updated</div>
-          </div>
-        </div>
-        <p class="font-mono text-xs text-soft">OpenAlex metrics refresh every Monday. Google Scholar figures are updated manually.</p>
+        )}
+        <p class="font-mono text-xs text-soft">
+          {impactTiles.length === 0
+            ? 'Citation figures are hidden while their automated refresh is failing — better no number than a stale one.'
+            : 'Each figure carries the date it was last refreshed. A figure whose refresh stops is hidden rather than left to go stale.'}
+        </p>
       </div>
     </div>
 
