@@ -17,7 +17,7 @@ MONTH_STAMP="$(date +%Y-%m)"
 ARCHIVE_NAME="${REPO_NAME}-backup-${DATE_STAMP}.zip"
 
 # OneDrive backup destination (Ariel account)
-BACKUP_DIR="$HOME/Library/CloudStorage/OneDrive-ariel.ac.il/Yariv/site-backups"
+BACKUP_DIR="$HOME/Library/CloudStorage/OneDrive-ariel.ac.il/Yariv/Applications/Website/site-backups"
 # Log file lives in ~/Library/Logs/ (always writable; CloudStorage isn't reliably writable from launchd)
 LOG_FILE="$HOME/Library/Logs/yarivitzkovich-site-backup.log"
 mkdir -p "$(dirname "$LOG_FILE")"
