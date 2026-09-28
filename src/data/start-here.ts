@@ -29,6 +29,6 @@ export const START_HERE: StartHerePaper[] = [
   {
     slug: 'objectivity-by-design-ai-soft-skills',
     label: 'AI-driven evaluation of soft skills',
-    reason: 'where where AI meets organizational practice',
+    reason: 'where AI meets organizational practice',
   },
 ];
