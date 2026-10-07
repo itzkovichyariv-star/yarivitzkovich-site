@@ -43,3 +43,6 @@ Binding rule (same as family-tasks): during any working session the assistant ap
 - Home page START HERE, third entry ("AI-driven evaluation of soft skills") read "where where AI meets organizational practice". Fixed in `src/data/start-here.ts` (one word removed; no other copy touched).
 - Branch `fix/start-here-where-where` off `origin/main`, PR opened. Merging to main = Cloudflare Pages deploy.
 - **STILL OPEN:** deploy gate not run for this one-word data-string change; merge the PR to ship it.
+
+## 2026-10-08 — START HERE typo fix LIVE
+- PR #14 merged (30222e9); Cloudflare Pages production deployment **2b2bc416**. Verified on https://yarivitzkovich.org/: the entry now reads "where AI meets organizational practice". Nothing open from this fix.
