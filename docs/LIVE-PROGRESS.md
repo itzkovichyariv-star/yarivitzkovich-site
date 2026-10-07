@@ -63,3 +63,9 @@ Binding rule (same as family-tasks): during any working session the assistant ap
 - origin/main merged in; LIVE-PROGRESS conflict resolved by keeping both sides.
 - **Deploy gate 13/13 PASS** (astro-dev :4323, headless).
 - **STILL OPEN:** (a) merge PR #15 → production; (b) cookies already issued (400-day owner cookie) to anyone who visited from the removed networks remain valid until revoked — separate step, explain to Yariv; (c) backup rotation decision from 22.09 still pending.
+
+## 2026-10-08 — PR #15 LIVE: owner list = home network only
+- Merged (e64a552); Cloudflare Pages production deployment **a6825c91**.
+- **Verified on production:** `/api/me` from this Mac over IPv6 (home /64) → `{"owner":true}`; over IPv4 (Hot dynamic, `5.29.17.x`, no longer listed) → `{"owner":false}` — expected after the trim. Home page still reads "where AI meets organizational practice".
+- Local `main` reconciled to `origin/main` without a force-push (it was 37 ahead / 48 behind: 36 dropped IP commits + the OneDrive commit already merged via #15). Local safety ref kept: `backup/local-main-36-ip-claims` (never pushed).
+- **STILL OPEN:** (a) owner cookies already issued to visitors from removed networks — explain revocation to Yariv; (b) OneDrive backup rotation (25 zips, ~8.9 GB, keeps growing every Monday) — decision pending.
