@@ -102,6 +102,22 @@ export class Audit {
       locale: 'en-US',
       timezoneId: 'Asia/Jerusalem',
     });
+    // `astro dev` injects its dev toolbar into every page; a build never
+    // ships it. Left running inside an audited page it reads as a site bug:
+    // on a cold dev server Vite reloads the page to optimise the toolbar's
+    // own entrypoint, the reload aborts the image fetch the toolbar's audit
+    // app was making, and it logs "Error while running audit's match
+    // function: TypeError: Failed to fetch" — a red HOME-no-errors
+    // (2026-09-22). Its shadow DOM also carries a <header> link to
+    // astro.build, which Playwright's selectors pierce, so HOME-nav probed
+    // it as site nav. Serving the entrypoint as an empty module means the
+    // audit sees the page that ships. Only astro-dev has the toolbar, and
+    // routing disables the HTTP cache, so the other substrates skip this.
+    if (this.substrate === 'astro') {
+      await this.ctx.route(/\/runtime\/client\/dev-toolbar\/entrypoint\.js/, (route) =>
+        route.fulfill({ status: 200, contentType: 'text/javascript', body: 'export {};' }),
+      );
+    }
     this.page = await this.ctx.newPage();
 
     // Universal error observers. Console/page errors / network failures

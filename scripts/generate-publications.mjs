@@ -723,7 +723,7 @@ function renderFrontMatter(fm) {
 
 // =============== PDF matching ===============
 
-const PDF_SOURCE_DIR = '/Users/yarivitzkovich/Library/CloudStorage/OneDrive-ariel.ac.il/Yariv/site-publications';
+const PDF_SOURCE_DIR = '/Users/yarivitzkovich/Library/CloudStorage/OneDrive-ariel.ac.il/Yariv/Applications/Website/site-publications';
 const PDF_OUT_DIR = join(ROOT, 'public/pdfs');
 mkdirSync(PDF_OUT_DIR, { recursive: true });
 

@@ -10,9 +10,10 @@
  *   PROD-home              GET / -> 200, HTML
  *   PROD-publications      GET /publications -> 200 (308 -> /publications/ ok)
  *   PROD-hebrew            GET /he/ -> 200, HTML
- *   PROD-api-me            GET /api/me -> 200, JSON { owner: false }
- *                          (this is the canary for Pages Functions actually
- *                          executing — if it 404s, deploy is broken)
+ *   PROD-api-me            GET /api/me -> 200, JSON { owner } equal to what
+ *                          production's OWNER_IPS says about this runner's
+ *                          address (this is the canary for Pages Functions
+ *                          actually executing — if it 404s, deploy is broken)
  *   PROD-live-totals       GET /live/totals -> 200, JSON with sinceLaunch
  *   PROD-live-events       GET /live/events?range=24h -> 200, JSON with events array
  *
@@ -24,7 +25,10 @@
  * file when you're iterating offline or don't want to hit the live
  * site for every gate run.
  */
-import { Audit } from '../audit-lib.mjs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import https from 'node:https';
+import { Audit, ROOT } from '../audit-lib.mjs';
 
 if (process.env.SKIP_PROD_SMOKE === '1' || process.argv.includes('--skip-prod')) {
   console.log('+  0s [prod-smoke] SKIPPED (SKIP_PROD_SMOKE or --skip-prod)');
@@ -118,21 +122,89 @@ async function probe(path, { wantJson = false, timeoutMs = 10_000 } = {}) {
 
 // ─── PROD-api-me ──────────────────────────────────────────────────
 // CANARY: if this 404s, the deploy is broken (Pages Functions not
-// attached). Any non-owner visitor should get JSON { owner: false }.
+// attached). The probe sends no cookie, so the owner flag can only come
+// from OWNER_IPS, and it must be exactly what production's own rules say
+// about this runner's address: true on one of Yariv's networks, false
+// anywhere else. The cell used to demand a flat owner:false, which turned
+// the gate red whenever it ran from his own wifi (2026-09-22) — production
+// was right and the cell was wrong.
+//
+// The address is the one Cloudflare reports at /cdn-cgi/trace, read over
+// the SAME TCP connection that then asks /api/me — Cloudflare sees one
+// source address per connection, so that is the only way to know which
+// address /api/me judged. Separate fetches are not enough: Happy Eyeballs
+// picks IPv6 or IPv4 per connection, and on 2026-09-22 a trace went out
+// over the home IPv4 (not an owner address) and the next one over IPv6.
+//
+// The rules are origin/main's — the branch production deploys — not the
+// working tree's, so a branch that edits OWNER_IPS is judged against what
+// is live until it ships. Without git, the working tree stands in.
+function getOnConnection(agent, path) {
+  return new Promise((resolve) => {
+    const req = https.get(`${PROD}${path}`, { agent, timeout: 10_000 }, (res) => {
+      const connection = `${res.socket.localAddress}:${res.socket.localPort}`;
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, contentType: res.headers['content-type'] || '', body, connection }));
+    });
+    req.on('timeout', () => req.destroy(new Error('timed out')));
+    req.on('error', (e) => resolve({ status: 0, body: '', error: e.message, connection: null }));
+  });
+}
+
+async function productionOwnerRules() {
+  const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  let authSrc, toml, source;
+  try {
+    authSrc = git('show', 'origin/main:functions/_lib/auth.js');
+    toml = git('show', 'origin/main:wrangler.toml');
+    source = `origin/main@${git('rev-parse', '--short', 'origin/main').trim()}`;
+  } catch {
+    authSrc = readFileSync(`${ROOT}/functions/_lib/auth.js`, 'utf8');
+    toml = readFileSync(`${ROOT}/wrangler.toml`, 'utf8');
+    source = 'the working tree (origin/main unreadable)';
+  }
+  const { isOwner } = await import('data:text/javascript,' + encodeURIComponent(authSrc));
+  const OWNER_IPS = toml.match(/^OWNER_IPS = "([^"]*)"/m)?.[1] ?? '';
+  // No OWNER_SECRET in this env, so isOwner answers from the address alone.
+  const ownerFor = (ip) => isOwner({ headers: new Headers({ 'cf-connecting-ip': ip }) }, { OWNER_IPS });
+  return { ownerFor, source };
+}
+
 {
-  audit.log('PROD-api-me: GET /api/me -> 200 { owner: false }');
-  const r = await probe('/api/me', { wantJson: true });
-  const shapeOk = r.json && typeof r.json.owner === 'boolean';
-  const nonOwnerSession = r.json?.owner === false;
+  audit.log("PROD-api-me: GET /api/me -> 200 { owner } as OWNER_IPS rules for this runner's address");
+  const rules = await productionOwnerRules();
+  // One keep-alive socket, so both requests share a connection. If the edge
+  // closed it in between, the pair is retried rather than guessed at.
+  const agent = new https.Agent({ keepAlive: true, maxSockets: 1 });
+  let trace, me;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    trace = await getOnConnection(agent, '/cdn-cgi/trace');
+    me = await getOnConnection(agent, '/api/me');
+    if (trace.connection && trace.connection === me.connection) break;
+  }
+  agent.destroy();
+
+  const ip = trace.body.match(/^ip=(.+)$/m)?.[1] ?? null;
+  const oneConnection = !!trace.connection && trace.connection === me.connection;
+  let json = null;
+  try { json = JSON.parse(me.body); } catch { /* leave null */ }
+  const httpOk = me.status === 200 && /application\/json/.test(me.contentType);
+  const shapeOk = json && typeof json.owner === 'boolean';
+  const expectedOwner = ip && oneConnection ? await rules.ownerFor(ip) : null;
+  const ownerOk = expectedOwner !== null && json?.owner === expectedOwner;
   audit.recordCell({
     id: 'PROD-api-me',
     tableRef: 'GET /api/me (Pages Function canary)',
-    expected: '200; application/json; body { owner: boolean }; non-owner session sees owner=false',
-    observed: `status=${r.status}, body=${JSON.stringify(r.json).slice(0, 80)}`,
-    pass: !!r.ok && shapeOk && nonOwnerSession,
-    notes: !r.ok ? `Status ${r.status} — Pages Function may be unbound. ${r.error || ''}` :
-           !shapeOk ? `Body shape wrong: ${r.bodyHead.slice(0, 100)}` :
-           !nonOwnerSession ? `Got owner=true from a clean session — auth gate broken?` : '',
+    expected: `200; application/json; body { owner: boolean }; owner=${expectedOwner ?? '?'} for ${ip ?? 'an unknown address'} per ${rules.source}`,
+    observed: `status=${me.status}, body=${me.body.slice(0, 80)}, ip=${ip}, sameConnection=${oneConnection}`,
+    pass: httpOk && shapeOk && ownerOk,
+    notes: !httpOk ? `Status ${me.status} ${me.contentType} — Pages Function may be unbound. ${me.error || ''}` :
+           !shapeOk ? `Body shape wrong: ${me.body.slice(0, 100)}` :
+           !ip ? `Could not read this runner's address from /cdn-cgi/trace (status ${trace.status}), so the expected owner flag is unknown.` :
+           !oneConnection ? `The trace and /api/me never shared a connection in 3 tries, so the address /api/me judged is unknown.` :
+           !ownerOk ? `owner=${json.owner}, but ${rules.source} says ${expectedOwner} for ${ip} — ${expectedOwner ? 'network recognition broken in production?' : 'auth gate letting a stranger in?'}` : '',
   });
 }
 
