@@ -38,3 +38,8 @@ Binding rule (same as family-tasks): during any working session the assistant ap
   **VERIFIED — every branch exercised, not assumed:** ✅ GREEN on the real persist path *while `wrangler pages dev` held the DB* (8/8 tables — proves no SQLite lock contention with the running substrate); ✅ **RED proven** against an empty throwaway persist path — named all 8 missing tables with their source migration files and printed the exact fix command with the right path interpolated, exit 1; ✅ `--fix` applied 0001→0009 to that throwaway path and a re-check went GREEN (full RED→fix→GREEN cycle); ✅ **the gate itself aborts** — with a broken D1 it exits **1 without running a single cell**; ✅ `--skip-migrations` bypass exits 0. Throwaway state deleted after each test; his real `/tmp/wrangler-yariv-state` was never modified by the tests.
   Also refreshed `scripts/audit/README.md` (the audit handoff doc): documented the pre-gate, and corrected a stale table that claimed **"38 cells across 11 suites"** while the gate actually runs 13 — suites `12-book-chapters` and `13-title-casing` had never been added. Now reads **42 cells across 13 suites + the pre-gate**, tagged v1.6.
   **VERIFIED: deploy gate 13/13 PASS with the preflight running first, exit 0.**
+
+## 2026-10-08 — START HERE typo: "where where" → "where"
+- Home page START HERE, third entry ("AI-driven evaluation of soft skills") read "where where AI meets organizational practice". Fixed in `src/data/start-here.ts` (one word removed; no other copy touched).
+- Branch `fix/start-here-where-where` off `origin/main`, PR opened. Merging to main = Cloudflare Pages deploy.
+- **STILL OPEN:** deploy gate not run for this one-word data-string change; merge the PR to ship it.
