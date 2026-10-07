@@ -55,3 +55,11 @@ Binding rule (same as family-tasks): during any working session the assistant ap
 
 ## 2026-10-08 — START HERE typo fix LIVE
 - PR #14 merged (30222e9); Cloudflare Pages production deployment **2b2bc416**. Verified on https://yarivitzkovich.org/: the entry now reads "where AI meets organizational practice". Nothing open from this fix.
+
+## 2026-10-08 — owner-list decisions made (Yariv: "all recommendations")
+- **(1) The six local IP commits: DROPPED.** Four were inside the home /64 already listed; two were Greek travel networks (Cosmote mobile, Nova). Branch rebuilt from `65f8486` and force-pushed (with lease). Note: they had been pushed to the public repo for a short time earlier today.
+- **(2) Daily claim job: OFF.** `launchctl bootout` + plist renamed to `~/Library/LaunchAgents/org.yarivitzkovich.claim-network.plist.disabled` so it does not reload at login. `scripts/claim-this-network.sh` left in the repo, unused.
+- **(3) OWNER_IPS trimmed** to `2a00:a041:e10e:f700::/64` (current home — verified this Mac's address is inside it). Removed: hostel, Pelephone mobile (v4 + /64), campus, a business line, three older Hot /64s and two Hot dynamic IPv4s.
+- origin/main merged in; LIVE-PROGRESS conflict resolved by keeping both sides.
+- **Deploy gate 13/13 PASS** (astro-dev :4323, headless).
+- **STILL OPEN:** (a) merge PR #15 → production; (b) cookies already issued (400-day owner cookie) to anyone who visited from the removed networks remain valid until revoked — separate step, explain to Yariv; (c) backup rotation decision from 22.09 still pending.
