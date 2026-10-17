@@ -1,0 +1,575 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { site } from '../../data/site';
+import { formatStatus, formatType } from '../../lib/publications';
+import nowData from '../../data/now.json';
+import { START_HERE } from '../../data/start-here';
+
+const allPubs = await getCollection('publications');
+const PUBLISHED = new Set(['published', 'in-press']);
+const published = allPubs.filter((e) => PUBLISHED.has(e.data.status));
+const selected = published
+  .filter((e) => e.data.featured)
+  .sort((a, b) => b.data.year - a.data.year);
+const totalPublications = published.length;
+
+const pairs = [];
+for (let i = 0; i < selected.length; i += 2) {
+  pairs.push([selected[i], selected[i + 1] ?? null]);
+}
+
+const fields = [
+  {
+    title: 'Workplace incivility & its transmission',
+    desc: 'How mistreatment travels through organizational hierarchies: from supervisors to subordinates, from bystanders to upstanders. Why one rude moment reshapes a team.',
+    count: '14 works',
+    href: '/publications?topics=incivility',
+  },
+  {
+    title: 'Bystander intervention & AI',
+    desc: 'Can artificial intelligence act as a real-time bystander to workplace harm? Testing AI-mediated interventions in organizational settings.',
+    count: '6 works',
+    href: '/publications?topics=bystander,ai',
+  },
+  {
+    title: 'Workplace bullying and its cascades',
+    desc: 'How bullying moves through teams, higher education, hospitals, and volunteer organizations: scoping reviews, tit-for-tat dynamics, and the bystanders drawn in alongside targets.',
+    count: '6 works',
+    href: '/publications?topics=bullying',
+  },
+];
+
+const nowItems = nowData.items;
+// "Last updated" auto-resolves to the build time so it always reflects
+// the most recent deploy. Format: "May 2026" — month + year is the
+// right granularity for a "where I'm at" section that drifts in
+// month-sized chunks. Falls back to the manually-set nowData.updatedAt
+// for non-production builds where deterministic output matters.
+const nowUpdated = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+
+// ─── PREVIEW ONLY ────────────────────────────────────────────────────────
+// Generated from src/pages/index.astro; everything below the hero is the
+// real page. /preview-portrait/a|b|c|d swaps only the hero treatment.
+export function getStaticPaths() {
+  return ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((variant) => ({ params: { variant } }));
+}
+const variant = Astro.params.variant as 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g';
+// B, D, E and F share the band layout; colour and depth differ.
+const banded = ['b', 'd', 'e', 'f', 'g'].includes(variant);
+// G earns its depth with content rather than padding: the credential numbers
+// join "At present" so the band lands in the same size family as the other
+// two coloured blocks instead of being padded out with empty colour.
+const bandMetrics = variant === 'g';
+const LABELS: Record<string, string> = {
+  a: 'A — cutout on the page background, standing on the rule',
+  b: 'B — figure in front of a full-width burgundy band',
+  c: "C — today's layout, new photo in the circle",
+  d: 'D — same band in the warm deep-cream tone',
+  e: 'E — band as a thin plinth (~200px) — clearly not a panel',
+  f: 'F — band at panel depth (~620px), padded out — matches the footer',
+  g: 'G — band carries only the self-updating figure (no Scholar numbers)',
+};
+---
+<BaseLayout title={`${site.name} — Research on workplace mistreatment & AI`}>
+  <style>
+    /* The cutout is a transparent PNG/WebP at 566×1448 (aspect ≈ 0.391), so it
+       drops onto whatever sits behind it — no frame, no crop, no matte. */
+    .hero { position: relative; }
+
+    /* The figure is its own layer, pinned to the right and running from under
+       the nav down to the hero's foot, so its height sizes it — not a column. */
+    .portrait-layer {
+      position: absolute;
+      top: 7rem;
+      bottom: 0;
+      /* Bleeds toward the viewport edge, never more than 4rem past the column. */
+      right: max(calc((100% - 100vw) / 2), -4rem);
+      display: flex;
+      align-items: stretch;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    .portrait-layer picture { display: block; height: 100%; }
+    .portrait-layer .portrait {
+      height: 100%;
+      width: auto;
+      display: block;
+      filter: drop-shadow(0 18px 30px rgba(26, 22, 18, 0.16));
+    }
+    :global(.dark) .portrait-layer .portrait {
+      filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.5));
+    }
+
+    /* Contact shadow so the figure stands on the rule instead of floating. */
+    .ground::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      bottom: -7px;
+      width: 100%;
+      height: 24px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(26, 22, 18, 0.20), rgba(26, 22, 18, 0) 70%);
+      pointer-events: none;
+    }
+    :global(.dark) .ground::after {
+      background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 70%);
+    }
+
+    /* B/D: a full-width band across the foot of the hero, bleeding edge to edge
+       out of the centred container. Padding matches the "Now" panel's
+       py-24 md:py-32 so the page's coloured rectangles share one system. */
+    .band {
+      margin-top: auto;
+      position: relative;
+      left: calc((100% - 100vw) / 2);
+      width: 100vw;
+      background: var(--panel);
+      color: var(--panel-text);
+      border-top: 1px solid var(--panel-divider);
+      border-bottom: 1px solid var(--panel-divider);
+    }
+    .band-inner {
+      width: 100%;
+      max-width: 72rem;
+      margin-inline: auto;
+      padding: 6rem 1.5rem;
+    }
+    .band-label { color: var(--panel-label); }
+    .band-metrics {
+      margin-top: 3.5rem;
+      padding-top: 2.5rem;
+      border-top: 1px solid var(--panel-divider);
+      max-width: 42rem;
+    }
+    .band-figure {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 300;
+      line-height: 1;
+      margin-bottom: 0.6rem;
+    }
+    .v-d .band-metrics { border-top-color: var(--divider); }
+    @media (min-width: 768px) {
+      .band-inner { padding: 8rem 2.5rem; }
+      /* E: a plinth the figure stands on — deliberately not a panel. */
+      .v-e .band-inner { padding-block: 3rem; }
+      /* F: panel depth, in the same family as the footer's block. */
+      .v-f .band-inner { padding-block: 16rem; }
+    }
+
+    /* D: the same band in the site's deeper cream, so the hero gains the depth
+       without a second burgundy mass above the "Now" panel. */
+    .v-d .band {
+      background: var(--color-exec-summary-bg);
+      color: var(--text);
+      border-color: var(--divider);
+    }
+    .v-d .band-label { color: var(--accent); }
+    :global(.dark) .v-d .band { background: #1A1713; color: var(--text); }
+
+    /* The figure reads in front of the band; everything else behind it.
+       Variant-agnostic on purpose — a per-variant list silently cut the
+       figure off at the band edge the moment a new variant was added. */
+    .hero .portrait-layer { z-index: 2; }
+    .hero .hero-inner { z-index: 1; }
+
+    /* C: the same 80px circle the hero uses today. */
+    .avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 9999px;
+      object-fit: cover;
+      box-shadow: 0 4px 20px rgba(26, 22, 18, 0.15);
+    }
+
+    @media (min-width: 768px) {
+      /* md:col-span-7 is not used anywhere else in the project, so Tailwind
+         never generates it — spell the spans out here instead. */
+      .col-text { grid-column: span 7 / span 7; }
+      .v-c .col-text { grid-column: span 8 / span 8; }
+      .v-c .col-side { grid-column: span 4 / span 4; }
+      .v-a .hero-inner, .v-b .hero-inner, .v-d .hero-inner,
+      .v-e .hero-inner, .v-f .hero-inner { min-height: 1210px; }
+      /* Pins the block to the foot of the hero so the slack the tall figure
+         creates sits between the two text blocks, not below them. */
+      .at-present { margin-top: auto; }
+    }
+
+    /* Under md there is no room beside the text, so the figure drops out of its
+       layer and back into flow, still standing on the hero's foot. */
+    @media (max-width: 767px) {
+      .hero { display: flex; flex-direction: column; }
+      .hero-inner { order: 0; }
+      .portrait-layer { position: static; order: 1; height: 420px; margin-top: 2.5rem; }
+      .hero-rule { order: 2; }
+      .band { order: 1; }
+    }
+
+    .variant-tag {
+      position: absolute;
+      top: 6.5rem;
+      left: 1.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-soft);
+      opacity: 0.55;
+      z-index: 3;
+    }
+    @media (min-width: 768px) { .variant-tag { left: 2.5rem; } }
+  </style>
+
+  <!-- Hero (preview) -->
+  <section data-hero class={`v-${variant} hero max-w-6xl mx-auto px-6 md:px-10 pb-0 ${variant === 'c' ? 'pt-40' : 'pt-32'}`}>
+    <div class="variant-tag">{LABELS[variant]}</div>
+
+    {variant !== 'c' && (
+      <div class={`portrait-layer ${variant === 'a' ? 'ground' : ''}`}>
+        <picture>
+          <source srcset="/images/portrait-full.webp" type="image/webp" />
+          <img
+            src="/images/portrait-full.png"
+            alt={site.name}
+            class="portrait"
+            width="566"
+            height="1448"
+            loading="eager"
+          />
+        </picture>
+      </div>
+    )}
+
+    <div class="hero-inner relative flex flex-col">
+      <h1
+        class="font-display leading-[0.95] tracking-tight"
+        style="font-size: clamp(2.5rem, 8vw, 6.5rem); font-weight: 300"
+      >
+        {site.name}.
+      </h1>
+
+      <div class="mt-8 md:mt-12 grid grid-cols-12 gap-6">
+        <div class="col-span-12 col-text">
+          <p class="font-display leading-snug" style="font-size: clamp(1.35rem, 2.8vw, 2.1rem); font-weight: 300">
+            I study how <em class="text-accent not-italic" style="font-style: italic">mistreatment</em> spills over in organizations, and whether AI can mitigate it.
+          </p>
+          <p class="mt-8 text-base leading-relaxed text-muted max-w-xl">{site.bio.en}</p>
+          {START_HERE.length >= 3 && (
+            <p class="mt-6 text-base leading-relaxed text-muted max-w-xl">
+              <span class="font-mono text-xs uppercase tracking-widest text-soft mr-2">Start here</span>
+              If you're new to the work, here are three good entry points:
+              <a href={`/publications/${START_HERE[0].slug}`} class="underline underline-offset-4" style="color: var(--text)">{START_HERE[0].label}</a> ({START_HERE[0].reason});
+              <a href={`/publications/${START_HERE[1].slug}`} class="underline underline-offset-4" style="color: var(--text)">{START_HERE[1].label}</a> ({START_HERE[1].reason}); and
+              <a href={`/publications/${START_HERE[2].slug}`} class="underline underline-offset-4" style="color: var(--text)">{START_HERE[2].label}</a> ({START_HERE[2].reason}).
+            </p>
+          )}
+        </div>
+
+        {variant === 'c' && (
+          <div class="col-span-12 col-side md:pt-4">
+            <img src="/images/portrait-avatar.jpg" alt={site.name} class="avatar mb-5" width="80" height="80" />
+            <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--accent)">At present</div>
+            <div class="space-y-2 text-sm" style="color: var(--accent)">
+              <div style="font-weight: 500">Associate Editor</div>
+              <div style="opacity: 0.85; font-style: italic">Journal of Managerial Psychology</div>
+              <div style="opacity: 0.75; padding-top: 0.5rem; border-top: 1px solid currentColor; margin-top: 0.5rem">{site.affiliation.en}</div>
+              <div style="opacity: 0.6">{site.location.en}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {variant === 'a' && (
+        <div class="at-present mt-12 pt-6 pb-14 border-t max-w-xl" style="border-color: var(--divider)">
+          <div class="font-mono text-xs uppercase tracking-widest mb-4" style="color: var(--accent)">At present</div>
+          <div class="grid grid-cols-2 gap-6 text-sm" style="color: var(--accent)">
+            <div class="space-y-1">
+              <div style="font-weight: 500">Associate Editor</div>
+              <div style="opacity: 0.85; font-style: italic">Journal of Managerial Psychology</div>
+            </div>
+            <div class="space-y-1">
+              <div style="opacity: 0.75">{site.affiliation.en}</div>
+              <div style="opacity: 0.6">{site.location.en}</div>
+              <a href="#" class="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest pt-1" style="opacity: 0.75">Full C.V. ↗</a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {banded && (
+        <div class="band grain">
+          <div class="band-inner">
+            <div class="grid grid-cols-12 gap-6">
+              <div class="col-span-12 md:col-span-2">
+                <div class="font-mono text-xs uppercase tracking-widest band-label">00</div>
+              </div>
+              <div class="col-span-12 md:col-span-10">
+                <div class="font-mono text-xs uppercase tracking-widest mb-5 band-label">At present</div>
+                <div class="grid grid-cols-2 gap-6 text-sm max-w-xl">
+                  <div class="space-y-1">
+                    <div style="font-weight: 500">Associate Editor</div>
+                    <div style="opacity: 0.85; font-style: italic">Journal of Managerial Psychology</div>
+                  </div>
+                  <div class="space-y-1">
+                    <div style="opacity: 0.8">{site.affiliation.en}</div>
+                    <div style="opacity: 0.6">{site.location.en}</div>
+                    {!bandMetrics && (
+                      <a href="#" class="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest pt-1" style="opacity: 0.8">Full C.V. ↗</a>
+                    )}
+                  </div>
+                </div>
+
+                {bandMetrics && (
+                  <div class="band-metrics">
+                    <div class="flex items-end gap-10 flex-wrap">
+                      <div>
+                        <div class="band-figure font-display">{totalPublications}</div>
+                        <div class="font-mono text-xs uppercase tracking-widest band-label">Published works</div>
+                      </div>
+                      <p class="text-sm max-w-xs" style="opacity: 0.75; padding-bottom: 0.4rem">
+                        Counted from the publication list on this site, so it is right at every build — no external service to go stale.
+                      </p>
+                    </div>
+                    <a
+                      href="#"
+                      class="inline-flex items-center justify-center gap-3 px-7 py-4 rounded-full text-base whitespace-nowrap border-2 border-current hover:opacity-80 transition-opacity"
+                      style="margin-top: 2.5rem"
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      Full C.V.
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+
+    {!banded && <div class="hero-rule h-px relative" style="background-color: var(--divider)"></div>}
+  </section>
+
+  {!banded && (
+  <div class="max-w-6xl mx-auto px-6 md:px-10">
+    <div class="h-px border-divider" style="background-color: var(--divider)"></div>
+  </div>
+  )}
+
+  {site.display.fieldsOfInquiry && fields.length > 0 && (
+    <section id="work" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+    <div class="grid grid-cols-12 gap-6 mb-16">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">01</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Fields of inquiry.</h2>
+      </div>
+    </div>
+
+    <div>
+      {fields.map((field) => (
+        <div class="grid grid-cols-12 gap-6 py-10 border-t" style="border-color: var(--divider)">
+          <div class="col-span-12 md:col-span-9">
+            <h3 class="font-display text-2xl md:text-3xl mb-3" style="font-weight: 400">{field.title}</h3>
+            <p class="text-muted max-w-lg">{field.desc}</p>
+          </div>
+          <div class="col-span-12 md:col-span-3 md:text-right">
+            <div class="font-mono text-xs uppercase tracking-widest text-soft mb-2">{field.count}</div>
+            <a href={field.href} class="inline-flex items-center gap-1 text-sm group">
+              <span class="border-b" style="border-color: currentColor">See papers</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+                <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+    </section>
+  )}
+
+  {site.display.now && nowItems.length > 0 && (
+    <section id="now" style="background-color: var(--panel); color: var(--panel-text); border-top: 1px solid var(--panel-divider); border-bottom: 1px solid var(--panel-divider)">
+    <div class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32 grain">
+      <div class="grid grid-cols-12 gap-6">
+        <div class="col-span-12 md:col-span-2">
+          <div class="font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label)">02</div>
+        </div>
+        <div class="col-span-12 md:col-span-10">
+          <h2 class="font-display text-4xl md:text-5xl mb-12" style="font-weight: 300">Currently.</h2>
+          <div class="grid md:grid-cols-3 gap-8">
+            {nowItems.map((item) => (
+              <div>
+                <div class="font-mono text-xs uppercase tracking-widest mb-3" style="color: var(--panel-label)">{item.label}</div>
+                <p class="font-display text-xl leading-snug mb-2" style="font-weight: 400">{item.title}</p>
+                <p class="text-sm" style="color: var(--panel-muted)">{item.note}</p>
+                {item.audio && (
+                  <audio controls preload="none" src={item.audio} class="w-full mt-3" style="margin-top: 12px"></audio>
+                )}
+                {item.link && (
+                  <a href={item.link.href} target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-sm mt-3 group">
+                    <span class="border-b" style="border-color: currentColor">{item.link.label}</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+                      <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                    </svg>
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <div class="mt-16 font-mono text-xs uppercase tracking-widest" style="color: var(--panel-label); opacity: 0.8">
+            Last updated: {nowUpdated}
+          </div>
+        </div>
+      </div>
+    </div>
+    </section>
+  )}
+
+  {site.display.selectedWriting && selected.length > 0 && (
+    <section id="writing" class="max-w-6xl mx-auto px-6 md:px-10 py-24 md:py-32">
+    <div class="grid grid-cols-12 gap-6 mb-12">
+      <div class="col-span-12 md:col-span-2">
+        <div class="font-mono text-xs uppercase tracking-widest text-soft">03</div>
+      </div>
+      <div class="col-span-12 md:col-span-10">
+        <div class="flex items-baseline justify-between flex-wrap gap-4 mb-4">
+          <h2 class="font-display text-4xl md:text-5xl" style="font-weight: 300">Selected writing.</h2>
+          <a href="/publications" class="inline-flex items-center gap-1 text-sm group">
+            <span class="border-b" style="border-color: currentColor">All {totalPublications} publications</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true">
+              <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+            </svg>
+          </a>
+        </div>
+        <p class="font-mono text-xs uppercase tracking-widest text-soft flex items-center gap-1.5">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Papers marked with a play badge include an audio companion. Click to listen.
+        </p>
+      </div>
+    </div>
+
+    <div
+      id="selected-rotator"
+      class="rotator"
+      aria-live="polite"
+    >
+      {pairs.map((pair, pairIndex) => (
+        <div
+          class={`rotator-item ${pairIndex === 0 ? 'is-visible' : ''}`}
+          data-index={pairIndex}
+          aria-hidden={pairIndex === 0 ? 'false' : 'true'}
+        >
+          <div class="grid md:grid-cols-2 md:gap-10">
+            {pair.map((entry) => {
+              if (!entry) return <div aria-hidden="true" />;
+              const statusLabel = formatStatus(entry.data.status);
+              return (
+                <a
+                  href={`/publications/${entry.data.slug}`}
+                  class="pub-row flex flex-col py-8 border-t cursor-pointer"
+                  style="border-color: var(--divider)"
+                >
+                  <div class="flex items-center gap-3 mb-2 flex-wrap">
+                    <span class="font-mono text-xs text-muted tabular-nums">{entry.data.year}</span>
+                    <span class="font-mono text-xs uppercase tracking-widest text-soft">{formatType(entry.data.type)}</span>
+                    {statusLabel && (
+                      <span class="font-mono text-[10px] uppercase tracking-widest px-2 py-0.5 rounded" style="background-color: var(--color-accent); color: var(--color-bg)">
+                        {statusLabel}
+                      </span>
+                    )}
+                  </div>
+                  <h3 class="pub-title font-display text-xl md:text-2xl leading-snug mb-2" style="font-weight: 400">{entry.data.title}</h3>
+                  <p class="text-sm text-muted italic mb-3">{entry.data.venue}</p>
+                  <div class="mt-auto flex items-center justify-between">
+                    {entry.data.podcast?.available ? (
+                      <span class="font-mono text-[10px] uppercase tracking-widest text-soft flex items-center gap-1">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Podcast available
+                      </span>
+                    ) : <span />}
+                    <svg class="pub-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M7 7h10v10"/><path d="M7 17 17 7"/>
+                    </svg>
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+    {pairs.length > 1 && (
+      <div id="selected-rotator-controls" class="mt-6 flex items-center gap-3">
+        {pairs.map((_, i) => (
+          <button
+            type="button"
+            class={`rotator-dot ${i === 0 ? 'is-active' : ''}`}
+            data-dot-index={i}
+            aria-label={`Show featured pair ${i + 1} of ${pairs.length}`}
+          />
+        ))}
+        <span
+          class="ml-4 font-mono text-[11px] uppercase tracking-widest text-soft tabular-nums"
+          id="selected-rotator-counter"
+        >
+          01 / {String(pairs.length).padStart(2, '0')}
+        </span>
+      </div>
+    )}
+    <script is:inline define:vars={{ intervalMs: 9000 }}>
+      (() => {
+        const rotator = document.getElementById('selected-rotator');
+        if (!rotator) return;
+        const items = Array.from(rotator.querySelectorAll('.rotator-item'));
+        if (items.length <= 1) return;
+        const dots = Array.from(document.querySelectorAll('#selected-rotator-controls .rotator-dot'));
+        const counter = document.getElementById('selected-rotator-counter');
+        let idx = 0;
+        let timer = null;
+
+        const go = (next) => {
+          const target = (next + items.length) % items.length;
+          if (target === idx) return;
+          items[idx].classList.remove('is-visible');
+          items[idx].setAttribute('aria-hidden', 'true');
+          idx = target;
+          items[idx].classList.add('is-visible');
+          items[idx].setAttribute('aria-hidden', 'false');
+          dots.forEach((d, i) => d.classList.toggle('is-active', i === idx));
+          if (counter) counter.textContent = `${String(idx + 1).padStart(2, '0')} / ${String(items.length).padStart(2, '0')}`;
+        };
+
+        const start = () => {
+          stop();
+          timer = setInterval(() => go(idx + 1), intervalMs);
+        };
+        const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+        rotator.addEventListener('mouseenter', stop);
+        rotator.addEventListener('mouseleave', start);
+        rotator.addEventListener('focusin', stop);
+        rotator.addEventListener('focusout', start);
+        dots.forEach((dot, i) => {
+          dot.addEventListener('click', () => { go(i); start(); });
+        });
+
+        // Pause while tab is backgrounded so the rotation doesn't "skip ahead"
+        // invisibly; resume on return.
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) stop();
+          else start();
+        });
+
+        start();
+      })();
+    </script>
+    </section>
+  )}
+</BaseLayout>
