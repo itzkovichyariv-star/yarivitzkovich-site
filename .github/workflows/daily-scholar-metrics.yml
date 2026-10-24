@@ -1,0 +1,108 @@
+name: Daily Scholar metrics
+
+# Refreshes the three profile-level numbers (citations, h-index, i10-index)
+# in src/data/metrics.json, once a day.
+#
+# HOW THIS DIFFERS FROM "Daily Scholar sync"
+# ------------------------------------------
+#   daily-scholar-sync.yml drives scholar-sync.py, which asks `scholarly` for
+#   the publications section too. With 48 papers that pages through the
+#   profile, so a "profile fetch" is really several requests plus an author
+#   lookup. Its schedule was disabled on 2026-05-29 for failing nearly every
+#   run from a GitHub runner.
+#
+#   This job fetches the profile page ONCE and reads only the stats box. That
+#   is a materially smaller footprint than the job that failed, so it is worth
+#   finding out whether it survives where the heavier one did not. It does NOT
+#   touch per-paper counts or self-citations — Google Scholar via the manual
+#   console script (scripts/scholar-console.js) remains the source of truth
+#   for those, exactly as before.
+#
+#   Neither step signs in. The stats box is public, and the old job's failures
+#   were never auth errors — they were IP-reputation blocks. Putting a Google
+#   password in Actions secrets would not fix that, and automated sign-ins from
+#   runner IPs get accounts flagged, so this stays anonymous on purpose.
+#
+# TWO ATTEMPTS, CHEAPEST FIRST
+# ----------------------------
+#   Step 1 is a plain GET. If it comes back challenged, step 2 replays the same
+#   single page load through headless Chromium, which carries a real browser
+#   fingerprint (JS, TLS profile, full header set). That covers the half of the
+#   problem that is detection; it cannot change the runner's datacenter IP,
+#   which is the other half. If both are blocked for a week, the answer is a
+#   residential proxy (SCRAPER_API_KEY), not more scraping code.
+#
+# WHY IT DOES NOT GO RED WHEN BLOCKED
+# -----------------------------------
+#   The script exits 0 and writes nothing when Google challenges it, printing
+#   the reason to the run summary. The previous job was switched off for being
+#   "red daily and generating noise"; a job that cannot be ignored is a job
+#   that gets disabled. Blocked days are visible in the summary, and the
+#   consequence is enforced on the site instead: metrics.googleScholar.updatedAt
+#   stops advancing, and src/lib/metrics.ts hides the figures once the stamp is
+#   more than 7 days old.
+#
+# IF IT TURNS OUT TO BE BLOCKED EVERY DAY
+#   Set the SCRAPER_API_KEY secret and switch this to route through it, or
+#   drop Scholar from the site and show OpenAlex (update-metrics.yml), which
+#   is unblocked but weekly and counts a smaller citation graph.
+#
+# Manual trigger: Actions tab → Daily Scholar metrics → Run workflow.
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC — an hour before the other data jobs
+  workflow_dispatch:
+
+concurrency:
+  group: scholar-metrics
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Read the Scholar profile stats box (plain request)
+        run: node scripts/scholar-profile-metrics.mjs --via=fetch
+
+      # Only worth paying for a browser download when the cheap path came back
+      # empty — git reports whether step 1 actually wrote anything.
+      - name: Did the plain request update anything?
+        id: plain
+        run: |
+          if git diff --quiet src/data/metrics.json; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Chromium
+        if: steps.plain.outputs.updated == 'false'
+        run: |
+          npm ci --omit=optional --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Retry through headless Chromium
+        if: steps.plain.outputs.updated == 'false'
+        run: node scripts/scholar-profile-metrics.mjs --via=browser
+
+      - name: Commit if the numbers moved
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/metrics.json
+          if git diff --staged --quiet; then
+            echo "metrics.json unchanged — nothing to commit."
+          else
+            git commit -m "chore: refresh Google Scholar profile metrics"
+            git push
+          fi
